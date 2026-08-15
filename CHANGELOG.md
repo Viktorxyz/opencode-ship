@@ -2,7 +2,58 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## 1.1.1 — Stabilization + first self-hosting release (UNRELEASED)
+
+This release repairs the consumer-readiness gaps that made
+`1.1.0` unsuitable as a self-hosting control plane:
+
+- Engineering is the only shipped profile. New CLI selection of
+  the legacy `core` profile is rejected with exit 2; persisted
+  `core` configs and locks migrate to engineering on read.
+- Lock schema v4 adds `manager.setupComplete` and removes
+  `cleanupPending` from the install lock (cleanup retry now
+  lives under the Git common directory).
+- Workflow agents carry `<model-from-config>` placeholders; the
+  installer renders the configured `workflow.models` at install
+  time so a model change updates exactly the affected agent
+  files. The lock pins the rendered sha256.
+- Default-deny consumers can run the full controller flow
+  without manual permission patching. The installer no longer
+  owns the Plan Mode permission block; consumers configure it
+  via the built-in Plan agent. Subagent depth is pinned to 2.
+- The workflow state machine handles every documented event
+  kind (including the previously-missing `task-report`,
+  `final-review`, `ready-pending`, `all-tasks-done`).
+- Engineering Ready requires Standards and Spec final reviews
+  bound to the same HEAD and package hash, with `verdict: pass`
+  on both axes. Legacy single-review manifests continue to
+  fall through to the legacy gate.
+- Trusted-auto skill discovery installs from a configurable
+  allowlist with immutable provenance; skills land in the
+  active issue worktree under `.opencode/skills/<name>/` and
+  are recorded in `.opencode/ship.skills.lock.json`.
+- The `/setup-ship-workflow` skill is single (the legacy
+  duplicate `setup-engineering-workflow` is removed); it is
+  GitHub-only in `1.1.1` and routes model selection through
+  the existing CLI update transaction.
+- Release qualification pipeline runs the packed self-hosting
+  E2E end-to-end instead of just extracting the tarball.
+- Test contract: zero filename-disabled tests in the test
+  runner; tracked `tsconfig.dts.json` removed.
+
+See `docs/release/1.1.1-stabilization-plan.md` for the full plan
+and issue #40 for the bounded evidence ledger.
+
 ## 1.1.0 — Engineering-only, easy setup, skill discovery (2026-08-08)
+
+> **Known gap:** `1.1.0` is the published `latest` but it does
+> not yet pass a real registry dogfood with real OpenCode,
+> GitHub, and models; the workflow surface ships in pieces
+> (skill discovery is dead code, the dual final review is not
+> enforced, and the Plan Mode permission is installer-owned).
+> `1.1.1` is the first fully self-hosting release and should be
+> preferred once it is on `npm dist-tag latest`. The 1.1.0
+> tarball remains available for pinned consumers.
 
 Stable release. Promoted to `npm dist-tag latest` after the
 qualification pipeline passed green on every matrix lane
