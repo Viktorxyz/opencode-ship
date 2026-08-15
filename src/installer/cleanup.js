@@ -6,21 +6,24 @@
  * as it observes that state, so the agent-owned worktree, the local
  * branch, and the manifest are removed without further user action.
  *
- * If a step fails we record the failure in
- * `.opencode/ship.lock.json#cleanupPending` so the next delivery
- * task or plugin startup retries. Cleanup is always precondition
- * bound: merged PR, manifest-owned worktree inside the configured
- * root, clean state, expected HEAD, no rebase, no unpublished
- * commits, and worktree path under the configured worktree.root.
+ * If a step fails we record the failure under
+ * `<git-common-dir>/opencode-ship/cleanup-pending.json` so the
+ * next delivery task or plugin startup retries. Cleanup retry state
+ * lives in the Git common dir rather than the install lock so the
+ * install lock stays a pure install-provenance record and a failed
+ * cleanup never dirties a tracked control-plane file.
+ *
+ * Cleanup is always precondition bound: merged PR, manifest-owned
+ * worktree inside the configured root, clean state, expected HEAD,
+ * no rebase, no unpublished commits, and worktree path under the
+ * configured worktree.root.
  */
 
 import { spawnSync } from "node:child_process";
 import { resolve as pathResolve } from "node:path";
 import { listManifests, readManifest, writeManifest, deleteManifest } from "../state/manifest-store.js";
-import { setPointer, getPointer } from "./json-pointer.js";
-import { stableStringify } from "./json-pointer.js";
-import { bytesHashString } from "./hash.js";
-import { readLock, lockPath } from "./lock.js";
+import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
 function spawn(repoRoot, args) {
   const r = spawnSync("git", ["-C", repoRoot, ...args], { encoding: "utf8" });
@@ -29,7 +32,7 @@ function spawn(repoRoot, args) {
 
 function casDeleteBranch(repoRoot, branch, expectedSha) {
   const argv = ["update-ref", "-d"];
-  if (expectedSha && /^[0-9a-f]{7,}$/i.test(expectedSha)) {
+  if (expectedSha && /^[0-9f]{7,}$/i.test(expectedSha)) {
     argv.push(`refs/heads/${branch}`, expectedSha);
   } else {
     argv.push(`refs/heads/${branch}`);
@@ -46,21 +49,35 @@ function worktreeRootOf(adapter) {
   return adapter?.worktree?.root ?? ".worktrees";
 }
 
-async function loadLockMemo(repoRoot) {
-  return readLock(repoRoot);
+function cleanupPendingPathSync(repoRoot) {
+  const commonDir = pathResolve(repoRoot, ".git");
+  if (!existsSync(commonDir)) return null;
+  const path = pathResolve(commonDir, "opencode-ship", "cleanup-pending.json");
+  return path;
 }
 
-async function writeLockMemo(repoRoot, lock) {
-  const { writeLock: writer } = await import("./lock.js");
-  await writer(repoRoot, lock);
+async function cleanupPendingPath(repoRoot) {
+  const common = await resolveGitCommonDir(repoRoot);
+  return pathResolve(opencodeShipStateDir(common), "cleanup-pending.json");
 }
 
-async function appendCleanupPending(repoRoot, entry) {
-  const lock = await loadLockMemo(repoRoot);
-  if (!lock) return null;
-  const next = [...(lock.cleanupPending ?? []), entry];
-  await writeLockMemo(repoRoot, { ...lock, cleanupPending: dedupePending(next) });
-  return lock;
+async function loadCleanupPending(repoRoot) {
+  const path = await cleanupPendingPath(repoRoot);
+  if (!existsSync(path)) return [];
+  try {
+    const raw = await readFileSync(path, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveCleanupPending(repoRoot, entries) {
+  const path = await cleanupPendingPath(repoRoot);
+  const dir = pathResolve(path, "..");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(path, JSON.stringify(dedupePending(entries), null, 2) + "\n", "utf8");
 }
 
 function dedupePending(entries) {
@@ -73,6 +90,13 @@ function dedupePending(entries) {
     out.push(e);
   }
   return out;
+}
+
+async function appendCleanupPending(repoRoot, entry) {
+  const current = await loadCleanupPending(repoRoot);
+  const next = [...current, entry];
+  await saveCleanupPending(repoRoot, next);
+  return next;
 }
 
 function reject(reason, extra = {}) {

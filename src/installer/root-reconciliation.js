@@ -71,10 +71,14 @@ export const PLAN_MODE_POINTER = "/agent/plan/permission";
  * @returns {RootPointerDescriptor[]}
  */
 export function desiredPointersForProfile(profile) {
+  // From 1.1.0 the active profile is always engineering. Legacy
+  // core installs promote to engineering, so all Build-agent
+  // permission pointers are engineering-scoped. Legacy core
+  // pointer records in existing locks are read-promoted too.
   const out = POINTER_ENTRIES.map((entry) => ({
     pointer: entry.pointer,
     strategy: /** @type {"value" | "object-entry" | "array-member"} */ (entry.strategy),
-    scope: /** @type {Profile} */ ("core"),
+    scope: /** @type {Profile} */ ("engineering"),
     value: entry.value,
   }));
   if (profile === "engineering") {

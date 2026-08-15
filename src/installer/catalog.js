@@ -185,12 +185,19 @@ export const CATALOG = [
 
 /**
  * Return only the catalog entries that ship under the given
- * profile. Engineering must be a superset of core (no profile
- * can drop a core-only asset without a deprecated tag).
+ * profile. From 1.1.0 only `engineering` is shipped; the legacy
+ * `core` value is mapped to `engineering` so persisted config/lock
+ * files load through the read path.
  */
 export function filterCatalogByProfile(catalog, profile) {
-  const effective = profile === undefined || profile === null ? DEFAULT_PROFILE : profile;
-  if (!isValidProfile(effective)) {
+  const effective = profile === undefined || profile === null
+    ? DEFAULT_PROFILE
+    : isValidProfile(profile)
+      ? profile
+      : profile === "core"
+        ? DEFAULT_PROFILE
+        : null;
+  if (effective === null) {
     throw new Error(
       `filterCatalogByProfile: unknown profile '${profile}' (expected one of: ${PROFILES.join(", ")})`,
     );

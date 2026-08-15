@@ -43,13 +43,13 @@ function sealIntegrity(lock) {
 }
 
 test("CURRENT_LOCK_SCHEMA: declared and stable", () => {
-  // Schema was bumped to 3 when root pointer records learned the
-  // `scope` field and the installer became fully reversible across
-  // profile transitions and uninstall. v1 and v2 locks still
-  // validate; see lock-profile.test.mjs for the dedicated legacy
-  // assertions and root-restoration.test.mjs for the v3 contract.
-  assert.equal(CURRENT_LOCK_SCHEMA, 3);
-  assert.equal(lockSchemaRevision(), 3);
+  // Schema was bumped to 4 when setup-complete tracking moved
+  // from the installer's runtime into the lock and the cleanup
+  // retry state moved out into the Git common directory.
+  // v1/v2/v3 locks still validate; see lock-profile.test.mjs
+  // for the dedicated legacy assertions.
+  assert.equal(CURRENT_LOCK_SCHEMA, 4);
+  assert.equal(lockSchemaRevision(), 4);
 });
 
 test("validateLock: null lock is treated as a fresh install", () => {

@@ -9,8 +9,8 @@
     "schemaVersion": { "enum": [1, 2] },
     "profile": {
       "type": "string",
-      "enum": ["engineering"],
-      "description": "Active profile. Engineering is the only supported profile in 1.1.0."
+      "enum": ["engineering", "core"],
+      "description": "Active profile. Engineering is the only supported profile in 1.1.0; core is accepted on read for legacy consumer migration."
     },
     "owner": {
       "type": "string",

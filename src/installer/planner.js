@@ -240,7 +240,13 @@ export async function planUninstall({ repoRoot, lock }) {
 
 export async function planConfigSynthesis({ repoRoot, detection, lock, forceOverwrite, migrationSeed = null, models = null }) {
   const existing = await loadConfig(repoRoot);
-  if (existing?.ok && !forceOverwrite) {
+  const hasModelFlags = Boolean(models && (models.planner || models.builder || models.finalReviewer));
+  // Model flags always patch the existing config so the lock
+  // reflects the live model snapshot. This is not "force
+  // overwrite" — unrelated fields are preserved — but it does
+  // require writing the config back. Other updates still need
+  // forceOverwrite.
+  if (existing?.ok && !forceOverwrite && !hasModelFlags) {
     return {
       kind: "noop",
       op: "config",
@@ -252,9 +258,10 @@ export async function planConfigSynthesis({ repoRoot, detection, lock, forceOver
       reason: "user config already present",
     };
   }
-  let desiredValue = migrationSeed ?? renderDefaultConfig(detection);
-  if (models && (models.planner || models.builder || models.finalReviewer)) {
-    const merged = {
+  let desiredValue = migrationSeed
+    ?? (existing?.ok ? structuredClone(existing.value) : renderDefaultConfig(detection));
+  if (hasModelFlags) {
+    desiredValue = {
       ...desiredValue,
       schemaVersion: 2,
       profile: "engineering",
@@ -272,13 +279,15 @@ export async function planConfigSynthesis({ repoRoot, detection, lock, forceOver
         },
       },
     };
-    desiredValue = merged;
   }
+  if (desiredValue.profile === "core") desiredValue.profile = "engineering";
   const desiredJson = JSON.stringify(desiredValue, null, 2) + "\n";
   const desiredSha = bytesHashString(desiredJson);
-  const kind = existing?.ok && forceOverwrite ? "update" : "create";
+  const kind = existing?.ok && (forceOverwrite || hasModelFlags) ? "update" : "create";
   const reason = existing?.ok
-    ? "user config overwritten via --force-config"
+    ? hasModelFlags && !forceOverwrite
+      ? "patching workflow.models from CLI model flags"
+      : "user config overwritten via --force-config"
     : migrationSeed
       ? "synthesising a default config from legacy adapter migration"
       : "synthesising a default config from detection";
@@ -298,13 +307,13 @@ export async function planConfigSynthesis({ repoRoot, detection, lock, forceOver
 export async function planRootConfigApply({ repoRoot, lock, forceRepair, planMode = null }) {
   const previous = (lock?.manager?.rootDocuments ?? []).flatMap((d) => d.pointers ?? []);
   const previousProfile = lock?.manager?.profile ?? null;
-  // The desired profile is derived from the planMode hint passed by
-  // the executor (which is the resolved profile from the precedence
-  // chain). The previous lock's profile drives the transition
-  // decision: if the previous lock was under a different profile
-  // than the resolved one, this is a profile transition.
-  const desiredProfile = (planMode && planMode.scope === "engineering") ? "engineering" : "core";
-  const isTransition = previousProfile !== null && previousProfile !== desiredProfile;
+  // From 1.1.0 the only profile is engineering; legacy "core"
+  // profiles promote to engineering. The desired profile is
+  // always engineering for the active install.
+  const desiredProfile = "engineering";
+  const isTransition = previousProfile !== null
+    && previousProfile !== "engineering"
+    && previousProfile !== "core";
   const mode = previous.length === 0 ? "install" : (isTransition ? "profile-transition" : "install");
   return planRootReconciliation({
     repoRoot,

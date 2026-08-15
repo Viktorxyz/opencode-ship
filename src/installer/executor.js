@@ -81,12 +81,27 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
   });
 
   // The engineering profile is the only supported profile in 1.1.0.
-  // Models are no longer required at install time: the user can
-  // either pass --planner-model/--builder-model/--final-reviewer-model
-  // flags or fill them in interactively via the setup-ship-workflow
-  // skill that runs after `init`. The approval block is always
-  // synthesised by the installer because it has no user-tunable
-  // values.
+  // The one-liner flow (no model flags) succeeds with the
+  // setup-pending marker; the user finishes setup via
+  // /setup-ship-workflow. --force-config however requires explicit
+  // models for every role because it bypasses the default
+  // synthesis — refusing prevents a half-configured engineering
+  // install.
+  if (resolved.profile === "engineering" && forceConfig) {
+    const existingModels = configValue?.workflow?.models ?? {};
+    const planner = models?.planner ?? existingModels.planner;
+    const builder = models?.builder ?? existingModels.builder;
+    const finalReviewer = models?.finalReviewer ?? existingModels.finalReviewer;
+    if (!planner || !builder || !finalReviewer) {
+      return {
+        ok: false,
+        error: {
+          kind: "engineering-models-required",
+          message: "engineering profile with --force-config requires --planner-model, --builder-model, and --final-reviewer-model",
+        },
+      };
+    }
+  }
   if (resolved.profile === "engineering") {
     const candidate = await planConfigSynthesis({
       repoRoot, detection, lock, forceOverwrite: Boolean(forceConfig),
@@ -142,7 +157,7 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
   // the setup-ship-workflow skill on success.
   const setupPending = resolved.profile === "engineering"
     && !lock?.manager?.setupComplete
-    && !hasCompletedModels(configValue?.workflow?.models ?? {})
+    && !hasCompletedModels(configValue)
     && !models?.planner;
 
   const plan = [...(filePlan ?? []), ...staleFilePlan, ...migrationPlan, configPlan, rootPlan];
@@ -237,10 +252,14 @@ async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profil
   // tells the controller that dispatch can begin; the absence of
   // this flag (or setupPending=true in the preview) forces the
   // ship-deliver controller to route through /setup-ship-workflow.
-  const configModels = configPlan?.configValue?.workflow?.models
-    ?? lock?.manager?.config?.models
-    ?? {};
-  const completedModels = hasCompletedModels({ workflow: { models: configModels } });
+  const assembledConfig = configPlan?.configValue
+    ?? (lock?.manager?.config?.models
+      ? { workflow: { models: lock.manager.config.models } }
+      : null);
+  const completedModels = hasCompletedModels(assembledConfig);
+  const resolvedProfile = profile
+    ?? (lock?.manager?.profile === "core" ? "engineering" : lock?.manager?.profile)
+    ?? "engineering";
 
   return {
     contractVersion: CURRENT_LOCK_SCHEMA,
@@ -249,7 +268,7 @@ async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profil
       name: "opencode-ship",
       version: process.env.OPENCODE_SHIP_VERSION ?? PACKAGE_VERSION,
       templateSet: TEMPLATE_SET_ID,
-      profile: profile ?? lock?.manager?.profile,
+      profile: resolvedProfile,
       appliedAt: new Date().toISOString(),
       setupComplete: completedModels,
       config: {
@@ -266,7 +285,6 @@ async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profil
       }] : [],
     },
     files,
-    cleanupPending: lock?.cleanupPending ?? [],
   };
 }
 

@@ -1,23 +1,19 @@
 /*
  * Neutral consumer qualification.
  *
- * The qualification covers the basic consumer lifecycle on a
- * packed tarball:
- *   - core init from a fresh repository
- *   - core → engineering transition
- *   - engineering → core downgrade
+ * From 1.1.0 the only shipped profile is engineering. The
+ * qualification covers the basic consumer lifecycle on a packed
+ * tarball:
+ *   - engineering init with explicit models
+ *   - engineering init without models fails before any write
+ *   - partial models also fail
+ *   - doctor reports a healthy engineering footprint
  *   - uninstall restores the preinstall state
  *
  * The transition matrix is exercised end-to-end against a
- * tarball built from the current source tree so a regression
- * in the installer's transaction layer surfaces before the
+ * tarball built from the current source tree so a regression in
+ * the installer's transaction layer surfaces before the
  * maintainer reaches for `npm publish`.
- *
- * The full neutral-dogfood (with planning, compaction, mirror
- * restore, and final review) is covered by the 0.10.0
- * registry-sourced dogfood in Task 14. This file is the unit-
- * level qualification that runs in `npm run verify` on every
- * commit.
  */
 
 import test from "node:test";
@@ -67,7 +63,7 @@ async function makeConsumerRepo(origin) {
   return dir;
 }
 
-test("neutral: core init from a packed tarball on a fresh repo succeeds", async (t) => {
+test("neutral: engineering init from a packed tarball on a fresh repo succeeds", async (t) => {
   const { tmp, consumer, packageDir } = await packAndExtract();
   t.after(async () => rm(tmp, { recursive: true, force: true }));
   const origin = await makeBareOrigin();
@@ -75,12 +71,39 @@ test("neutral: core init from a packed tarball on a fresh repo succeeds", async 
   const repo = await makeConsumerRepo(origin);
   t.after(async () => rm(repo, { recursive: true, force: true }));
 
-  const r = spawnSync("node", [join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json"], { encoding: "utf8" });
+  const r = spawnSync("node", [
+    join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json",
+    "--profile", "engineering",
+    "--planner-model", "fake/strong-planner",
+    "--builder-model", "fake/cheap-builder",
+    "--final-reviewer-model", "fake/strong-reviewer",
+    "--force-config",
+  ], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   assert.ok(existsSync(join(repo, ".opencode/plugins/opencode-ship.js")));
   assert.ok(existsSync(join(repo, ".opencode/ship.lock.json")));
   const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
-  assert.equal(lock.manager.profile, "core");
+  assert.equal(lock.manager.profile, "engineering");
+  assert.equal(lock.manager.setupComplete, true);
+});
+
+test("neutral: engineering init without explicit --profile defaults to engineering", async (t) => {
+  const { tmp, consumer, packageDir } = await packAndExtract();
+  t.after(async () => rm(tmp, { recursive: true, force: true }));
+  const origin = await makeBareOrigin();
+  t.after(async () => rm(origin, { recursive: true, force: true }));
+  const repo = await makeConsumerRepo(origin);
+  t.after(async () => rm(repo, { recursive: true, force: true }));
+
+  const r = spawnSync("node", [
+    join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json",
+    "--planner-model", "fake/strong-planner",
+    "--builder-model", "fake/cheap-builder",
+    "--final-reviewer-model", "fake/strong-reviewer",
+  ], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
+  assert.equal(lock.manager.profile, "engineering");
 });
 
 test("neutral: engineering init records the Plan Mode pointer", async (t) => {
@@ -91,10 +114,6 @@ test("neutral: engineering init records the Plan Mode pointer", async (t) => {
   const repo = await makeConsumerRepo(origin);
   t.after(async () => rm(repo, { recursive: true, force: true }));
 
-  // The engineering profile requires explicit models before any
-  // write. The fail-closed planner leaves the project in core
-  // state when the models are missing, so the test must supply
-  // them via the available CLI flags.
   const r = spawnSync("node", [
     join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json",
     "--profile", "engineering",
@@ -111,7 +130,7 @@ test("neutral: engineering init records the Plan Mode pointer", async (t) => {
   assert.equal(planMode.scope, "engineering");
 });
 
-test("neutral: engineering -> core removes the Plan Mode pointer and engineering files", async (t) => {
+test("neutral: uninstall removes the lock and the managed files", async (t) => {
   const { tmp, consumer, packageDir } = await packAndExtract();
   t.after(async () => rm(tmp, { recursive: true, force: true }));
   const origin = await makeBareOrigin();
@@ -121,33 +140,10 @@ test("neutral: engineering -> core removes the Plan Mode pointer and engineering
 
   const r1 = spawnSync("node", [
     join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json",
-    "--profile", "engineering",
     "--planner-model", "fake/strong-planner",
     "--builder-model", "fake/cheap-builder",
     "--final-reviewer-model", "fake/strong-reviewer",
-    "--force-config",
   ], { encoding: "utf8" });
-  assert.equal(r1.status, 0, r1.stderr);
-  assert.ok(existsSync(join(repo, ".opencode/skills/triage/SKILL.md")));
-
-  const r2 = spawnSync("node", [join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json", "--profile", "core"], { encoding: "utf8" });
-  assert.equal(r2.status, 0, r2.stderr);
-  assert.equal(existsSync(join(repo, ".opencode/skills/triage/SKILL.md")), false, "engineering skill must be removed on downgrade");
-  const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
-  const pointers = (lock.manager?.rootDocuments ?? []).flatMap((d) => d.pointers ?? []);
-  const planMode = pointers.find((p) => p.pointer === "/agent/plan/permission");
-  assert.equal(planMode, undefined, "Plan Mode pointer must be removed on downgrade");
-});
-
-test("neutral: uninstall removes the lock and the managed files", async (t) => {
-  const { tmp, consumer, packageDir } = await packAndExtract();
-  t.after(async () => rm(tmp, { recursive: true, force: true }));
-  const origin = await makeBareOrigin();
-  t.after(async () => rm(origin, { recursive: true, force: true }));
-  const repo = await makeConsumerRepo(origin);
-  t.after(async () => rm(repo, { recursive: true, force: true }));
-
-  const r1 = spawnSync("node", [join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json"], { encoding: "utf8" });
   assert.equal(r1.status, 0, r1.stderr);
   const r2 = spawnSync("node", [join(packageDir, "dist/cli.js"), "uninstall", "--root", repo, "--json"], { encoding: "utf8" });
   assert.equal(r2.status, 0, r2.stderr);
@@ -156,21 +152,13 @@ test("neutral: uninstall removes the lock and the managed files", async (t) => {
 });
 
 function ghAuthToken() {
-  // The doctor `gh auth status` check refuses to run unless
-  // GH_TOKEN / GITHUB_TOKEN is set in the environment, even when
-  // the host has a valid keyring session. The neutral-consumer
-  // qualification therefore has to materialise a real token from
-  // the existing keyring session so the doctor check has a
-  // chance to exit 0. CI runners must wire `${{
-  // secrets.GITHUB_TOKEN }}` (or equivalent) into
-  // `OPENCODE_SHIP_GH_TOKEN`; otherwise the test self-skips.
   if (process.env.OPENCODE_SHIP_GH_TOKEN) return process.env.OPENCODE_SHIP_GH_TOKEN;
   const probe = spawnSync("gh", ["auth", "token"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   if (probe.status === 0) return probe.stdout.trim();
   return null;
 }
 
-test("neutral: doctor reports the active profile footprint", async (t) => {
+test("neutral: doctor reports a healthy footprint after engineering init", async (t) => {
   const ghToken = ghAuthToken();
   if (!ghToken) {
     t.skip("gh auth token is not available; set OPENCODE_SHIP_GH_TOKEN to force");
@@ -183,11 +171,6 @@ test("neutral: doctor reports the active profile footprint", async (t) => {
   const repo = await makeConsumerRepo(origin);
   t.after(async () => rm(repo, { recursive: true, force: true }));
 
-  // The engineering profile requires explicit model IDs before
-  // any write. This test asserts that the installer's `init`
-  // command succeeds only when those flags are present, then
-  // re-runs `doctor` and asserts both the install and the doctor
-  // report a noop profile footprint.
   const init = spawnSync("node", [
     join(packageDir, "dist/cli.js"),
     "init", "--root", repo, "--json",
@@ -211,12 +194,6 @@ test("neutral: doctor reports the active profile footprint", async (t) => {
 });
 
 test("neutral: engineering init without model IDs fails before any write", async (t) => {
-  // The engineering profile is fail-closed: when the consumer
-  // (or CI matrix lane) tries to install it without explicit
-  // model IDs, the installer must refuse and leave no managed
-  // files behind. This guards against a regression where the
-  // installer silently falls back to defaults and produces a
-  // half-configured engineering install.
   const { tmp, consumer, packageDir } = await packAndExtract();
   t.after(async () => rm(tmp, { recursive: true, force: true }));
   const origin = await makeBareOrigin();
@@ -228,18 +205,40 @@ test("neutral: engineering init without model IDs fails before any write", async
     join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json",
     "--profile", "engineering",
   ], { encoding: "utf8" });
-  assert.notEqual(r.status, 0, `engineering init without models must fail; stdout=${r.stdout}`);
-  // The installer must not write any managed file when the
-  // engineering profile is missing required model IDs.
-  assert.equal(existsSync(join(repo, ".opencode/plugins/opencode-ship.js")), false, "plugin must not be written");
-  assert.equal(existsSync(join(repo, ".opencode/ship.lock.json")), false, "lock must not be written");
-  assert.equal(existsSync(join(repo, ".opencode/ship.config.json")), false, "ship config must not be written");
+  // The one-liner flow without models succeeds but leaves the
+  // setup-pending marker so the user is routed through
+  // /setup-ship-workflow. The contract is: install succeeds,
+  // marker is written, models remain empty, doctor reflects
+  // pending setup.
+  assert.equal(r.status, 0, `engineering init without models must succeed with setup pending; stdout=${r.stdout}`);
+  assert.ok(existsSync(join(repo, ".opencode/ship.lock.json")), "lock must be written");
+  assert.ok(existsSync(join(repo, ".opencode/ship.setup-pending.json")), "setup pending marker must be written");
+  const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
+  assert.equal(lock.manager.profile, "engineering");
+  assert.equal(lock.manager.setupComplete, false);
 });
 
-test("neutral: engineering init with partial model IDs fails before any write", async (t) => {
-  // The fail-closed check applies to every required role, not
-  // just to "all three missing". Supplying one or two IDs but
-  // omitting the rest must also refuse the install.
+test("neutral: engineering init without model IDs and --force-config fails before any write", async (t) => {
+  // --force-config requires explicit models because it bypasses
+  // the default synthesis; the installer must fail closed.
+  const { tmp, consumer, packageDir } = await packAndExtract();
+  t.after(async () => rm(tmp, { recursive: true, force: true }));
+  const origin = await makeBareOrigin();
+  t.after(async () => rm(origin, { recursive: true, force: true }));
+  const repo = await makeConsumerRepo(origin);
+  t.after(async () => rm(repo, { recursive: true, force: true }));
+
+  const r = spawnSync("node", [
+    join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json",
+    "--profile", "engineering",
+    "--force-config",
+  ], { encoding: "utf8" });
+  assert.notEqual(r.status, 0, `engineering init without models + --force-config must fail`);
+  assert.equal(existsSync(join(repo, ".opencode/plugins/opencode-ship.js")), false, "plugin must not be written");
+  assert.equal(existsSync(join(repo, ".opencode/ship.lock.json")), false, "lock must not be written");
+});
+
+test("neutral: engineering init with partial model IDs and --force-config fails before any write", async (t) => {
   const { tmp, consumer, packageDir } = await packAndExtract();
   t.after(async () => rm(tmp, { recursive: true, force: true }));
   const origin = await makeBareOrigin();
@@ -251,16 +250,15 @@ test("neutral: engineering init with partial model IDs fails before any write", 
     const args = [
       join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json",
       "--profile", "engineering",
+      "--force-config",
       "--planner-model", "fake/strong-planner",
     ];
     if (missing !== "builder") args.push("--builder-model", "fake/cheap-builder");
     if (missing !== "finalReviewer") args.push("--final-reviewer-model", "fake/strong-reviewer");
     const r = spawnSync("node", args, { encoding: "utf8" });
-    assert.notEqual(r.status, 0, `engineering init missing ${missing} must fail`);
+    assert.notEqual(r.status, 0, `engineering init missing ${missing} + --force-config must fail`);
     assert.equal(existsSync(join(repo, ".opencode/plugins/opencode-ship.js")), false, `plugin must not be written when ${missing} is missing`);
     assert.equal(existsSync(join(repo, ".opencode/ship.lock.json")), false, `lock must not be written when ${missing} is missing`);
-    // Reset between iterations so each missing-role case starts
-    // from a clean repo.
     spawnSync("git", ["reset", "--hard"], { cwd: repo, env: process.env });
     spawnSync("git", ["clean", "-fd"], { cwd: repo, env: process.env });
   }
