@@ -40,7 +40,6 @@ const packageRoot = resolvePackageRoot(import.meta.url);
  * helper that core and engineering both consume).
  */
 const MATT_SKILLS = [
-  "setup-engineering-workflow",
   "engineering-workflow",
   "grilling",
   "domain-modeling",
@@ -161,7 +160,7 @@ export const CATALOG = [
     id: "skill:setup-ship-workflow",
     kind: "skill",
     path: ".opencode/skills/setup-ship-workflow/SKILL.md",
-    source: resolve(packageRoot, "assets/skills/setup-engineering-workflow/SKILL.md"),
+    source: resolve(packageRoot, "assets/skills/setup-ship-workflow/SKILL.md"),
     mode: 0o644,
     profiles: ["engineering"],
   },
