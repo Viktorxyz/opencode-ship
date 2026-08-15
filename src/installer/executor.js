@@ -35,7 +35,6 @@ import { lockPath } from "./lock.js";
 import { executePlan } from "./transaction.js";
 import { migration } from "./migration.js";
 import { resolveProfile } from "../profile.js";
-import { planModePermissions } from "./plan-mode-permissions.js";
 
 async function readCurrentBytes(targetPath) {
   if (!existsSync(targetPath)) return null;
@@ -160,13 +159,11 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
     migrationReport,
     allowUnowned: Boolean(replaceManaged),
   });
-  // The engineering profile injects the Plan Mode permission
-  // block under agent.plan.permission. Core consumers never see
-  // it; the active-profile gate is the same precedence chain as
-  // the file install.
-  const planMode = resolved.profile === "engineering"
-    ? { id: "/agent/plan/permission", block: planModePermissions().build, scope: "engineering" }
-    : null;
+  // The Plan Mode permission block is consumer-owned from 1.1.1
+  // on. The installer only owns Build-agent delivery pointers and
+  // does NOT inject /agent/plan/permission. The active-profile
+  // gate stays the same precedence chain for the file install.
+  const planMode = null;
   const rootPlan = await planRootConfigApply({ repoRoot, lock, forceRepair: Boolean(forceRootConfig), planMode });
 
   // When the engineering profile is being applied without models

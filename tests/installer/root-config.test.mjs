@@ -107,17 +107,13 @@ test("applyPlanModeOwnership: id is stable for the run ledger", async () => {
   assert.equal(a.id, "/agent/plan/permission");
 });
 
-test("end-to-end: init --profile engineering writes the Plan Mode block into the consumer's opencode.json", async (t) => {
+test("end-to-end: init --profile engineering does NOT inject the Plan Mode block (consumer-owned)", async (t) => {
   const { runInit } = await import("../../src/installer/commands/init.js");
   const { readFileSync, existsSync } = await import("node:fs");
   const { resolve } = await import("node:path");
   const { makeProject, cleanProject } = await import("../fixtures/installer-fixture.mjs");
   const { parent, repoRoot } = await makeProject();
   t.after(async () => cleanProject(parent));
-  // Init with engineering profile; force the root config so the
-  // Plan Mode block has somewhere to land. The engineering profile
-  // requires explicit models; provide three of them so the
-  // fail-closed planner does not reject the install.
   const r = await runInit({
     json: true,
     rootPath: repoRoot,
@@ -131,20 +127,16 @@ test("end-to-end: init --profile engineering writes the Plan Mode block into the
     },
   });
   assert.equal(r.exitCode, 0, r.stderr || r.stdout);
-  // The consumer must have opencode.json after forceRootConfig.
   const rootPath = resolve(repoRoot, "opencode.json");
   assert.ok(existsSync(rootPath), "opencode.json should exist after forceRootConfig");
   const doc = JSON.parse(readFileSync(rootPath, "utf8"));
-  assert.ok(doc.agent?.plan?.permission, "Plan Mode block must be injected under agent.plan.permission");
-  assert.equal(doc.agent.plan.permission.bash, "deny");
-  assert.equal(doc.agent.plan.permission.edit["*"], "deny");
-  assert.equal(
-    doc.agent.plan.permission.edit[".git/opencode-ship/plans/**"],
-    "allow",
-  );
+  // From 1.1.1 the installer does not own the Plan Mode block;
+  // the consumer configures it via the built-in Plan agent.
+  assert.equal(doc.agent?.plan?.permission, undefined,
+    "installer must not inject a Plan Mode permission block; it is consumer-owned");
 });
 
-test("end-to-end: engineering init adds Plan Mode permissions to an existing root config", async (t) => {
+test("end-to-end: engineering init preserves existing Plan Mode permissions byte-by-byte", async (t) => {
   const { runInit } = await import("../../src/installer/commands/init.js");
   const { readFile, writeFile } = await import("node:fs/promises");
   const { resolve } = await import("node:path");
@@ -172,12 +164,8 @@ test("end-to-end: engineering init adds Plan Mode permissions to an existing roo
 
   const doc = JSON.parse(await readFile(rootPath, "utf8"));
   assert.equal(doc.username, "fixture-user");
-  assert.equal(doc.agent.plan.permission.edit["*"], "deny");
-  assert.equal(doc.agent.plan.permission.edit[".git/opencode-ship/plans/**"], "allow");
-
-  const lock = JSON.parse(await readFile(resolve(repoRoot, ".opencode/ship.lock.json"), "utf8"));
-  const records = (lock.manager?.rootDocuments ?? []).flatMap((entry) => entry.pointers ?? []);
-  assert.ok(records.some((entry) => entry.pointer === "/agent/plan/permission"));
+  // The installer must not have added a Plan Mode permission block.
+  assert.equal(doc.agent?.plan?.permission, undefined);
 });
 
 test("end-to-end: engineering init does not overwrite existing Plan Mode permissions", async (t) => {
@@ -205,10 +193,11 @@ test("end-to-end: engineering init does not overwrite existing Plan Mode permiss
       finalReviewer: "fake/strong-reviewer",
     },
   });
-  assert.equal(r.exitCode, 3, r.stderr || r.stdout);
+  assert.equal(r.exitCode, 0, r.stderr || r.stdout);
 
   const doc = JSON.parse(await readFile(rootPath, "utf8"));
-  assert.deepEqual(doc.agent.plan.permission, existing);
+  assert.deepEqual(doc.agent.plan.permission, existing,
+    "consumer-owned Plan Mode permissions must survive the install");
 });
 
 test("end-to-end: init --profile core is rejected (core removed in 1.1.0)", async (t) => {

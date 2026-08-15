@@ -106,7 +106,7 @@ test("neutral: engineering init without explicit --profile defaults to engineeri
   assert.equal(lock.manager.profile, "engineering");
 });
 
-test("neutral: engineering init records the Plan Mode pointer", async (t) => {
+test("neutral: engineering init does not record the Plan Mode pointer (consumer-owned)", async (t) => {
   const { tmp, consumer, packageDir } = await packAndExtract();
   t.after(async () => rm(tmp, { recursive: true, force: true }));
   const origin = await makeBareOrigin();
@@ -126,8 +126,8 @@ test("neutral: engineering init records the Plan Mode pointer", async (t) => {
   const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
   const pointers = (lock.manager?.rootDocuments ?? []).flatMap((d) => d.pointers ?? []);
   const planMode = pointers.find((p) => p.pointer === "/agent/plan/permission");
-  assert.ok(planMode, "engineering init must record the Plan Mode pointer");
-  assert.equal(planMode.scope, "engineering");
+  assert.equal(planMode, undefined,
+    "engineering init must NOT record a Plan Mode pointer; the consumer owns it");
 });
 
 test("neutral: uninstall removes the lock and the managed files", async (t) => {

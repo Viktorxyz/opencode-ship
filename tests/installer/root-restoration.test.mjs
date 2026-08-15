@@ -118,11 +118,11 @@ test("lock v4: root pointer records carry a scope and previous value", async (t)
   assert.deepEqual(deliveryVerify.previous, { existed: true, value: "deny" });
 });
 
-test("engineering install adds the Plan Mode block and preserves prior core pointer values", async (t) => {
+test("engineering install preserves the consumer's Plan Mode permission", async (t) => {
   const { parent, repoRoot } = await makeProject();
   t.after(async () => cleanProject(parent));
   const rootPath = resolve(repoRoot, "opencode.json");
-  const original = { agent: { build: { permission: { delivery_verify: "deny" } } } };
+  const original = { agent: { build: { permission: { delivery_verify: "deny" } }, plan: { permission: { bash: "ask", edit: { "docs/plans/**": "allow" } } } } };
   await writeFile(rootPath, JSON.stringify(original, null, 2) + "\n");
   const { runInit } = await import("../../src/installer/commands/init.js");
   const eng = await runInit({
@@ -138,7 +138,9 @@ test("engineering install adds the Plan Mode block and preserves prior core poin
   });
   assert.equal(eng.exitCode, 0, `engineering init: ${JSON.stringify(eng)}`);
   const afterEng = JSON.parse(readFileSync(rootPath, "utf8"));
-  assert.ok(afterEng.agent?.plan?.permission, "Plan Mode block must be present after engineering init");
+  // The installer must NOT touch the Plan Mode permission block.
+  assert.deepEqual(afterEng.agent.plan.permission, original.agent.plan.permission,
+    "consumer-owned Plan Mode permission must survive install");
   // The original delivery_verify value must be preserved.
   assert.equal(afterEng.agent.build.permission.delivery_verify, "deny");
 });
@@ -302,11 +304,12 @@ test("profile transition fails closed when an installer pointer has been edited"
     },
   }));
   assert.equal(init.result.exitCode, 0, init.output);
-  // Simulate the user editing the Plan Mode permission block after
-  // install. The recorded `installedSha256` no longer matches the
-  // current value, so reinstall must refuse to silently overwrite.
+  // Simulate the user editing an installer-owned Build permission
+  // pointer after install. The recorded `installedSha256` no longer
+  // matches the current value, so reinstall must refuse to silently
+  // overwrite.
   const userEdit = JSON.parse(readFileSync(rootPath, "utf8"));
-  userEdit.agent.plan.permission.task = "allow";
+  userEdit.agent.build.permission.delivery_verify = "ask";
   await writeFile(rootPath, JSON.stringify(userEdit, null, 2) + "\n");
   const reinst = await captureStdout(() => runInit(initOpts(rootPath)));
   assert.notEqual(reinst.result.exitCode, 0, `expected drift refusal, got: ${reinst.output}`);
