@@ -2,7 +2,14 @@
  * Argument parsing for opencode-ship.
  *
  * Minimal, dependency-free parser with strict subcommand dispatch and
- * stable `--json` / `--root` / `--config` flags.
+ * stable `--root` / `--json` / `--force-config` / `--force-root-config`,
+ * `--strict-doctor`, `--replace-managed`, `--purge-config` flags.
+ *
+ * From 1.1.0 the engineering profile is the default. The CLI still
+ * accepts `--profile engineering` but exits 2 on `--profile core`
+ * because that profile was removed in 1.1.0. Model flags are
+ * optional: init writes a placeholder `workflow.models` and the
+ * setup-ship-workflow skill fills them in.
  */
 
 import { PROFILES, isValidProfile } from "../profile.js";
@@ -10,7 +17,7 @@ import { PROFILES, isValidProfile } from "../profile.js";
 const USAGE = `opencode-ship <command> [options]
 
 Commands:
-  init        Install or update managed files in this project.
+  init        Install managed files in this project. One-liner: pnpm dlx opencode-ship@latest init
   diff        Show what would change without writing.
   update      Apply pending updates after recovering the journal.
   doctor      Validate environment, lock, and references.
@@ -20,16 +27,19 @@ Commands:
 
 Options:
   --root <path>               Project root (defaults to cwd).
-  --profile <name>            Override active profile: ${PROFILES.join(", ")}.
+  --profile engineering       Override active profile (engineering only).
   --force-config              Rewrite the user config from detection (init only).
   --force-root-config         Create opencode.json when absent (init only).
   --strict-doctor             Fail init when doctor reports unhealthy checks.
   --replace-managed           Replace locally-modified managed files (update only).
   --purge-config              Remove ship.config.json when uninstalling.
-  --planner-model <id>        Engineering model id for the strong planner.
-  --builder-model <id>        Engineering model id for the cheap builder.
-  --final-reviewer-model <id> Engineering model id for the Standards + Spec reviewer.
+  --planner-model <id>        Strong planner model id (init only, optional).
+  --builder-model <id>        Cheap builder model id (init only, optional).
+  --final-reviewer-model <id> Final Standards + Spec reviewer model id (init only, optional).
   --json                      Emit a JSON envelope instead of human output.
+
+After init succeeds, restart OpenCode and run /setup-ship-workflow to
+fill in the workflow.models fields and the per-repo docs.
 `;
 
 const MODEL_ID_RE = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
@@ -61,6 +71,12 @@ export function parseFlags(argv) {
       const value = argv[++i];
       if (value === undefined) {
         return { error: "--profile requires a value" };
+      }
+      if (value === "core") {
+        return {
+          error:
+            "the 'core' profile was removed in opencode-ship 1.1.0; only 'engineering' is supported. Run /setup-ship-workflow to migrate.",
+        };
       }
       if (!isValidProfile(value)) {
         return { error: `unknown profile '${value}' (expected one of: ${PROFILES.join(", ")})` };

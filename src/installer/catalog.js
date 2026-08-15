@@ -40,7 +40,6 @@ const packageRoot = resolvePackageRoot(import.meta.url);
  * helper that core and engineering both consume).
  */
 const MATT_SKILLS = [
-  "setup-engineering-workflow",
   "engineering-workflow",
   "grilling",
   "domain-modeling",
@@ -91,7 +90,7 @@ export const CATALOG = [
     path: ".opencode/plugins/opencode-ship.js",
     source: resolve(packageRoot, "dist/plugin.js"),
     mode: 0o644,
-    profiles: ["core", "engineering"],
+    profiles: ["engineering"],
   },
   {
     id: "agent:delivery-reviewer",
@@ -99,7 +98,7 @@ export const CATALOG = [
     path: ".opencode/agents/delivery-reviewer.md",
     source: resolve(packageRoot, "assets/agents/delivery-reviewer.md"),
     mode: 0o644,
-    profiles: ["core", "engineering"],
+    profiles: ["engineering"],
   },
   {
     id: "agent:delivery-verifier",
@@ -107,7 +106,7 @@ export const CATALOG = [
     path: ".opencode/agents/delivery-verifier.md",
     source: resolve(packageRoot, "assets/agents/delivery-verifier.md"),
     mode: 0o644,
-    profiles: ["core", "engineering"],
+    profiles: ["engineering"],
   },
   ...ENGINEERING_AGENTS.map((name) => ({
     id: `agent:${name}`,
@@ -131,7 +130,7 @@ export const CATALOG = [
     path: ".opencode/skills/delivery-workflow/SKILL.md",
     source: resolve(packageRoot, "assets/skills/delivery-workflow/SKILL.md"),
     mode: 0o644,
-    profiles: ["core", "engineering"],
+    profiles: ["engineering"],
   },
   {
     id: "skill:planning-research-checkpoint",
@@ -139,7 +138,7 @@ export const CATALOG = [
     path: ".opencode/skills/planning-research-checkpoint/SKILL.md",
     source: resolve(packageRoot, "assets/skills/planning-research-checkpoint/SKILL.md"),
     mode: 0o644,
-    profiles: ["core", "engineering"],
+    profiles: ["engineering"],
   },
   ...MATT_SKILLS.map((name) => ({
     id: `skill:matt:${name}`,
@@ -157,16 +156,47 @@ export const CATALOG = [
     mode: 0o644,
     profiles: ["engineering"],
   })),
+  {
+    id: "skill:setup-ship-workflow",
+    kind: "skill",
+    path: ".opencode/skills/setup-ship-workflow/SKILL.md",
+    source: resolve(packageRoot, "assets/skills/setup-ship-workflow/SKILL.md"),
+    mode: 0o644,
+    profiles: ["engineering"],
+  },
+  {
+    id: "skill:skill-discovery",
+    kind: "skill",
+    path: ".opencode/skills/skill-discovery/SKILL.md",
+    source: resolve(packageRoot, "assets/skills/skill-discovery/SKILL.md"),
+    mode: 0o644,
+    profiles: ["engineering"],
+  },
+  {
+    id: "command:setup-ship-workflow",
+    kind: "support",
+    path: ".opencode/commands/setup-ship-workflow.md",
+    source: resolve(packageRoot, "assets/commands/setup-ship-workflow.md"),
+    mode: 0o644,
+    profiles: ["engineering"],
+  },
 ];
 
 /**
  * Return only the catalog entries that ship under the given
- * profile. Engineering must be a superset of core (no profile
- * can drop a core-only asset without a deprecated tag).
+ * profile. From 1.1.0 only `engineering` is shipped; the legacy
+ * `core` value is mapped to `engineering` so persisted config/lock
+ * files load through the read path.
  */
 export function filterCatalogByProfile(catalog, profile) {
-  const effective = profile === undefined || profile === null ? DEFAULT_PROFILE : profile;
-  if (!isValidProfile(effective)) {
+  const effective = profile === undefined || profile === null
+    ? DEFAULT_PROFILE
+    : isValidProfile(profile)
+      ? profile
+      : profile === "core"
+        ? DEFAULT_PROFILE
+        : null;
+  if (effective === null) {
     throw new Error(
       `filterCatalogByProfile: unknown profile '${profile}' (expected one of: ${PROFILES.join(", ")})`,
     );

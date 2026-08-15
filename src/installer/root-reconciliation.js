@@ -71,21 +71,21 @@ export const PLAN_MODE_POINTER = "/agent/plan/permission";
  * @returns {RootPointerDescriptor[]}
  */
 export function desiredPointersForProfile(profile) {
-  const out = POINTER_ENTRIES.map((entry) => ({
+  // From 1.1.0 the active profile is always engineering. Legacy
+  // core installs promote to engineering, so all Build-agent
+  // permission pointers are engineering-scoped. Legacy core
+  // pointer records in existing locks are read-promoted too.
+  //
+  // The Plan Mode pointer is consumer-owned from 1.1.1: the
+  // installer no longer injects a permission block under
+  // `/agent/plan/permission`. The consumer keeps whatever value
+  // is already there (or none).
+  return POINTER_ENTRIES.map((entry) => ({
     pointer: entry.pointer,
     strategy: /** @type {"value" | "object-entry" | "array-member"} */ (entry.strategy),
-    scope: /** @type {Profile} */ ("core"),
+    scope: /** @type {Profile} */ ("engineering"),
     value: entry.value,
   }));
-  if (profile === "engineering") {
-    out.push({
-      pointer: PLAN_MODE_POINTER,
-      strategy: /** @type {"value" | "object-entry" | "array-member"} */ ("value"),
-      scope: /** @type {Profile} */ ("engineering"),
-      value: /** @type {any} */ (planModePermissions().build),
-    });
-  }
-  return out;
 }
 
 /**
@@ -164,10 +164,10 @@ export async function planRootReconciliation(input) {
   let doc;
   if (fileMissing && input.forceRepair) {
     doc = synthesizeDefaultRootConfig();
-    if (mode === "install" && profile === "engineering") {
-      const applied = applyPlanModeOwnership(doc, { block: planModePermissions().build });
-      doc = applied.doc;
-    }
+    // From 1.1.1 the installer does NOT own the Plan Mode
+    // permission block. The consumer may configure it through the
+    // built-in Plan agent; opencode-ship provides a dedicated
+    // ship-planner instead. We only seed Build-agent permissions.
     const bytes = Buffer.from(formatRootConfig(doc), "utf8");
     return {
       kind: "create",

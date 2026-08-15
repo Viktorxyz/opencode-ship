@@ -2,7 +2,7 @@
 description: Strong Spec final reviewer. Records the Spec axis of the final review through `delivery_review` with `axis: spec`. Independent of the Standards reviewer and the controller.
 mode: subagent
 temperature: 0.2
-model: openai/gpt-5.6-sol
+model: <model-from-config>
 steps: 10
 permission:
   edit: deny

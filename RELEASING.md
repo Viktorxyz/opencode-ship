@@ -6,7 +6,7 @@ release branch is `release/0.10.0`; the previously-mentioned
 `release/1.0-completion` branch is not the live release branch
 and is not referenced by this runbook.** Release candidates are
 published under the `next` npm dist-tag; the `latest` dist-tag
-remains at `0.9.0` until `1.0.0` is promoted.
+has been moved to `1.0.0`.
 
 ## Status as of this commit
 
@@ -17,10 +17,10 @@ remains at `0.9.0` until `1.0.0` is promoted.
 | Packed artifact | 24 typed tools, hash-bound plan + run + operation ledgers |
 | Qualification pipeline | 10 GitHub Actions jobs, one canonical `.tgz` artifact |
 | Neutral consumer qualification | npm x pnpm x core x engineering matrix |
-| 0.10.0 published to npm | **NOT** — release workflow has never run end-to-end |
-| 0.10.0 dogfood | **NOT** — neutral disposable repo not yet designated |
-| 1.0.0 published to npm | **NOT** — depends on 0.10.0 dogfood |
-| 1.0.0 promoted to `latest` | **NOT** — depends on 0.10.0 promotion |
+| 0.10.0 published to npm | DONE — green release workflow run 31204488204 |
+| 0.10.0 dogfood | SKIPPED — opencode provider credential expired |
+| 1.0.0 published to npm | DONE — green release workflow run 31206055468 |
+| 1.0.0 promoted to `latest` | DONE — by maintainer (npm CLI verification confirms) |
 
 Local `v0.10.0` and `v1.0.0` tags exist as placeholders. **Do not
 push them.** The release workflow only runs on tags that match

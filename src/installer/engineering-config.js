@@ -81,8 +81,13 @@ export function validateEngineeringConfig(cfg) {
  * the defaults are NOT consulted in strict mode. The strict
  * mode is what `init --profile engineering` uses so the
  * controller can refuse a partial engineering install.
+ *
+ * Deferred mode (`allowDeferred=true`) lets the resolver return
+ * an empty roles object when the user explicitly skipped the
+ * model step. The controller and the doctor refuse to dispatch
+ * until all three roles are populated.
  */
-export function resolveModelRoles(cfg, { strict = false } = {}) {
+export function resolveModelRoles(cfg, { strict = false, allowDeferred = false } = {}) {
   const REQUIRED = ["planner", "builder", "finalReviewer"];
   if (strict) {
     const issues = [];
@@ -106,6 +111,9 @@ export function resolveModelRoles(cfg, { strict = false } = {}) {
         throw new Error(`resolveModelRoles: user provided empty model id for '${role}'`);
       }
     }
+  }
+  if (allowDeferred) {
+    return { planner: out.planner ?? null, builder: out.builder ?? null, finalReviewer: out.finalReviewer ?? null };
   }
   for (const role of REQUIRED) {
     if (!out[role]) {

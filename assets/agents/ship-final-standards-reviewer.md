@@ -2,7 +2,7 @@
 description: Strong Standards final reviewer. Records the Standards axis of the final review through `delivery_review` with `axis: standards`. Independent of the Spec reviewer and the controller.
 mode: subagent
 temperature: 0.2
-model: openai/gpt-5.6-sol
+model: <model-from-config>
 steps: 10
 permission:
   edit: deny

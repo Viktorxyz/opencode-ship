@@ -1,13 +1,12 @@
 /*
- * End-to-end transition test: init with core, then init with
- * engineering. The plan should ADD the engineering-only entries
- * (triage, grill-with-docs) and not touch the core entries.
+ * End-to-end migration test: a legacy "core" install must be
+ * upgraded to "engineering" on the next `init` or `update`. After
+ * upgrade the lock must carry `manager.profile: "engineering"`,
+ * `manager.setupComplete` must reflect the config state, and any
+ * engineering-only entry the consumer was missing must be added.
  *
- * Reverse direction: init with engineering first, then core.
- * The plan should REMOVE the engineering-only entries (covered
- * by the conflict path because the user has modified them, so
- * they need --replace-managed to actually drop — but the LIST of
- * removal candidates is present in the plan).
+ * The CLI must refuse `--profile core` with exit 2 because the
+ * user can no longer opt into the removed profile for new installs.
  */
 
 import test from "node:test";
@@ -26,21 +25,7 @@ function cli(repoRoot, args) {
   return { code: r.status ?? -1, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
-test("init: core profile installs only the core entries", async (t) => {
-  const { parent, repoRoot } = await makeProject();
-  t.after(async () => cleanProject(parent));
-  const r = cli(repoRoot, ["init", "--profile", "core", "--json"]);
-  assert.equal(r.code, 0, r.stderr);
-  for (const p of [".opencode/skills/triage/SKILL.md", ".opencode/skills/grill-with-docs/SKILL.md"]) {
-    assert.equal(
-      existsSync(join(repoRoot, p)),
-      false,
-      `core profile must not install ${p}`,
-    );
-  }
-});
-
-test("init: engineering profile installs the engineering-only entries", async (t) => {
+test("init: --profile engineering installs the engineering-only entries", async (t) => {
   const { parent, repoRoot } = await makeProject();
   t.after(async () => cleanProject(parent));
   const r = cli(repoRoot, [
@@ -58,21 +43,76 @@ test("init: engineering profile installs the engineering-only entries", async (t
   assert.equal(lock.manager.profile, "engineering");
 });
 
-test("init: lock manager.profile transitions core → engineering correctly", async (t) => {
+test("init: --profile core exits 2 with a clear error (core removed in 1.1.0)", async (t) => {
   const { parent, repoRoot } = await makeProject();
   t.after(async () => cleanProject(parent));
-  cli(repoRoot, ["init", "--profile", "core", "--json"]);
-  const r2 = cli(repoRoot, [
-    "init", "--profile", "engineering", "--json",
+  const r = cli(repoRoot, ["init", "--profile", "core", "--json"]);
+  assert.equal(r.code, 2, JSON.stringify(r, null, 2));
+  assert.match(r.stderr, /core/);
+  assert.match(r.stderr, /removed/i);
+});
+
+test("init: persisted legacy lock with profile=core is promoted to engineering", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  // Seed a legacy v3-style lock with profile=core. The installer
+  // must accept the read and promote to engineering.
+  const legacyLock = {
+    contractVersion: 3,
+    manager: {
+      schemaVersion: 3,
+      name: "opencode-ship",
+      version: "1.0.0",
+      profile: "core",
+      appliedAt: "2026-07-01T00:00:00.000Z",
+      config: { path: ".opencode/ship.config.json", sha256: "", existed: false },
+      rootDocuments: [],
+    },
+    files: [],
+    integrity: { lockSha256: "ignored" },
+  };
+  // Compute proper integrity for the legacy body so validation passes.
+  const { computeIntegrity } = await import("../../src/installer/lock.js");
+  legacyLock.integrity = computeIntegrity(legacyLock);
+  const fs = await import("node:fs/promises");
+  await fs.mkdir(join(repoRoot, ".opencode"), { recursive: true });
+  await fs.writeFile(join(repoRoot, ".opencode", "ship.lock.json"), JSON.stringify(legacyLock, null, 2));
+  await fs.writeFile(
+    join(repoRoot, ".opencode", "ship.config.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      profile: "core",
+    }, null, 2),
+  );
+
+  const r = cli(repoRoot, [
+    "init", "--json",
     "--planner-model", "fake/strong-planner",
     "--builder-model", "fake/cheap-builder",
     "--final-reviewer-model", "fake/strong-reviewer",
   ]);
-  assert.equal(r2.code, 0, r2.stderr);
+  assert.equal(r.code, 0, r.stderr);
   const lock = JSON.parse(readFileSync(join(repoRoot, ".opencode/ship.lock.json"), "utf8"));
   assert.equal(lock.manager.profile, "engineering");
-  // The engineering-only entries must now be in the lock
-  const relPaths = (lock.files ?? []).map((f) => f.path);
-  assert.ok(relPaths.includes(".opencode/skills/triage/SKILL.md"));
-  assert.ok(relPaths.includes(".opencode/skills/grill-with-docs/SKILL.md"));
+  assert.equal(lock.manager.setupComplete, true);
+});
+
+test("init: persisted legacy ship.config.json with profile=core is promoted to engineering", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const fs = await import("node:fs/promises");
+  await fs.mkdir(join(repoRoot, ".opencode"), { recursive: true });
+  await fs.writeFile(
+    join(repoRoot, ".opencode", "ship.config.json"),
+    JSON.stringify({ schemaVersion: 1, profile: "core" }, null, 2),
+  );
+  const r = cli(repoRoot, [
+    "init", "--json",
+    "--planner-model", "fake/strong-planner",
+    "--builder-model", "fake/cheap-builder",
+    "--final-reviewer-model", "fake/strong-reviewer",
+  ]);
+  assert.equal(r.code, 0, r.stderr);
+  const lock = JSON.parse(readFileSync(join(repoRoot, ".opencode/ship.lock.json"), "utf8"));
+  assert.equal(lock.manager.profile, "engineering");
 });

@@ -2,7 +2,7 @@
 description: Read-only strong planner. Writes the PlanV2 contract and submits it to the durable plan store. Never edits source, never commits.
 mode: subagent
 temperature: 0.3
-model: openai/gpt-5.6-sol
+model: <model-from-config>
 steps: 10
 permission:
   edit: deny

@@ -2,19 +2,22 @@
  * Install manifest persistence.
  *
  * Locks live at `.opencode/ship.lock.json`. This module handles
- * read, write, integrity computation, and migration from the v0.1.x
- * legacy lock (`.opencode/delivery.lock.json`) into a v0.2
- * manager-aware lock.
+ * read, write, integrity computation, and migration from v0.1.x,
+ * v0.3, and 1.0.x legacy locks into the current contract.
  *
  * `integrity.lockSha256` is computed over the lock contents minus
  * the `integrity` field itself, so consumers and installers can
  * detect tampering.
  *
  * Schema enforcement: `CURRENT_LOCK_SCHEMA` is the only schema the
- * installer speaks. `validateLock` distinguishes between "no lock
+ * installer writes. `validateLock` distinguishes between "no lock
  * here" (treated as a fresh install by callers), "supported lock"
  * (clean path), and "unsupported lock" (caller maps to exit 5).
  * Integrity mismatches and parse failures map to exit 3.
+ *
+ * Cleanup retry state (formerly `cleanupPending` on the lock) lives
+ * under `<git-common-dir>/opencode-ship/cleanup-pending.json` so
+ * the install lock stays a pure install provenance record.
  */
 
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
@@ -24,7 +27,7 @@ import { bytesHashString } from "./hash.js";
 import { stableStringify } from "./json-pointer.js";
 import { DEFAULT_PROFILE, isValidProfile } from "../profile.js";
 
-export const CURRENT_LOCK_SCHEMA = 3;
+export const CURRENT_LOCK_SCHEMA = 4;
 
 /**
  * Lock schema revisions:
@@ -42,6 +45,11 @@ export const CURRENT_LOCK_SCHEMA = 3;
  *       covers lock deletion, and engineering-to-core downgrades
  *       remove engineering-scoped pointers and Plan Mode. v1 and
  *       v2 locks still validate so existing consumers can upgrade.
+ *   4 - setup-complete schema: `manager.setupComplete` carries
+ *       whether the user has finished `/setup-ship-workflow`;
+ *       the install lock no longer carries `cleanupPending`
+ *       (that state moved to `<git-common-dir>/opencode-ship/cleanup-pending.json`).
+ *       v1/v2/v3 locks still validate so existing consumers can upgrade.
  */
 export function lockSchemaRevision() {
   return CURRENT_LOCK_SCHEMA;
@@ -56,8 +64,7 @@ export async function readLock(repoRoot) {
   if (!existsSync(path)) return null;
   try {
     const raw = await readFile(path, "utf8");
-    const parsed = JSON.parse(raw);
-    return parsed;
+    return JSON.parse(raw);
   } catch {
     return null;
   }
@@ -90,6 +97,22 @@ export async function validateIntegrity(lock) {
 }
 
 /**
+ * Strip runtime state that no longer belongs on the install lock.
+ *
+ * v3 (and earlier) locks carried `cleanupPending` as part of the
+ * install provenance. From v4 that state lives under the Git
+ * common directory. When we read any pre-v4 lock for upgrade we
+ * silently drop `cleanupPending` from the in-memory copy so the
+ * next write produces a v4 lock without it.
+ */
+export function normalizeLegacyLock(lock) {
+  if (!lock || typeof lock !== "object") return lock;
+  const { cleanupPending: _drop, ...rest } = lock;
+  void _drop;
+  return rest;
+}
+
+/**
  * Strict lock validator.
  *
  * Returns `{ ok, issues, kind }` so callers can map failures to the
@@ -112,15 +135,17 @@ export function validateLock(rawLock) {
   const issues = [];
   let kind = "ok";
 
-  // v1 locks (legacy manager-aware schema) are accepted as legacy
-  // core so consumers on those versions can upgrade without manual
-  // migration. v2/v3 locks must match the current schema family.
+  // v1/v2/v3 locks are accepted as legacy so consumers on those
+  // versions can upgrade without manual migration. Resolution of
+  // the missing or legacy profile happens in profile precedence
+  // (sibling slice).
   if (
     rawLock.contractVersion !== CURRENT_LOCK_SCHEMA &&
-    rawLock.contractVersion !== 1 &&
-    rawLock.contractVersion !== 2
+    rawLock.contractVersion !== 3 &&
+    rawLock.contractVersion !== 2 &&
+    rawLock.contractVersion !== 1
   ) {
-    issues.push(`unsupported contractVersion: ${JSON.stringify(rawLock.contractVersion)} (expected ${CURRENT_LOCK_SCHEMA}, 2, or 1)`);
+    issues.push(`unsupported contractVersion: ${JSON.stringify(rawLock.contractVersion)} (expected ${CURRENT_LOCK_SCHEMA}, 3, 2, or 1)`);
     kind = "schema";
   }
 
@@ -133,10 +158,11 @@ export function validateLock(rawLock) {
     kind = kind === "ok" ? "shape" : kind;
   } else if (
     manager.schemaVersion !== CURRENT_LOCK_SCHEMA &&
+    manager.schemaVersion !== 3 &&
     manager.schemaVersion !== 2 &&
     manager.schemaVersion !== 1
   ) {
-    issues.push(`unsupported manager.schemaVersion: ${JSON.stringify(manager.schemaVersion)} (expected ${CURRENT_LOCK_SCHEMA}, 2, or 1)`);
+    issues.push(`unsupported manager.schemaVersion: ${JSON.stringify(manager.schemaVersion)} (expected ${CURRENT_LOCK_SCHEMA}, 3, 2, or 1)`);
     kind = "schema";
   } else if (manager.name !== "opencode-ship") {
     issues.push(`unknown manager.name: ${JSON.stringify(manager.name)}`);
@@ -145,9 +171,10 @@ export function validateLock(rawLock) {
     rawLock.contractVersion >= 2 &&
     manager.schemaVersion >= 2 &&
     manager.profile !== undefined &&
-    !isValidProfile(manager.profile)
+    manager.profile !== "core" &&
+    manager.profile !== "engineering"
   ) {
-    issues.push(`invalid manager.profile: ${JSON.stringify(manager.profile)} (expected one of: core, engineering)`);
+    issues.push(`invalid manager.profile: ${JSON.stringify(manager.profile)} (expected one of: engineering, core [legacy])`);
     kind = "shape";
   }
 
@@ -191,23 +218,39 @@ export async function readValidatedLock(repoRoot) {
     };
   }
   const validation = validateLock(raw);
-  return { kind: validation.kind, lock: validation.ok ? raw : null, issues: validation.issues };
+  if (validation.ok) {
+    return {
+      kind: validation.kind,
+      lock: normalizeLegacyLock(raw),
+      issues: [],
+    };
+  }
+  return { kind: validation.kind, lock: null, issues: validation.issues };
 }
 
 export async function migrateLegacyLock(repoRoot) {
   const legacy = resolve(repoRoot, ".opencode", "delivery.lock.json");
   if (!existsSync(legacy)) return null;
   try {
-    const raw = await readFile(legacy, "utf8");
-    const parsed = JSON.parse(raw);
-    if (parsed.contractVersion !== 1 || typeof parsed.adapterSha256 !== "string") return null;
-    return {
-      kind: "legacy-lock",
-      sourcePath: legacy,
-      payload: { contractVersion: 1, adapterSha256: parsed.adapterSha256, writtenAt: parsed.writtenAt ?? null },
-      sha256: bytesHashString(raw),
-    };
+    const text = await readFile(legacy, "utf8");
+    return JSON.parse(text);
   } catch {
     return null;
   }
 }
+
+/**
+ * True when the lock carries the post-1.1 setup-complete contract.
+ * Pre-v4 locks do not, so we conservatively assume setup is not
+ * complete and let the executor route the next ship-deliver through
+ * `/setup-ship-workflow`.
+ */
+export function isSetupComplete(lock) {
+  if (!lock || typeof lock !== "object") return false;
+  const manager = lock.manager;
+  if (!manager || typeof manager !== "object") return false;
+  return manager.setupComplete === true;
+}
+
+void DEFAULT_PROFILE;
+void isValidProfile;

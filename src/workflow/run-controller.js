@@ -89,7 +89,9 @@ const EVENT_KINDS = Object.freeze({
   TASK_REVIEW: "task-review",
   COMMIT: "commit",
   TASK_COMPLETE: "task-complete",
+  ALL_TASKS_DONE: "all-tasks-done",
   FINAL_REVIEW: "final-review",
+  READY_PENDING: "ready-pending",
   READY: "ready",
   MERGE: "merge",
   BLOCKED: "blocked",
@@ -193,6 +195,18 @@ export function reduce(state, event) {
         event: recorded(EVENT_KINDS.TASK_DISPATCH, { taskId: event.data.taskId, briefHash: event.data.briefHash, round }),
       };
     }
+    case EVENT_KINDS.TASK_REPORT: {
+      if ((state.state !== STATES.RUNNING && state.state !== STATES.FIX_PENDING) || state.activeTask === null) {
+        throw new Error(`run reducer: TASK_REPORT requires running with active task`);
+      }
+      ensureActiveTask(state, event.data.taskId);
+      // The builder's report transitions the task to "review
+      // pending" — the next event must be TASK_REVIEW.
+      return {
+        state: nextState({ state: STATES.RUNNING, round: state.round + 1 }),
+        event: recorded(EVENT_KINDS.TASK_REPORT, { taskId: event.data.taskId, reportHash: event.data.reportHash }),
+      };
+    }
     case EVENT_KINDS.TASK_REVIEW: {
       if ((state.state !== STATES.RUNNING && state.state !== STATES.FIX_PENDING) || state.activeTask === null) {
         throw new Error(`run reducer: TASK_REVIEW requires running with active task`);
@@ -230,14 +244,54 @@ export function reduce(state, event) {
       if (state.state !== STATES.COMMITTED) {
         throw new Error(`run reducer: TASK_COMPLETE requires state=committed, got ${state.state}`);
       }
+      // Default behaviour: stay in RUNNING so the next task can
+      // dispatch immediately. Explicit `moreTasks: false` signals
+      // that the plan has no more tasks and we should advance to
+      // ALL_TASKS_DONE for the final review.
+      const moreTasks = event.data.moreTasks === false ? false : true;
+      const completedTasks = [...state.completedTasks, state.taskReady?.taskId].filter(Boolean);
+      const nextStateObj = moreTasks
+        ? { state: STATES.RUNNING, activeTask: null, taskReady: null, round: 0, failures: 0, completedTasks }
+        : { state: STATES.ALL_TASKS_DONE, activeTask: null, taskReady: null, completedTasks };
       return {
-        state: nextState({ state: STATES.RUNNING, activeTask: null, taskReady: null, round: 0, failures: 0 }),
-        event: recorded(EVENT_KINDS.TASK_COMPLETE, { taskId: event.data.taskId }),
+        state: nextState(nextStateObj),
+        event: recorded(EVENT_KINDS.TASK_COMPLETE, { taskId: event.data.taskId, moreTasks }),
+      };
+    }
+    case EVENT_KINDS.FINAL_REVIEW: {
+      if (state.state !== STATES.ALL_TASKS_DONE && state.state !== STATES.READY_PENDING) {
+        throw new Error(`run reducer: FINAL_REVIEW requires state=all-tasks-done|ready-pending, got ${state.state}`);
+      }
+      // Two axes (Standards + Spec) must both be recorded before
+      // Ready. The reducer collects them via event.data.axis.
+      const nextReadyPending = state.state === STATES.READY_PENDING
+        ? state
+        : { ...state, state: STATES.READY_PENDING, finalReview: { [event.data.axis]: event.data.review } };
+      const finalReview = nextReadyPending.finalReview ?? {};
+      finalReview[event.data.axis] = event.data.review;
+      // If both axes are recorded, the controller can move to
+      // READY after verifier + CI bind to the same HEAD.
+      const bothRecorded = finalReview.standards && finalReview.spec;
+      return {
+        state: nextState({
+          state: STATES.READY_PENDING,
+          finalReview,
+        }),
+        event: recorded(EVENT_KINDS.FINAL_REVIEW, {
+          axis: event.data.axis,
+          verdict: event.data.verdict,
+          headSha: event.data.headSha,
+          mergeBaseSha: event.data.mergeBaseSha,
+          packageHash: event.data.packageHash,
+        }),
       };
     }
     case EVENT_KINDS.READY: {
       if (state.state !== STATES.COMMITTED && state.state !== STATES.READY_PENDING) {
         throw new Error(`run reducer: READY requires state=committed|ready-pending, got ${state.state}`);
+      }
+      if (state.state === STATES.READY_PENDING && (!state.finalReview?.standards || !state.finalReview?.spec)) {
+        throw new Error(`run reducer: READY requires both Standards and Spec final reviews`);
       }
       return {
         state: nextState({ state: STATES.READY, activeTask: null, completedTasks: state.completedTasks }),

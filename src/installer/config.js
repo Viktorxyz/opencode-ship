@@ -10,6 +10,12 @@
  * boots, we synthesise one from the detected project. This lets the
  * verifier and the reviewer receive enough context to function
  * even before the user has committed a config.
+ *
+ * From 1.1.0 the engineering profile is the only profile. The
+ * renderDefaultConfig helper emits a placeholder `workflow.models`
+ * object so the setup-ship-workflow skill can fill it in; the ship
+ * controller refuses to dispatch until all three role ids are non-
+ * empty.
  */
 
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
@@ -68,7 +74,8 @@ export function renderDefaultConfig(detection, overrides = {}) {
     : [{ id: "typecheck", argv: ["npm", "run", "typecheck"] }];
   const repo = detection?.repository ?? overrides.repository ?? "owner/repo";
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    profile: "engineering",
     project: {
       remote: detection?.remote ?? "origin",
       repository: repo,
@@ -98,5 +105,25 @@ export function renderDefaultConfig(detection, overrides = {}) {
       merge: { strategy: "squash", policy: "explicit-user-request-only", requireFreshGates: true },
       cleanup: { when: "next-task", requireUnpublishedGuard: true },
     },
+    workflow: {
+      models: {},
+      approval: { mirrorToIssue: true, maxFailedRounds: 3 },
+    },
   };
+}
+
+/**
+ * Returns true when the workflow block has all three model roles
+ * populated with a valid `<provider>/<model>` id. Used by the ship
+ * controller and the doctor to refuse to dispatch.
+ */
+export function hasCompletedModels(configValue) {
+  const models = configValue?.workflow?.models;
+  if (!models || typeof models !== "object") return false;
+  const idRe = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+  return (
+    typeof models.planner === "string" && idRe.test(models.planner) &&
+    typeof models.builder === "string" && idRe.test(models.builder) &&
+    typeof models.finalReviewer === "string" && idRe.test(models.finalReviewer)
+  );
 }

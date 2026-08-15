@@ -1,11 +1,11 @@
 /*
  * Engineering config v2 + role-routed CLI flags.
  *
- * Engineering profile is opt-in and requires all three
- * model roles to be resolvable. The CLI may synthesise a
- * missing role with `--planner-model`, `--builder-model`,
- * `--final-reviewer-model`; the resulting ship.config.json
- * is the only authoritative source for the next run.
+ * The CLI accepts --planner-model / --builder-model /
+ * --final-reviewer-model and synthesises a valid workflow.models
+ * block. `--profile core` is rejected because the profile was
+ * removed in 1.1.0; only persisted legacy core values are
+ * accepted on read.
  */
 
 import test from "node:test";
@@ -18,16 +18,22 @@ import { parseCommand, parseFlags, helpText } from "../../src/installer/cli-args
 import { resolveModelRoles, validateEngineeringConfig } from "../../src/installer/engineering-config.js";
 import { isValidProfile, DEFAULT_PROFILE } from "../../src/profile.js";
 
-test("parseFlags: --profile accepts every profile", () => {
-  for (const p of ["core", "engineering"]) {
-    const r = parseFlags(["--profile", p]);
-    assert.equal(r.profile, p);
-  }
+test("parseFlags: --profile engineering is accepted", () => {
+  const r = parseFlags(["--profile", "engineering"]);
+  assert.equal(r.profile, "engineering");
+});
+
+test("parseFlags: rejects --profile core (removed in 1.1.0)", () => {
+  const r = parseFlags(["--profile", "core"]);
+  assert.ok(r.error, `expected error for --profile core, got ${JSON.stringify(r)}`);
+  assert.match(r.error, /core/);
+  assert.match(r.error, /removed/i);
 });
 
 test("parseFlags: rejects unknown profile", () => {
   const r = parseFlags(["--profile", "practices"]);
-  assert.equal(r.error, "unknown profile 'practices' (expected one of: core, engineering)");
+  assert.ok(r.error, `expected error for --profile practices`);
+  assert.match(r.error, /unknown profile 'practices'/);
 });
 
 test("parseFlags: --planner-model accepts a <provider>/<model> id", () => {
@@ -114,13 +120,13 @@ test("resolveModelRoles: strict=true accepts all three roles", () => {
   assert.equal(r.finalReviewer, "openai/gpt-5.6-sol");
 });
 
-test("DEFAULT_PROFILE: is core", () => {
-  assert.equal(DEFAULT_PROFILE, "core");
-  assert.ok(isValidProfile("core"));
-  assert.ok(isValidProfile("engineering"));
+test("DEFAULT_PROFILE: is engineering (core removed in 1.1.0)", () => {
+  assert.equal(DEFAULT_PROFILE, "engineering");
+  assert.equal(isValidProfile("engineering"), true);
+  assert.equal(isValidProfile("core"), false);
 });
 
-test("Config V2: engineering profile requires explicit workflow.models", async () => {
+test("Config V2: engineering profile accepts empty workflow.models (setup pending)", async () => {
   const { loadConfig } = await import("../../src/installer/config.js");
   const dir = await mkdtemp(resolve(tmpdir(), "ocd-cfg-"));
   try {
@@ -129,10 +135,10 @@ test("Config V2: engineering profile requires explicit workflow.models", async (
     await fs.writeFile(resolve(cfgDir, "ship.config.json"), JSON.stringify({
       schemaVersion: 2,
       profile: "engineering",
+      workflow: { models: {} },
     }));
     const r = await loadConfig(dir);
-    assert.equal(r.ok, false, "engineering without workflow.models must fail closed");
-    assert.ok(/workflow|model/i.test(JSON.stringify(r.error ?? {})), `unexpected error: ${JSON.stringify(r.error)}`);
+    assert.equal(r.ok, true, `engineering with empty models must load: ${JSON.stringify(r.error)}`);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -167,7 +173,7 @@ test("Config V2: engineering with explicit models passes", async () => {
   }
 });
 
-test("Config V2: core profile does not require workflow block", async () => {
+test("Config V2: legacy core profile loads for read-compat", async () => {
   const { loadConfig } = await import("../../src/installer/config.js");
   const dir = await mkdtemp(resolve(tmpdir(), "ocd-cfg-"));
   try {
@@ -178,7 +184,7 @@ test("Config V2: core profile does not require workflow block", async () => {
       profile: "core",
     }));
     const r = await loadConfig(dir);
-    assert.equal(r.ok, true, `core without workflow must load: ${JSON.stringify(r.error)}`);
+    assert.equal(r.ok, true, `legacy core must load for read-compat: ${JSON.stringify(r.error)}`);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
