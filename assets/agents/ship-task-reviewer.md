@@ -2,7 +2,7 @@
 description: Task reviewer. Records a single Spec + Quality verdict through `ship_task_review`. Independent of the builder.
 mode: subagent
 temperature: 0.2
-model: minimax/MiniMax-M3
+model: <model-from-config>
 steps: 8
 permission:
   edit: deny

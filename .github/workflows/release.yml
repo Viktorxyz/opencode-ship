@@ -6,6 +6,7 @@ on:
       - "0.9.*"
       - "0.10.*"
       - "1.0.*"
+      - "1.1.*"
     branches: []
   workflow_dispatch:
     inputs:
@@ -185,7 +186,7 @@ jobs:
       fail-fast: false
       matrix:
         tool: [npm, pnpm]
-        profile: [core, engineering]
+        profile: [engineering]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -217,51 +218,24 @@ jobs:
           git config user.name "ci"
           echo "# c" > README.md
           git add . && git commit -qm init
-          mkdir -p .opencode
-          if [[ "${{ matrix.profile }}" == "engineering" ]]; then
-            # Write the config with Node so the JSON is always valid
-            # and indentation cannot be silently stripped by the YAML
-            # parser (the previous heredoc was being mis-indented and
-            # the CLI received an empty file).
-            node -e '
-              const fs = require("fs");
-              fs.writeFileSync(
-                ".opencode/ship.config.json",
-                JSON.stringify({
-                  schemaVersion: 2,
-                  profile: "engineering",
-                  workflow: {
-                    models: {
-                      planner: "fake/strong-planner",
-                      builder: "fake/cheap-builder",
-                      finalReviewer: "fake/strong-reviewer",
-                    },
-                    approval: {
-                      mirrorToIssue: true,
-                      maxFailedRounds: 3,
-                    },
-                  },
-                }, null, 2) + "\n",
-              );
-            '
-            echo "DEBUG: .opencode/ship.config.json:"; cat .opencode/ship.config.json
-            node -e '
-              const f = JSON.parse(require("fs").readFileSync(".opencode/ship.config.json", "utf8"));
-              if (!f.workflow?.models?.planner || !f.workflow?.models?.builder || !f.workflow?.models?.finalReviewer) {
-                console.error("config missing required models");
-                process.exit(2);
-              }
-            '
-          fi
+          # The engineering profile is the only supported profile
+          # from 1.1.0; pass the model flags explicitly so the
+          # installer never has to route through setup.
+          init_flags=(
+            --planner-model fake/strong-planner
+            --builder-model fake/cheap-builder
+            --final-reviewer-model fake/strong-reviewer
+            --force-config
+          )
           if [[ "${{ matrix.tool }}" == "npm" ]]; then
             # Install the tarball into the consumer workspace so the
             # binary is resolved through the local node_modules. This
             # keeps the CLI's CWD as the consumer directory and lets
             # it read .opencode/ship.config.json reliably.
             npm install --no-save --no-audit --no-fund "$tarball"
-            npx --yes opencode-ship init --json --profile ${{ matrix.profile }}
+            npx --yes opencode-ship init --json "${init_flags[@]}"
           else
-            pnpm dlx --package="$tarball" opencode-ship init --json --profile ${{ matrix.profile }}
+            pnpm dlx --package="$tarball" opencode-ship init --json "${init_flags[@]}"
           fi
           test -f .opencode/ship.lock.json
           popd
@@ -298,29 +272,14 @@ jobs:
           git config user.name "ci"
           echo "# c" > README.md
           git add . && git commit -qm init
-          # core init
+          # engineering init (only profile from 1.1.0)
           npm install --no-save --no-audit --no-fund "$tarball"
-          npx --yes opencode-ship init --json
-          # upgrade to engineering
-          mkdir -p .opencode
-          node -e '
-            const fs = require("fs");
-            fs.writeFileSync(
-              ".opencode/ship.config.json",
-              JSON.stringify({
-                schemaVersion: 2,
-                profile: "engineering",
-                workflow: {
-                  models: {
-                    planner: "fake/strong-planner",
-                    builder: "fake/cheap-builder",
-                    finalReviewer: "fake/strong-reviewer",
-                  },
-                  approval: { mirrorToIssue: true, maxFailedRounds: 3 },
-                },
-              }, null, 2) + "\n",
-            );
-          '
+          npx --yes opencode-ship init --json \
+            --planner-model fake/strong-planner \
+            --builder-model fake/cheap-builder \
+            --final-reviewer-model fake/strong-reviewer \
+            --force-config
+          # The config must carry the three model ids we just provided.
           node -e '
             const f = JSON.parse(require("fs").readFileSync(".opencode/ship.config.json", "utf8"));
             if (!f.workflow?.models?.planner || !f.workflow?.models?.builder || !f.workflow?.models?.finalReviewer) {
@@ -328,9 +287,6 @@ jobs:
               process.exit(2);
             }
           '
-          npx --yes opencode-ship init --json --profile engineering
-          # downgrade
-          npx --yes opencode-ship init --json --profile core
           # uninstall
           npx --yes opencode-ship uninstall --json
           test ! -f .opencode/ship.lock.json
@@ -378,7 +334,7 @@ jobs:
       fail-fast: false
       matrix:
         opencode: ["1.15.5", "1.18.10"]
-        profile: [core, engineering]
+        profile: [engineering]
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -431,19 +387,15 @@ jobs:
           git config user.name "ci"
           echo "# opencode-discovery" > README.md
           # Install the packed tarball and let the installer's
-          # own CLI materialise the user config + lock so the
-          # engineering profile has explicit model IDs and the
-          # core profile only writes its minimal footprint.
+          # own CLI materialise the user config + lock. From 1.1.0
+          # the engineering profile is the only supported profile,
+          # so the init always uses the explicit model flags.
           npm install --no-save --no-audit --no-fund "${tarball}"
-          if [[ "${MATRIX_PROFILE}" == "engineering" ]]; then
-            npx --yes opencode-ship init --json --profile engineering \
-              --planner-model fake/strong-planner \
-              --builder-model fake/cheap-builder \
-              --final-reviewer-model fake/strong-reviewer \
-              --force-config
-          else
-            npx --yes opencode-ship init --json --profile core
-          fi
+          npx --yes opencode-ship init --json --profile engineering \
+            --planner-model fake/strong-planner \
+            --builder-model fake/cheap-builder \
+            --final-reviewer-model fake/strong-reviewer \
+            --force-config
           # Start the opencode server with an isolated HOME so
           # the global config cannot leak into the test, and
           # verify the 24-tool set is exposed via
@@ -854,8 +806,17 @@ jobs:
         id: disttag
         run: |
           case "${PKG_VERSION}" in
+            # RCs and pre-releases always publish under `next`; the
+            # maintainer promotes the accepted RC to `latest` by hand
+            # so a bad RC can never reach `latest` automatically.
             *-rc.*|*-alpha.*|*-beta.*) tag=next;;
-            1.0.*) tag=candidate;;
+            # Legacy stable line: 1.0.x stays on `next` because
+            # 1.1.0 owns `latest`. A future 1.0.x patch would still
+            # land on `next`.
+            1.0.*) tag=next;;
+            # 1.1.x and later stable releases: publish under `next`
+            # first. The maintainer runs `npm dist-tag add
+            # opencode-ship@<v> latest` once the rc dogfood passes.
             *) tag=next;;
           esac
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"

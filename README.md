@@ -2,27 +2,59 @@
 
 > npm-distributed OpenCode installer and delivery plugin: a single command materialises the lifecycle plugin, reviewer/verifier agents, and skills into any consumer repository, with a recoverable lock and never silently overwrites managed files.
 >
-> **Status:** `1.0.0` is on `npm dist-tag latest` (manually promoted by the maintainer). `0.10.0` stable is on `npm dist-tag next`. The `release/0.10.0` branch is the live release branch and the source of truth for both releases; the `1.0.0` tag was promoted from the same runtime source as `0.10.0` so the version-independent `runtimeSourceSha256` is preserved across both releases (CI-reported digest c750d709dd68dc3663eef3890d5b9d8f8a1ec3b14eae011382e151874cb50c89). The S5 real 14-step dogfood was skipped because the OpenAI provider credential in `~/.local/share/opencode/auth.json` expired (48 days) and the opencode CLI 1.18.15 cannot dispatch to `openai/gpt-5.6-sol` or `minimax/MiniMax-M3` regardless of the `--model` flag form; the dogfood fixture is preserved at `https://github.com/Viktorxyz/opencode-ship-dogfood` for re-execution once a valid provider credential is supplied. The npm CLI registry operation `npm view opencode-ship dist-tags` returns `{latest:1.0.0, next:0.10.0, candidate:1.0.0}` and `npm install opencode-ship@latest --prefix /tmp/fresh` + `node_modules/.bin/opencode-ship --version` prints `1.0.0`. See `docs/release/1.0.0-execution-plan.md` for the authoritative execution plan and issue #37 for the bounded evidence ledger.
+> **Status:** `1.1.0` is on `npm dist-tag latest`. The `1.1.x` stabilization line (parent issue #40) is in progress on the `fix/1.1.1-stabilization` branch. When `1.1.1` ships it becomes the first self-hosting release and `1.1.0` is deprecated. The `release/1.1.0-engineering-only` branch ships the engineering profile directly without a separate `core` profile. The `1.1.0` tag is immutable; consumers should use `opencode-ship@1.1.0` today and switch to `opencode-ship@1.1.1` once it is promoted to `latest`. See `docs/release/1.1.1-stabilization-plan.md` for the authoritative plan and issue #40 for the bounded evidence ledger.
 >
-> Consumers should use `opencode-ship@1.0.0` (or `opencode-ship@latest`). The previous `0.9.0` is no longer the latest.
+> Consumers should use `opencode-ship@1.1.0` (or `@latest`) until `1.1.1` ships. The previous `1.0.0` is on `next`; consumers who pinned to `1.0.x` will continue to receive updates on that channel.
 
 ---
 
+## Quick start (1.1.0+)
+
+```sh
+# 1. Install managed files. No flags required.
+pnpm dlx opencode-ship@latest init
+
+# 2. Restart OpenCode in this repo.
+
+# 3. In chat, run the one-shot setup skill:
+/setup-ship-workflow
+
+# 4. The skill asks for:
+#    - issue tracker (GitHub / GitLab / local / other)
+#    - triage labels (defaults are fine)
+#    - domain docs (single-context default)
+#    - AI model roles (planner / builder / finalReviewer)
+#    - AGENTS.md / CLAUDE.md block
+
+# 5. Start work. The controller drives everything.
+Ship issue 1
+# or
+Ship issue 1   (after opening an issue with a real description)
+```
+
+The `init` command succeeds without any model flags. The setup skill writes the per-repo configuration. The controller refuses to dispatch until the setup is complete.
+
 ## What this package is
 
-`opencode-ship` is the npm-distributed successor to `opencode-delivery`. It bundles:
+`opencode-ship` is the npm-distributed successor to `opencode-delivery`. From 1.1.0 it bundles:
 
-- a **nine-tool OpenCode plugin** that auto-loads from `.opencode/plugins/opencode-ship.js`;
+- a **typed OpenCode plugin** that auto-loads from `.opencode/plugins/opencode-ship.js`;
+- **ship agents** (controller, planner, task-builder, task-reviewer, final-standards-reviewer, final-spec-reviewer) plus the two legacy delivery agents (reviewer, verifier) for backward compatibility;
+- **ship commands** (`ship-deliver`, `ship-resume`, `ship-status`) plus the one-shot `setup-ship-workflow`;
+- **the engineering skill catalog** (delivery-workflow, planning-research-checkpoint, the Matt + Superpowers methodology catalog, the new setup-ship-workflow and skill-discovery);
+- **setup-ship-workflow skill** that walks the user through tracker / labels / docs / model roles;
+- **skill-discovery** that auto-installs trusted-source skills into the active issue worktree with immutable provenance.
 - a **lifecycle state machine** for one issue → one worktree → one PR → one merge → one cleanup;
 - a **Git worktree driver** (no rebase-after-push, no force-push, no `--force-with-lease`);
 - a **GitHub CLI driver** that talks only to typed `gh pr/issue` verbs (never `gh api`);
 - a **project adapter** (`.opencode/ship.config.json`) so any project can declare its own verify/bootstrap/CI commands;
-- **reviewer** and **verifier** subagents, both with strictly bounded `delivery_*` permissions;
-- a **delivery-workflow** skill that drives the canonical lifecycle;
-- a **planning-research-checkpoint** skill that offers a single, optional Deep Research gate per non-trivial plan;
-- a **delivery doctor** that walks every catalog entry to verify install state and lock consistency;
+- **reviewer** and **verifier** subagents, both with strictly bounded permissions;
+- **delivery-workflow** skill that drives the canonical lifecycle;
+- **planning-research-checkpoint** skill that offers a single, optional Deep Research gate per non-trivial plan;
+- a **doctor** that walks every catalog entry to verify install state and lock consistency;
 - an **install/doctor/diff/update/uninstall** CLI with stable exit codes and `--json` envelopes;
-- a **.opencode/ship.lock.json** lock that records managed paths, hashes, and the installer-owned JSON pointers;
+- a **.opencode/ship.lock.json** install lock that records managed paths, hashes, and the installer-owned root permissions;
+- a **.opencode/ship.skills.lock.json** skill inventory that records project-local dynamic skills with immutable provenance;
 - **recovery** for interrupted cleanup, half-written state files, and stale worktrees.
 
 The package **does not** own:
@@ -126,7 +158,7 @@ The shipped artifact is built by esbuild (`scripts/build.mjs`); self-contained `
 ## Status and licensing
 
 - **License:** MIT. See `LICENSE`.
-- **Versioning:** SemVer. v0.2.0 is the first npm-distributed release. v0.3.0 is the installer foundation with core-only defaults. v0.4.0 adds the profile-aware installer foundation (`--profile` flag, lock schema v2, profile precedence) that issue #18 requires. v0.5.0 ships the engineering profile content (triage + grill-with-docs SKILL.md placeholders) required by issue #20. v0.6.0 ships the durable plan artifact + Plan Mode permission integration required by issue #21. v0.7.0 ships the M3 task loop contract (run store, task brief, Spec/Quality verdicts, 3-round breaker, commit binding, compaction context) required by issue #22. v0.8.0 ships the Ready gate contract (parallel GPT Standards/Spec + verifier + CI on one HEAD; Build cannot self-record) required by issue #23. v0.9.0 ships the transition matrix smoke (core omits engineering, engineering adds engineering, lock tracks the active profile) required by issue #24.
+- **Versioning:** SemVer. v0.2.0 is the first npm-distributed release. v0.3.0 is the installer foundation. v0.4.0 adds the profile-aware installer foundation (`--profile` flag, lock schema v2, profile precedence) that issue #18 requires. v0.5.0 ships the engineering profile content (triage + grill-with-docs SKILL.md placeholders) required by issue #20. v0.6.0 ships the durable plan artifact + Plan Mode permission integration required by issue #21. v0.7.0 ships the M3 task loop contract (run store, task brief, Spec/Quality verdicts, 3-round breaker, commit binding, compaction context) required by issue #22. v0.8.0 ships the Ready gate contract (parallel Standards/Spec + verifier + CI on one HEAD) required by issue #23. v0.9.0 ships the transition matrix smoke (engineering installs all assets, lock tracks the active profile) required by issue #24. v1.0.0 promotes the dogfooded 0.10.0 to stable. v1.1.0 removes the legacy core profile and ships the one-liner init + setup-ship-workflow skill. v1.1.1 is the first fully self-hosting release (see `docs/release/1.1.1-stabilization-plan.md`).
 - **Compatibility:** the bundled plugin targets `@opencode-ai/plugin >= 1.15.5 < 2` and OpenCode `>= 1.15.5`.
 
 ## FAQ

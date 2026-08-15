@@ -2,7 +2,7 @@
 description: Cheap task builder. Implements one task at a time. Reports through `ship_task_report`. Cannot commit, push, mutate GitHub, or record reviews.
 mode: subagent
 temperature: 0.2
-model: minimax/MiniMax-M3
+model: <model-from-config>
 steps: 8
 permission:
   edit: allow

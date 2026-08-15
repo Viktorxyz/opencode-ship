@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-`opencode-ship@1.0.0` ships the complete Matt Pocock and Superpowers
+`opencode-ship@1.1.0` ships the complete Matt Pocock and Superpowers
 methodology under the MIT license, plus the Ship-owned installer,
 plugin, agents, and skills. The complete immutable pin list is in
 `vendor/sources.json`; the upstream snapshots are under
@@ -34,12 +34,6 @@ helpers shipped verbatim from upstream under MIT).
 | engineering | `assets/skills/domain-modeling/ADR-FORMAT.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
 | engineering | `assets/skills/domain-modeling/CONTEXT-FORMAT.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
 | engineering | `assets/skills/domain-modeling/SKILL.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | adapted |
-| engineering | `assets/skills/engineering-workflow/domain.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
-| engineering | `assets/skills/engineering-workflow/issue-tracker-github.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
-| engineering | `assets/skills/engineering-workflow/issue-tracker-gitlab.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
-| engineering | `assets/skills/engineering-workflow/issue-tracker-local.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
-| engineering | `assets/skills/engineering-workflow/SKILL.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | adapted |
-| engineering | `assets/skills/engineering-workflow/triage-labels.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
 | engineering | `assets/skills/executing-plans/SKILL.md` | `obra/superpowers` | MIT (see `vendor/superpowers/LICENSE`) | adapted |
 | engineering | `assets/skills/grill-with-docs/SKILL.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | adapted |
 | engineering | `assets/skills/grilling/SKILL.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | adapted |
@@ -51,12 +45,6 @@ helpers shipped verbatim from upstream under MIT).
 | engineering | `assets/skills/requesting-code-review/code-reviewer.md` | `obra/superpowers` | MIT (see `vendor/superpowers/LICENSE`) | unchanged |
 | engineering | `assets/skills/requesting-code-review/SKILL.md` | `obra/superpowers` | MIT (see `vendor/superpowers/LICENSE`) | adapted |
 | engineering | `assets/skills/research/SKILL.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | adapted |
-| engineering | `assets/skills/setup-engineering-workflow/domain.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
-| engineering | `assets/skills/setup-engineering-workflow/issue-tracker-github.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
-| engineering | `assets/skills/setup-engineering-workflow/issue-tracker-gitlab.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
-| engineering | `assets/skills/setup-engineering-workflow/issue-tracker-local.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
-| engineering | `assets/skills/setup-engineering-workflow/SKILL.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | adapted |
-| engineering | `assets/skills/setup-engineering-workflow/triage-labels.md` | `mattpocock/skills` | MIT (see `vendor/mattpocock/LICENSE`) | unchanged |
 | engineering | `assets/skills/subagent-driven-development/implementer-prompt.md` | `obra/superpowers` | MIT (see `vendor/superpowers/LICENSE`) | unchanged |
 | engineering | `assets/skills/subagent-driven-development/re-review-prompt.md` | `obra/superpowers` | MIT (see `vendor/superpowers/LICENSE`) | unchanged |
 | engineering | `assets/skills/subagent-driven-development/SKILL.md` | `obra/superpowers` | MIT (see `vendor/superpowers/LICENSE`) | adapted |

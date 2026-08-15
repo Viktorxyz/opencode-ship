@@ -2,6 +2,174 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## 1.1.1 — Stabilization + first self-hosting release (UNRELEASED)
+
+This release repairs the consumer-readiness gaps that made
+`1.1.0` unsuitable as a self-hosting control plane:
+
+- Engineering is the only shipped profile. New CLI selection of
+  the legacy `core` profile is rejected with exit 2; persisted
+  `core` configs and locks migrate to engineering on read.
+- Lock schema v4 adds `manager.setupComplete` and removes
+  `cleanupPending` from the install lock (cleanup retry now
+  lives under the Git common directory).
+- Workflow agents carry `<model-from-config>` placeholders; the
+  installer renders the configured `workflow.models` at install
+  time so a model change updates exactly the affected agent
+  files. The lock pins the rendered sha256.
+- Default-deny consumers can run the full controller flow
+  without manual permission patching. The installer no longer
+  owns the Plan Mode permission block; consumers configure it
+  via the built-in Plan agent. Subagent depth is pinned to 2.
+- The workflow state machine handles every documented event
+  kind (including the previously-missing `task-report`,
+  `final-review`, `ready-pending`, `all-tasks-done`).
+- Engineering Ready requires Standards and Spec final reviews
+  bound to the same HEAD and package hash, with `verdict: pass`
+  on both axes. Legacy single-review manifests continue to
+  fall through to the legacy gate.
+- Trusted-auto skill discovery installs from a configurable
+  allowlist with immutable provenance; skills land in the
+  active issue worktree under `.opencode/skills/<name>/` and
+  are recorded in `.opencode/ship.skills.lock.json`.
+- The `/setup-ship-workflow` skill is single (the legacy
+  duplicate `setup-engineering-workflow` is removed); it is
+  GitHub-only in `1.1.1` and routes model selection through
+  the existing CLI update transaction.
+- Release qualification pipeline runs the packed self-hosting
+  E2E end-to-end instead of just extracting the tarball.
+- Test contract: zero filename-disabled tests in the test
+  runner; tracked `tsconfig.dts.json` removed.
+
+See `docs/release/1.1.1-stabilization-plan.md` for the full plan
+and issue #40 for the bounded evidence ledger.
+
+## 1.1.0 — Engineering-only, easy setup, skill discovery (2026-08-08)
+
+> **Known gap:** `1.1.0` is the published `latest` but it does
+> not yet pass a real registry dogfood with real OpenCode,
+> GitHub, and models; the workflow surface ships in pieces
+> (skill discovery is dead code, the dual final review is not
+> enforced, and the Plan Mode permission is installer-owned).
+> `1.1.1` is the first fully self-hosting release and should be
+> preferred once it is on `npm dist-tag latest`. The 1.1.0
+> tarball remains available for pinned consumers.
+
+Stable release. Promoted to `npm dist-tag latest` after the
+qualification pipeline passed green on every matrix lane
+(npm x pnpm, opencode 1.15.5 + 1.18.10) and the runtime-source
+digest was preserved between rc.1 and 1.1.0 (only the
+`package.json` version, the README "Status" section, and this
+changelog header changed).
+
+Distribution:
+
+```text
+npm dist-tags
+  latest: 1.1.0
+  next:   1.0.0
+```
+
+Verification:
+
+```text
+npm install --prefix /tmp/fresh opencode-ship@latest
+node_modules/.bin/opencode-ship --version
+# prints: opencode-ship 1.1.0
+```
+
+The S5 real 14-step dogfood is still pending a valid OpenAI
+provider credential; the 1.0.0 line's published 0.10.0 digest
+is the runtime source witness for both 0.10.0 and 1.1.0.
+
+The breaking change set, the engineering-only `init` flow, the
+`setup-ship-workflow` skill, the `find-skills` discovery
+wiring, and the ask-first deep-research gate all carry forward
+unchanged from rc.1; see the rc.1 section below for the full
+list.
+
+## 1.1.0-rc.1 — One-liner install, easy setup, skill discovery
+
+### Breaking changes
+
+- **The `core` profile is removed.** `init --profile core` now
+  fails with exit 2 and a clear message. Every consumer on the
+  `1.1.x` line installs the engineering profile, which is the
+  superset of the previous core surface. Existing locks declaring
+  `manager.profile: "core"` are upgraded to `engineering` on the
+  next `init` or `update`. There is no migration of bytes — the
+  engineering catalog is a strict superset of the core catalog.
+
+### Added
+
+- **One-liner install.** `pnpm dlx opencode-ship@latest init` works
+  without any flags. The installer writes the full engineering
+  catalog and a `ship.config.json` with an empty `workflow.models`
+  block. The setup-pending marker
+  (`.opencode/ship.setup-pending.json`) is written so the
+  controller knows to route the first `ship-deliver` through the
+  setup skill.
+- **One-shot `setup-ship-workflow` skill.** Run via
+  `/setup-ship-workflow` in chat, or automatically by `ship-deliver`
+  when the setup-pending marker is present. The skill walks the
+  user through:
+  1. issue tracker (GitHub / GitLab / local markdown / other);
+  2. triage labels (default is `needs-triage`, `needs-info`,
+     `ready-for-agent`, `ready-for-human`, `wontfix`);
+  3. domain docs (single-context default, multi-context for
+     monorepos);
+  4. AI model roles (planner / builder / finalReviewer) with
+     `openai/gpt-5.6-sol` and `minimax/MiniMax-M3` defaults;
+  5. provider auth probe (`opencode providers list`);
+  6. permissions sanity (`opencode-ship doctor`);
+  7. AGENTS.md / CLAUDE.md block.
+  Re-running the skill is safe and idempotent.
+- **Skill discovery** (`assets/skills/skill-discovery/SKILL.md` and
+  `src/tools/skill-discovery.js`). The controller runs
+  `npx skills find <query>` before planning; trusted-source skills
+  (default: `vercel-labs`, `anthropics`, `obra`, `mattpocock`,
+  `ComposioHQ`) auto-install project-locally. Non-trusted
+  candidates are presented to the user. Allowlist and
+  `minInstalls` threshold are configurable via
+  `ship.config.json#skillDiscovery`.
+- **Ask-first deep-research gate.** The
+  `planning-research-checkpoint` skill now asks the user one
+  question before generating any research prompt. Default path
+  is "no research, continue with the plan as written", saving
+  tokens. The research prompt is only generated on explicit
+  consent.
+
+### Changed
+
+- `init` no longer requires `--planner-model` / `--builder-model`
+  / `--final-reviewer-model` flags. The flags remain available as
+  overrides for users who know exactly which models they want.
+- `ship.config.json#workflow.models` is now optional at install
+  time. The ship controller refuses to dispatch
+  (`ship-deliver`) until all three role ids are populated, or
+  routes through `/setup-ship-workflow` automatically.
+- `ship.config.json#profile` is the engineering profile. The CLI
+  still accepts `--profile engineering` (no-op) but rejects
+  `--profile core` with a helpful error.
+- The release qualification workflow now publishes under the
+  `candidate` dist-tag for 1.1.x and `next` for 0.10.x. 1.1.0 is
+  promoted to `latest` after the formal S5 dogfood passes (or after
+  a maintainer-approved exception is recorded in issue #37).
+- README, RELEASING, and this changelog are rewritten for the
+  one-liner install + setup-skill flow.
+
+### Fixed
+
+- WP0.1: the duplicate skill frontmatter `name: setup-matt-pocock-skills`
+  (set on both `setup-engineering-workflow` and
+  `engineering-workflow` SKILL.md files) is fixed; the
+  setup skill is now `setup-ship-workflow` and the workflow
+  reference is `engineering-workflow`.
+- The installer previously refused to commit if
+  `workflow.models` was incomplete. The new flow accepts the
+  empty-models state and relies on the setup skill to populate
+  them. Existing 1.0.x locks continue to work.
+
 ## Unreleased
 
 - `1.0.0` is on `npm dist-tag latest`; `0.10.0` stable is on

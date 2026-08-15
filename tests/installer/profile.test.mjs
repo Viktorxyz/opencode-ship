@@ -1,22 +1,34 @@
 /*
  * Unit tests for src/profile.js resolveProfile.
  *
- * Verifies the documented precedence: CLI > ship.config > lock > core.
- * Invalid profiles must throw a descriptive Error.
+ * Verifies the engineering-only contract with legacy-core
+ * migration on the read path:
+ *   - PROFILES contains only "engineering" (since 1.1.0).
+ *   - DEFAULT_PROFILE is "engineering".
+ *   - New CLI/config input of "core" is rejected.
+ *   - Persisted legacy "core" values (lock/config) promote to
+ *     "engineering" with `promotedFrom: "core"`.
+ *   - Invalid profiles throw a descriptive error.
  */
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveProfile, PROFILES, DEFAULT_PROFILE, isValidProfile } from "../../src/profile.js";
+import { resolveProfile, PROFILES, DEFAULT_PROFILE, isValidProfile, isLegacyProfile, LEGACY_PROFILES } from "../../src/profile.js";
 
-test("PROFILES: exactly core and engineering, in that order", () => {
-  assert.deepEqual([...PROFILES], ["core", "engineering"]);
-  assert.equal(DEFAULT_PROFILE, "core");
+test("PROFILES: exactly engineering", () => {
+  assert.deepEqual([...PROFILES], ["engineering"]);
+  assert.equal(DEFAULT_PROFILE, "engineering");
 });
 
-test("isValidProfile: only accepts the known profiles", () => {
-  assert.equal(isValidProfile("core"), true);
+test("LEGACY_PROFILES: contains core for read-path migration", () => {
+  assert.deepEqual([...LEGACY_PROFILES], ["core"]);
+  assert.ok(isLegacyProfile("core"));
+  assert.ok(!isLegacyProfile("engineering"));
+});
+
+test("isValidProfile: only accepts the active profile set", () => {
   assert.equal(isValidProfile("engineering"), true);
+  assert.equal(isValidProfile("core"), false);
   assert.equal(isValidProfile("practices"), false);
   assert.equal(isValidProfile(""), false);
   assert.equal(isValidProfile(null), false);
@@ -24,17 +36,18 @@ test("isValidProfile: only accepts the known profiles", () => {
   assert.equal(isValidProfile(42), false);
 });
 
-test("resolveProfile: defaults to core when all sources are empty", () => {
+test("resolveProfile: defaults to engineering when all sources are empty", () => {
   const r = resolveProfile({});
-  assert.equal(r.profile, "core");
+  assert.equal(r.profile, "engineering");
   assert.equal(r.source, "default");
+  assert.equal(r.promotedFrom, undefined);
 });
 
 test("resolveProfile: CLI > config > lock > default", () => {
   // CLI wins over everything
   const r1 = resolveProfile({
     cli: "engineering",
-    config: { profile: "core" },
+    config: { profile: "engineering" },
     lock: { manager: { profile: "engineering" } },
   });
   assert.equal(r1.profile, "engineering");
@@ -42,10 +55,10 @@ test("resolveProfile: CLI > config > lock > default", () => {
 
   // Config wins over lock and default
   const r2 = resolveProfile({
-    config: { profile: "core" },
+    config: { profile: "engineering" },
     lock: { manager: { profile: "engineering" } },
   });
-  assert.equal(r2.profile, "core");
+  assert.equal(r2.profile, "engineering");
   assert.equal(r2.source, "config");
 
   // Lock wins over default
@@ -58,20 +71,32 @@ test("resolveProfile: CLI > config > lock > default", () => {
 
 test("resolveProfile: legacy v0.3 lock (no profile field) falls through to default", () => {
   const r = resolveProfile({ lock: { manager: { schemaVersion: 1, name: "opencode-ship" } } });
-  assert.equal(r.profile, "core");
+  assert.equal(r.profile, "engineering");
   assert.equal(r.source, "default");
 });
 
-test("resolveProfile: undefined/null config.profile is treated as absent", () => {
-  const r1 = resolveProfile({ config: { profile: undefined } });
-  assert.equal(r1.profile, "core");
-  assert.equal(r1.source, "default");
-  const r2 = resolveProfile({ config: { profile: null } });
-  assert.equal(r2.profile, "core");
-  assert.equal(r2.source, "default");
+test("resolveProfile: persisted legacy 'core' in config promotes to engineering", () => {
+  const r = resolveProfile({ config: { profile: "core" } });
+  assert.equal(r.profile, "engineering");
+  assert.equal(r.source, "default");
+  assert.equal(r.promotedFrom, "core");
 });
 
-test("resolveProfile: invalid CLI profile throws", () => {
+test("resolveProfile: persisted legacy 'core' in lock promotes to engineering", () => {
+  const r = resolveProfile({ lock: { manager: { profile: "core" } } });
+  assert.equal(r.profile, "engineering");
+  assert.equal(r.source, "default");
+  assert.equal(r.promotedFrom, "core");
+});
+
+test("resolveProfile: CLI input of 'core' is rejected (core removed in 1.1.0)", () => {
+  assert.throws(
+    () => resolveProfile({ cli: "core" }),
+    /unknown CLI profile 'core'/,
+  );
+});
+
+test("resolveProfile: unknown CLI profile throws", () => {
   assert.throws(
     () => resolveProfile({ cli: "practices" }),
     /unknown CLI profile 'practices'/,
@@ -90,4 +115,28 @@ test("resolveProfile: invalid lock manager.profile throws", () => {
     () => resolveProfile({ lock: { manager: { profile: "practices" } } }),
     /unknown lock manager\.profile 'practices'/,
   );
+});
+
+test("resolveProfile: legacy 'core' in lock + fresh CLI 'engineering' keeps CLI choice", () => {
+  const r = resolveProfile({
+    cli: "engineering",
+    lock: { manager: { profile: "core" } },
+  });
+  assert.equal(r.profile, "engineering");
+  assert.equal(r.source, "cli");
+  assert.equal(r.promotedFrom, undefined);
+});
+
+test("resolveProfile: legacy 'core' in config promotes to engineering with default source", () => {
+  // Config precedence wins over lock; a persisted legacy config
+  // is promoted to engineering and surfaced as "default" because
+  // the user's literal value was "core". The lock is consulted
+  // next only when config has no profile.
+  const r = resolveProfile({
+    config: { profile: "core" },
+    lock: { manager: { profile: "engineering" } },
+  });
+  assert.equal(r.profile, "engineering");
+  assert.equal(r.source, "default");
+  assert.equal(r.promotedFrom, "core");
 });

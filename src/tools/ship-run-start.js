@@ -40,8 +40,11 @@ export function createRunStartTool(deps) {
     if (!workflowId || !SAFE_ID_RE.test(workflowId)) {
       return failure("run-start", "workflowId required (safe id)", { operationId: opId, retryable: false });
     }
-    const config = deps.config ?? null;
-    const expectedModels = config?.value?.workflow?.models ?? null;
+    // The plugin passes the full ship config under deps.configValue
+    // (set by the wrapper); use that directly. Fall back to the
+    // legacy deps.config.value shape for older callers.
+    const configValue = deps.configValue ?? deps.config?.value ?? null;
+    const expectedModels = configValue?.workflow?.models ?? null;
     if (!expectedModels) {
       return failure("run-start", "run-start requires configured workflow.models", { operationId: opId, retryable: false });
     }

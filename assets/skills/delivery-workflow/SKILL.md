@@ -52,7 +52,9 @@ Do **not** trigger on:
 
 ## Single-shot research checkpoint
 
-If you decide the task is non-trivial, pause once and offer a Deep Research prompt to the user. If they approve, gather the research, summarize the relevant findings inline (do not write to `docs/research/` unless the findings materially shape an ADR; ADR storage is the project's call, not yours). Continue only after the user confirms or declines.
+If you decide the task is non-trivial, pause once and **ask the user** whether to run Deep Research before generating any prompt. The default save-tokens path is "no research, continue with the plan as written". Only on explicit "yes" do you generate a draft Deep Research prompt and run the research; summarize the relevant findings inline and continue. Do not write to `docs/research/` unless the findings materially shape an ADR; ADR storage is the project's call, not yours. Continue only after the user confirms or declines.
+
+The full procedure lives in the `planning-research-checkpoint` skill. Do not duplicate the prompt-generation logic here — just trigger the skill and respect its ask-first policy.
 
 ## Stop conditions
 

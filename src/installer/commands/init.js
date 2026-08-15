@@ -1,15 +1,36 @@
 /*
  * opencode-ship command: init.
  *
- * Detect project, plan, commit, then auto-run doctor.
- * Returns 0 on success, 1 with --strict-doctor on unhealthy
- * doctor, 3 on conflict, 4 on transaction failure, 2 on
- * invalid project.
+ * One-liner install for the engineering profile. The installer:
+ *   1. detects the project (git repo, package manager, verifier);
+ *   2. plans the install (managed files, root permissions, config,
+ *      lock);
+ *   3. commits the transaction;
+ *   4. auto-runs doctor;
+ *   5. writes a setup-pending marker if the workflow.models are
+ *      not yet populated;
+ *   6. prints next-step instructions so the user knows exactly what
+ *      to type next.
+ *
+ * Exit codes:
+ *   0 success
+ *   1 with --strict-doctor on unhealthy doctor
+ *   2 invalid input (e.g. unknown CLI profile, missing project)
+ *   3 managed-file conflict
+ *   4 transaction failure
  */
 
+import { promisify } from "node:util";
+import { writeFile, mkdir as mkdirAsync } from "node:fs/promises";
+import { dirname, resolve as resolvePath } from "node:path";
 import { previewInstall, commitInstall, serializePlan } from "../executor.js";
 import { runDoctor } from "./doctor.js";
 import { validateCatalog } from "../catalog.js";
+import { hasCompletedModels } from "../config.js";
+import { writeSetupPending } from "../setup-pending.js";
+
+const writeFileAsync = promisify(writeFile);
+const mkdirAsyncAsync = promisify(mkdirAsync);
 
 export async function runInit(options) {
   try {
@@ -20,20 +41,22 @@ export async function runInit(options) {
     }
     throw e;
   }
-  const preview = await previewInstall({
-    rootPath: options.rootPath ?? null,
-    profile: options.profile ?? null,
-    replaceManaged: false,
-    forceConfig: Boolean(options.forceConfig),
-    forceRootConfig: Boolean(options.forceRootConfig),
-    models: options.models ?? null,
-  });
+  let preview;
+  try {
+    preview = await previewInstall({
+      rootPath: options.rootPath ?? null,
+      profile: options.profile ?? null,
+      replaceManaged: false,
+      forceConfig: Boolean(options.forceConfig),
+      forceRootConfig: Boolean(options.forceRootConfig),
+      models: options.models ?? null,
+    });
+  } catch (e) {
+    return emitFailure(2, e?.message ?? "invalid input", options.json, "init");
+  }
   if (!preview.ok) {
     if (preview.error?.kind === "unsupported-lock-schema") {
       return emitFailure(5, `unsupported lock schema: ${(preview.error.issues ?? []).join("; ")}`, options.json, "init");
-    }
-    if (preview.error?.kind === "engineering-models-required") {
-      return emitFailure(2, preview.error.message, options.json, "init");
     }
     if (preview.error?.kind === "engineering-approval-required") {
       return emitFailure(2, preview.error.message, options.json, "init");
@@ -68,6 +91,19 @@ export async function runInit(options) {
     }
   }
 
+  // Setup-pending marker. The setup-ship-workflow skill removes
+  // this file on success. The ship controller checks for it to
+  // route ship-deliver through setup before any plan can be
+  // drafted.
+  const setupPending = Boolean(preview.setupPending);
+  if (setupPending && preview.repoRoot) {
+    await writeSetupPending(preview.repoRoot, {
+      profile: preview.profile?.profile ?? "engineering",
+      reason: "workflow.models is empty; run /setup-ship-workflow to fill in model roles",
+      createdAt: new Date().toISOString(),
+    });
+  }
+
   if (options.json) {
     const envelope = {
       reportVersion: 1,
@@ -79,18 +115,58 @@ export async function runInit(options) {
       diagnostics: committed.diagnostics ?? [],
       doctor: doctor.issues ?? [],
       doctorChecks: doctor.checks ?? [],
+      setupPending,
       exitCode,
     };
     Object.assign(envelope, committed.extra ?? {}, { doctor: doctor.issues ?? [] });
     process.stdout.write(JSON.stringify(envelope, null, 2) + "\n");
-  } else if (exitCode !== 0) {
-    process.stdout.write(`opencode-ship: doctor reported ${doctor.issues.length} unhealthy check(s)\n`);
   } else {
-    process.stdout.write(`opencode-ship: installed; doctor OK\n`);
+    printHumanResult({
+      prefix: "opencode-ship",
+      exitCode,
+      doctorIssues: doctor.issues,
+      setupPending,
+    });
   }
 
   process.exitCode = exitCode;
-  return { ok: exitCode === 0, exitCode };
+  return { ok: exitCode === 0, exitCode, setupPending };
+}
+
+function printHumanResult({ prefix, exitCode, doctorIssues, setupPending }) {
+  const lines = [];
+  if (exitCode === 0) {
+    lines.push(`${prefix}: installed; doctor OK`);
+  } else {
+    lines.push(`${prefix}: installed with warnings`);
+  }
+  if (Array.isArray(doctorIssues) && doctorIssues.length > 0) {
+    lines.push("");
+    lines.push("Doctor reported:");
+    for (const issue of doctorIssues) lines.push(`  - ${issue}`);
+  }
+  if (setupPending) {
+    lines.push("");
+    lines.push("NEXT:");
+    lines.push("  1. Restart OpenCode in this repo (if you haven't already).");
+    lines.push("  2. In chat, run: /setup-ship-workflow");
+    lines.push("     (or type: continue ship setup)");
+    lines.push("  3. The skill will ask for:");
+    lines.push("       - issue tracker (GitHub / GitLab / local / other)");
+    lines.push("       - triage labels (defaults are fine)");
+    lines.push("       - domain docs (single-context default)");
+    lines.push("       - AI model roles (planner / builder / finalReviewer)");
+    lines.push("  4. After setup, try: Ship issue <number>");
+    lines.push("");
+    lines.push("The controller will refuse to dispatch until setup is complete.");
+  } else {
+    lines.push("");
+    lines.push("NEXT:");
+    lines.push("  1. Restart OpenCode in this repo.");
+    lines.push("  2. Run: opencode-ship doctor && to confirm everything is clean.");
+    lines.push("  3. Run: Ship issue <number>     (or /setup-ship-workflow to customise first)");
+  }
+  process.stdout.write(lines.join("\n") + "\n");
 }
 
 function emitFailure(code, message, json, command) {

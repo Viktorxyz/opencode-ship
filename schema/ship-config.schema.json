@@ -9,8 +9,8 @@
     "schemaVersion": { "enum": [1, 2] },
     "profile": {
       "type": "string",
-      "enum": ["core", "engineering"],
-      "description": "Active profile (precedence layer 2: ship.config > lock > core default)."
+      "enum": ["engineering", "core"],
+      "description": "Active profile. Engineering is the only supported profile in 1.1.0; core is accepted on read for legacy consumer migration."
     },
     "owner": {
       "type": "string",
@@ -139,13 +139,13 @@
     },
     "workflow": {
       "type": "object",
-      "description": "Required when profile is engineering. Ignored when profile is core.",
+      "description": "Workflow configuration. Models are optional at write time; the setup-ship-workflow skill fills them in. Once all three are present, ship-deliver can start.",
       "additionalProperties": false,
       "properties": {
         "models": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["planner", "builder", "finalReviewer"],
+          "description": "Optional model roles. All three roles must be present before ship-deliver can run.",
           "properties": {
             "planner": {
               "type": "string",
@@ -173,30 +173,28 @@
           }
         }
       }
-    }
-  },
-  "allOf": [
-    {
-      "if": {
-        "required": ["profile"],
-        "properties": { "profile": { "const": "engineering" } }
-      },
-      "then": {
-        "required": ["workflow"],
-        "properties": {
-          "workflow": {
-            "required": ["models", "approval"],
-            "properties": {
-              "models": {
-                "required": ["planner", "builder", "finalReviewer"]
-              },
-              "approval": {
-                "required": ["mirrorToIssue", "maxFailedRounds"]
-              }
-            }
-          }
-        }
+    },
+    "skillDiscovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Trusted-auto skill discovery policy. Default mode is trusted-auto with the canonical owner allowlist and install-count threshold.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["suggest-only", "trusted-auto", "disabled"]
+        },
+        "trustedOwners": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+$" }
+        },
+        "minInstalls": { "type": "integer", "minimum": 0 },
+        "maxAutoInstall": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "blocklist": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9_./-]+$" }
+        },
+        "requireImmutableRef": { "type": "boolean" }
       }
     }
-  ]
+  }
 }

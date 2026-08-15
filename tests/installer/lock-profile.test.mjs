@@ -1,9 +1,16 @@
 /*
  * Unit tests for src/installer/lock.js.
  *
- * Verifies the lock schema version 2 carries a `manager.profile`
- * field and that v0.3 schema-1 locks without a profile load as
- * legacy core. Mirrors the docs in src/installer/lock.js.
+ * Verifies the lock schema v4 contract:
+ *   - manager.profile is REQUIRED on newly written locks and
+ *     validated to be one of PROFILES (engineering) or the legacy
+ *     core (read-compat only).
+ *   - v1/v2/v3 locks still validate so existing consumers can
+ *     upgrade.
+ *   - normalizeLegacyLock strips cleanupPending so v4 writes don't
+ *     carry runtime state.
+ *   - integrity is computed over all lock fields except integrity.
+ *   - DEFAULT_PROFILE is engineering.
  */
 
 import test from "node:test";
@@ -13,62 +20,36 @@ import {
   validateLock,
   computeIntegrity,
   lockSchemaRevision,
+  normalizeLegacyLock,
 } from "../../src/installer/lock.js";
 import { DEFAULT_PROFILE } from "../../src/profile.js";
 
-test("CURRENT_LOCK_SCHEMA: bump to 2 once profile is required on new locks", () => {
-  // The schema version is bumped when the lock shape changes. Slice 1
-  // (CLI flag) and slice 2 (lock profile) together require this bump.
+test("CURRENT_LOCK_SCHEMA: v4 after setup-complete contract", () => {
   assert.equal(typeof CURRENT_LOCK_SCHEMA, "number");
-  assert.ok(CURRENT_LOCK_SCHEMA >= 2, `expected schema >= 2, got ${CURRENT_LOCK_SCHEMA}`);
+  assert.ok(CURRENT_LOCK_SCHEMA >= 4, `expected schema >= 4, got ${CURRENT_LOCK_SCHEMA}`);
   assert.equal(lockSchemaRevision(), CURRENT_LOCK_SCHEMA);
 });
 
-test("validateLock: accepts a v0.3 lock without profile as legacy core", () => {
-  // v0.3 locks are manager-aware schema-1 but do not carry a
-  // profile. They must still validate so the migration path can
-  // load them; resolution of the missing profile happens in the
-  // profile precedence logic (sibling slice).
+test("validateLock: accepts a v0.3 lock without profile as legacy default", () => {
   const legacy = {
     contractVersion: 1,
     manager: { schemaVersion: 1, name: "opencode-ship", version: "0.3.0" },
     files: [],
     integrity: { lockSha256: "ignored-by-helper" },
   };
-  // Make integrity correct so validation passes
   legacy.integrity = computeIntegrity(legacy);
   const r = validateLock(legacy);
   assert.equal(r.ok, true, `expected ok, got ${JSON.stringify(r)}`);
   assert.equal(r.kind, "ok");
 });
 
-test("computeIntegrity: stable across profile additions", () => {
-  // Adding manager.profile must not break integrity (the field
-  // is included in the hash, so the hash changes; this test pins
-  // that the schema correctly hashes the new field).
-  const base = {
-    contractVersion: CURRENT_LOCK_SCHEMA,
-    manager: {
-      schemaVersion: CURRENT_LOCK_SCHEMA,
-      name: "opencode-ship",
-      version: "0.4.0",
-      profile: "core",
-    },
-    files: [],
-  };
-  const h1 = computeIntegrity(base).lockSha256;
-  const h2 = computeIntegrity({ ...base, manager: { ...base.manager, profile: "engineering" } })
-    .lockSha256;
-  assert.notEqual(h1, h2, "integrity must change when profile changes");
-});
-
-test("validateLock: profile=core locks validate as ok", () => {
+test("validateLock: v3 lock with profile=core is accepted for read-compat", () => {
   const lock = {
-    contractVersion: CURRENT_LOCK_SCHEMA,
+    contractVersion: 3,
     manager: {
-      schemaVersion: CURRENT_LOCK_SCHEMA,
+      schemaVersion: 3,
       name: "opencode-ship",
-      version: "0.4.0",
+      version: "1.0.0",
       profile: "core",
     },
     files: [],
@@ -85,7 +66,7 @@ test("validateLock: profile=engineering locks validate as ok", () => {
     manager: {
       schemaVersion: CURRENT_LOCK_SCHEMA,
       name: "opencode-ship",
-      version: "0.4.0",
+      version: "1.1.1",
       profile: "engineering",
     },
     files: [],
@@ -93,8 +74,71 @@ test("validateLock: profile=engineering locks validate as ok", () => {
   lock.integrity = computeIntegrity(lock);
   const r = validateLock(lock);
   assert.equal(r.ok, true);
+  assert.equal(r.kind, "ok");
 });
 
-test("DEFAULT_PROFILE: is core", () => {
-  assert.equal(DEFAULT_PROFILE, "core");
+test("validateLock: unknown profiles still fail closed", () => {
+  const lock = {
+    contractVersion: CURRENT_LOCK_SCHEMA,
+    manager: {
+      schemaVersion: CURRENT_LOCK_SCHEMA,
+      name: "opencode-ship",
+      version: "1.1.1",
+      profile: "practices",
+    },
+    files: [],
+  };
+  lock.integrity = computeIntegrity(lock);
+  const r = validateLock(lock);
+  assert.equal(r.ok, false);
+  assert.match(r.issues.join(" "), /invalid manager.profile/);
+});
+
+test("validateLock: integrity mismatch is reported", () => {
+  const lock = {
+    contractVersion: CURRENT_LOCK_SCHEMA,
+    manager: {
+      schemaVersion: CURRENT_LOCK_SCHEMA,
+      name: "opencode-ship",
+      version: "1.1.1",
+      profile: "engineering",
+    },
+    files: [],
+    integrity: { lockSha256: "0".repeat(64) },
+  };
+  const r = validateLock(lock);
+  assert.equal(r.ok, false);
+  assert.equal(r.kind, "integrity");
+});
+
+test("computeIntegrity: stable across profile additions", () => {
+  const base = {
+    contractVersion: CURRENT_LOCK_SCHEMA,
+    manager: {
+      schemaVersion: CURRENT_LOCK_SCHEMA,
+      name: "opencode-ship",
+      version: "1.1.1",
+      profile: "engineering",
+    },
+    files: [],
+  };
+  const h1 = computeIntegrity(base).lockSha256;
+  const h2 = computeIntegrity({ ...base, manager: { ...base.manager, setupComplete: true } }).lockSha256;
+  assert.notEqual(h1, h2, "integrity must change when setupComplete changes");
+});
+
+test("normalizeLegacyLock: strips cleanupPending from pre-v4 locks", () => {
+  const legacy = {
+    contractVersion: 3,
+    manager: { schemaVersion: 3, name: "opencode-ship", profile: "engineering" },
+    files: [],
+    cleanupPending: [{ taskId: "abc", stage: "branch-delete" }],
+  };
+  const normalized = normalizeLegacyLock(legacy);
+  assert.equal(normalized.cleanupPending, undefined);
+  assert.equal(normalized.contractVersion, 3);
+});
+
+test("DEFAULT_PROFILE: is engineering", () => {
+  assert.equal(DEFAULT_PROFILE, "engineering");
 });

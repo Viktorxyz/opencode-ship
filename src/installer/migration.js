@@ -157,6 +157,10 @@ export function legacyToShipConfig(legacy, detection = null) {
         ? legacy.cleanup
         : { when: "next-task", requireUnpublishedGuard: true },
     },
+    workflow: {
+      models: {},
+      approval: { mirrorToIssue: true, maxFailedRounds: 3 },
+    },
   };
 }
 

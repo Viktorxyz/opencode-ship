@@ -8,6 +8,7 @@
 
 import { previewInstall, commitInstall, serializePlan } from "../executor.js";
 import { validateCatalog } from "../catalog.js";
+import { clearSetupPending } from "../setup-pending.js";
 
 export async function runUpdate(options) {
   try {
@@ -18,11 +19,16 @@ export async function runUpdate(options) {
     }
     throw e;
   }
+  const hasExplicitModels = options.models
+    && (options.models.planner || options.models.builder || options.models.finalReviewer);
   const preview = await previewInstall({
     rootPath: options.rootPath,
     profile: options.profile ?? null,
     replaceManaged: options.replaceManaged,
-    forceConfig: options.forceConfig,
+    // If the user passes model flags, the run is explicitly
+    // populating workflow.models. We must rewrite the config in
+    // that case even when the existing config is otherwise valid.
+    forceConfig: Boolean(options.forceConfig || hasExplicitModels),
     forceRootConfig: options.forceRootConfig,
     models: options.models ?? null,
   });
@@ -39,6 +45,11 @@ export async function runUpdate(options) {
     return emitFailure(3, "modified managed files; rerun with --replace-managed", options.json, "update");
   }
   const committed = await commitInstall(preview, { json: options.json, command: "update" });
+  // After a successful update, clear the setup-pending marker so
+  // `ship-deliver` does not need to route through setup again.
+  if (committed.extra?.exitCode === 0 && preview.repoRoot && !preview.setupPending) {
+    clearSetupPending(preview.repoRoot);
+  }
   if (options.json) {
     process.stdout.write(JSON.stringify({
       reportVersion: 1,
@@ -49,6 +60,7 @@ export async function runUpdate(options) {
       summary: committed.summary ?? {},
       diagnostics: committed.diagnostics ?? [],
       exitCode: committed.extra?.exitCode ?? 0,
+      setupPending: Boolean(preview.setupPending),
       ...(committed.extra ?? {}),
     }, null, 2) + "\n");
   } else if (committed.extra?.exitCode === 0) {

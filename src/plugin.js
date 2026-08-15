@@ -461,11 +461,14 @@ const factories = {
   runStart: {
     args: {
       workflowId: tool.schema.string(),
+      revision: tool.schema.number().optional(),
+      sha256: tool.schema.string().optional(),
       operationId: tool.schema.string().optional(),
     },
     build: (rt) => createRunStartTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
+      configValue: rt.configValue,
     }),
   },
   taskReport: {
