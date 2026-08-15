@@ -101,7 +101,7 @@ for (const path of [
 // manifest; this loop is a fast guard against an empty
 // `scripts/vendor-sync.mjs` run leaking into a published tarball.
 const skillNames = [
-  "setup-engineering-workflow", "engineering-workflow", "grilling",
+  "setup-ship-workflow", "engineering-workflow", "grilling",
   "domain-modeling", "grill-with-docs", "triage", "to-spec", "to-tickets",
   "wayfinder", "handoff", "research", "prototype", "codebase-design", "code-review",
   "brainstorming", "writing-plans", "executing-plans", "subagent-driven-development",
