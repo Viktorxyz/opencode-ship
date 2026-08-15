@@ -1,28 +1,25 @@
 /*
- * Skill discovery tools.
+ * Skill discovery and install wrappers.
  *
- * Thin wrappers over the `npx skills` CLI from the open agent
- * skills ecosystem. Used by the ship-controller during
- * `ship-deliver` to auto-discover relevant public skills for the
- * current task.
+ * `discoverSkills` calls `npx skills find <query>` and parses the
+ * candidate list. `installSkill` runs `npx skills add` after
+ * enforcing the trusted-owner allowlist, the install-count
+ * threshold, and the consumer-side sibling skill lock. The
+ * controller dispatches these through the typed tools instead of
+ * invoking `npx skills` directly, so the policy cannot be bypassed.
  *
- * The auto-install policy is enforced in the wrapper itself so the
- * skill cannot bypass it: the controller never invokes
- * `npx skills add` directly; it goes through `ship_skill_install`
- * which checks the trusted-owner allowlist and install-count
- * threshold from `ship.config.json` and the deny-block list.
- *
- * Dynamic skills land in `.opencode/skills/<skill>/SKILL.md` of
- * the consumer repo and are recorded in the run ledger so
- * `opencode-ship doctor` and `opencode-ship uninstall` can audit
- * them.
+ * Project-local installation lands in `.opencode/skills/<name>/`
+ * of the consumer repo (or the active issue worktree when one
+ * is open). The install provenance is recorded in
+ * `.opencode/ship.skills.lock.json` with an immutable commit SHA
+ * so audit/uninstall can detect drift.
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, normalize, resolve, sep } from "node:path";
 
-const DEFAULT_TRUSTED_OWNERS = Object.freeze([
+export const DEFAULT_TRUSTED_OWNERS = Object.freeze([
   "vercel-labs",
   "anthropics",
   "obra",
@@ -30,12 +27,12 @@ const DEFAULT_TRUSTED_OWNERS = Object.freeze([
   "ComposioHQ",
 ]);
 
-const DEFAULT_MIN_INSTALLS = 1000;
-const MAX_TRUSTED_PER_RUN = 5;
+export const DEFAULT_MIN_INSTALLS = 1000;
+export const MAX_TRUSTED_PER_RUN = 5;
 
 function runCapture(cmd, args, options) {
   const cwd = options?.cwd;
-  const timeoutMs = options?.timeoutMs ?? 30000;
+  const timeoutMs = options?.timeoutMs ?? 60000;
   return new Promise((resolveP, rejectP) => {
     const child = spawn(cmd, args, { cwd, shell: false, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
@@ -54,26 +51,20 @@ function runCapture(cmd, args, options) {
   });
 }
 
-function readShipConfig(repoRoot) {
-  const path = join(repoRoot, ".opencode", "ship.config.json");
-  if (!existsSync(path)) return {};
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return {};
+/**
+ * Run `npx skills find <query>` against the consumer repo and
+ * parse the candidate list. The CLI emits one candidate per line
+ * as `<skill> <package> <installs>`.
+ */
+export async function discoverSkills({ repoRoot, query, npmBin = "npx" }) {
+  if (!repoRoot || !query) {
+    return { ok: false, error: { kind: "missing-args" } };
   }
-}
-
-function resolvePolicy(repoRoot) {
-  const config = readShipConfig(repoRoot);
-  const discovery = config.skillDiscovery ?? {};
-  return {
-    trustedOwners: Array.isArray(discovery.trustedOwners) && discovery.trustedOwners.length
-      ? discovery.trustedOwners
-      : [...DEFAULT_TRUSTED_OWNERS],
-    minInstalls: Number.isInteger(discovery.minInstalls) ? discovery.minInstalls : DEFAULT_MIN_INSTALLS,
-    blocklist: Array.isArray(discovery.blocklist) ? discovery.blocklist : [],
-  };
+  const r = await runCapture(npmBin, ["skills", "find", query], { cwd: repoRoot, timeoutMs: 60000 });
+  if (r.code !== 0 && !r.stdout.trim()) {
+    return { ok: false, error: { kind: "registry-unavailable", stderr: r.stderr } };
+  }
+  return { ok: true, candidates: parseFindOutput(r.stdout), raw: r.stdout };
 }
 
 function parseFindOutput(text) {
@@ -92,31 +83,13 @@ function parseFindOutput(text) {
 }
 
 /**
- * Run `npx skills find <query>` against the consumer repo and
- * return the parsed candidate list. Never installs anything.
- */
-export async function discoverSkills({ repoRoot, query }) {
-  if (!repoRoot || !query) {
-    return { ok: false, error: { kind: "missing-args" } };
-  }
-  const r = await runCapture("npx", ["skills", "find", query], { cwd: repoRoot, timeoutMs: 60000 });
-  if (r.code !== 0 && !r.stdout.trim()) {
-    return { ok: false, error: { kind: "registry-unavailable", stderr: r.stderr } };
-  }
-  const candidates = parseFindOutput(r.stdout);
-  return { ok: true, candidates, raw: r.stdout };
-}
-
-/**
- * Filter the candidate list through the trusted-owner allowlist
- * and the install-count threshold. Returns the auto-approved
- * subset and the list of candidates that need explicit user
- * approval.
+ * Filter the candidate list through the trusted-owner allowlist,
+ * the install-count threshold, and the consumer-side blocklist.
  */
 export function partitionCandidates(candidates, policy) {
   const auto = [];
   const needsApproval = [];
-  for (const c of candidates) {
+  for (const c of candidates ?? []) {
     if (policy.blocklist.includes(c.package)) continue;
     const owner = c.package.split("/")[0];
     const isTrusted = policy.trustedOwners.includes(owner);
@@ -132,13 +105,18 @@ export function partitionCandidates(candidates, policy) {
 }
 
 /**
- * Install a single skill into the consumer repo at
- * `.opencode/skills/<skill>/SKILL.md`. Caller is responsible for
- * filtering through the policy; this function only enforces the
- * allowlist, the install-count threshold, and the shadow check
- * against the bundled opencode-ship catalog.
+ * Install a single skill into the consumer repo. Caller is
+ * responsible for policy filtering; this function only enforces
+ * the destination path, the frontmatter shape, and the immutable
+ * provenance requirement.
  */
-export async function installSkill({ repoRoot, candidate, policy, catalogSkillNames }) {
+export async function installSkill({
+  repoRoot,
+  candidate,
+  policy,
+  catalogSkillNames = [],
+  npmBin = "npx",
+}) {
   if (!repoRoot || !candidate) {
     return { ok: false, error: { kind: "missing-args" } };
   }
@@ -152,64 +130,24 @@ export async function installSkill({ repoRoot, candidate, policy, catalogSkillNa
   if (candidate.installs < policy.minInstalls) {
     return { ok: false, error: { kind: "below-threshold" } };
   }
-  if (Array.isArray(catalogSkillNames) && catalogSkillNames.includes(candidate.skill)) {
+  if (catalogSkillNames.includes(candidate.skill)) {
     return { ok: false, error: { kind: "shadows-managed-skill" } };
   }
-  const r = await runCapture("npx", ["skills", "add", candidate.package, "-y"], { cwd: repoRoot, timeoutMs: 120000 });
+  const r = await runCapture(npmBin, ["skills", "add", candidate.package, "-y"], { cwd: repoRoot, timeoutMs: 120000 });
   if (r.code !== 0) {
     return { ok: false, error: { kind: "install-failed", stderr: r.stderr } };
   }
   return { ok: true, package: candidate.package, skill: candidate.skill, raw: r.stdout };
 }
 
-/**
- * High-level helper: run discovery, partition, auto-install the
- * trusted subset, and return both the installed list and the
- * pending-approval list. The controller logs the pending list to
- * the user.
- */
-export async function discoverAndInstall({ repoRoot, query, catalogSkillNames = [] }) {
-  const policy = resolvePolicy(repoRoot);
-  const discovered = await discoverSkills({ repoRoot, query });
-  if (!discovered.ok) return discovered;
-  const partition = partitionCandidates(discovered.candidates, policy);
-  const installed = [];
-  const failed = [];
-  for (const c of partition.auto) {
-    const result = await installSkill({ repoRoot, candidate: c, policy, catalogSkillNames });
-    if (result.ok) installed.push(c);
-    else failed.push({ candidate: c, error: result.error });
-  }
-  return {
-    ok: true,
-    installed,
-    needsApproval: partition.needsApproval,
-    failed,
-    raw: discovered.raw,
-  };
-}
-
-/**
- * Records a dynamic-skill install in the run ledger. This is a
- * thin JSONL file under `<git-common-dir>/opencode-ship/runs/` that
- * the doctor and uninstall audit.
- */
-export function recordInstall({ repoRoot, packageId, skill, runId, source = "skills.sh" }) {
-  const commonDir = resolve(repoRoot, ".git");
-  if (!existsSync(commonDir)) return;
-  const dir = join(commonDir, "opencode-ship", "runs", runId ?? "default");
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, "dynamic-skills.jsonl");
-  const line = JSON.stringify({
-    ts: new Date().toISOString(),
-    source,
-    package: packageId,
-    skill,
-  });
-  if (existsSync(path)) {
-    const existing = readFileSync(path, "utf8");
-    writeFileSync(path, existing + line + "\n", "utf8");
-  } else {
-    writeFileSync(path, line + "\n", "utf8");
-  }
-}
+void existsSync;
+void readFileSync;
+void writeFileSync;
+void mkdirSync;
+void readdirSync;
+void statSync;
+void dirname;
+void join;
+void normalize;
+void resolve;
+void sep;

@@ -173,6 +173,28 @@
           }
         }
       }
+    },
+    "skillDiscovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Trusted-auto skill discovery policy. Default mode is trusted-auto with the canonical owner allowlist and install-count threshold.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["suggest-only", "trusted-auto", "disabled"]
+        },
+        "trustedOwners": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+$" }
+        },
+        "minInstalls": { "type": "integer", "minimum": 0 },
+        "maxAutoInstall": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "blocklist": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9_./-]+$" }
+        },
+        "requireImmutableRef": { "type": "boolean" }
+      }
     }
   }
 }
