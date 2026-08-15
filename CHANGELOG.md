@@ -4,6 +4,13 @@ All notable changes to `opencode-ship` are recorded here.
 
 ## 1.1.1 — Stabilization + first self-hosting release (UNRELEASED)
 
+> Active stabilization branch: `fix/1.1.1-stabilization`.
+> Parent tracker: https://github.com/Viktorxyz/opencode-ship/issues/40.
+> Authoritative plan: `docs/release/1.1.1-stabilization-plan.md`.
+
+This release repairs the consumer-readiness gaps that made
+`1.1.0` unsuitable as a self-hosting control plane:
+
 This release repairs the consumer-readiness gaps that made
 `1.1.0` unsuitable as a self-hosting control plane:
 
