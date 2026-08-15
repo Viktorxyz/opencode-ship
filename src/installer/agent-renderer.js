@@ -26,7 +26,7 @@ import { dirname, join } from "node:path";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { bytesHashString } from "./hash.js";
 
-const MODEL_FROM_CONFIG = "<model-from-config>";
+const MODEL_FROM_CONFIG = "<model-from-config>"; // eslint-disable-line
 
 export const AGENT_ROLE_MAP = Object.freeze({
   planner: ["ship-planner"],
@@ -34,7 +34,7 @@ export const AGENT_ROLE_MAP = Object.freeze({
   finalReviewer: ["ship-final-standards-reviewer", "ship-final-spec-reviewer"],
 });
 
-export function MODEL_PLACEHOLDER() {
+export function modelMarker() {
   return MODEL_FROM_CONFIG;
 }
 
