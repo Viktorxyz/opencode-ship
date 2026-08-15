@@ -85,7 +85,7 @@ function buildSourceHashIndex() {
   return idx;
 }
 
-function checkCatalogInstall(repoRoot, sourceHashes, profile) {
+async function checkCatalogInstall(repoRoot, sourceHashes, profile, renderedAgentMap = new Map()) {
   const rows = [];
   const scoped = profile
     ? filterCatalogByProfile(CATALOG, profile)
@@ -99,7 +99,10 @@ function checkCatalogInstall(repoRoot, sourceHashes, profile) {
     try {
       const buf = readFileSync(target, "utf8");
       const actual = bytesHashString(buf);
-      const expected = sourceHashes.get(entry.source);
+      const rendered = renderedAgentMap.get(entry.path);
+      // Workflow agents are rendered with the configured model; the
+      // rendered bytes are the desired consumer state.
+      const expected = rendered ? rendered.sha256 : sourceHashes.get(entry.source);
       if (expected && expected !== actual) {
         rows.push(`${entry.id}: drift`);
       } else {
@@ -153,6 +156,12 @@ async function checkManagedHashes(repoRoot, validatedLock) {
     return { name: "managed hashes", ok: false, detail: "no usable lock" };
   }
   const drift = [];
+  // The rendered agent bytes for the consumer are different from
+  // the catalog template bytes; the lock already records the
+  // rendered sha256 so we must use that as the source of truth.
+  // Workflow agents carry <model-from-config> until the renderer
+  // fills them in; once configured, the renderer output is locked.
+  const renderedAgents = await loadRenderedAgentOverrides(repoRoot);
   for (const entry of validatedLock.lock.files ?? []) {
     const p = resolve(repoRoot, entry.path);
     if (!existsSync(p)) { drift.push(`missing:${entry.path}`); continue; }
@@ -161,6 +170,19 @@ async function checkManagedHashes(repoRoot, validatedLock) {
     if (actual !== entry.sha256) drift.push(`drift:${entry.path}`);
   }
   return { name: "managed hashes", ok: drift.length === 0, detail: drift.length ? drift.join(",") : "match" };
+}
+
+async function loadRenderedAgentOverrides(repoRoot) {
+  const { loadConfig } = await import("../config.js");
+  const { CATALOG } = await import("../catalog.js");
+  const { computeRenderedAgents } = await import("../agent-renderer.js");
+  const cfg = await loadConfig(repoRoot);
+  const models = cfg?.ok ? cfg.value?.workflow?.models : null;
+  if (!models) return new Map();
+  const rendered = await computeRenderedAgents({ models, catalog: CATALOG });
+  const map = new Map();
+  for (const e of rendered) map.set(e.relPath, e);
+  return map;
 }
 
 async function checkActiveProfileFootprint(repoRoot, validatedLock, profile) {
@@ -253,7 +275,7 @@ export async function runDoctor({ rootPath, profile, json, writeOutput = true })
     checkGh(),
     checkGhAuth(),
     packageIntegrity,
-    checkCatalogInstall(repoRoot, sourceHashes, resolved.profile),
+    await checkCatalogInstall(repoRoot, sourceHashes, resolved.profile, await loadRenderedAgentOverrides(repoRoot)),
     await checkLock(repoRoot),
     await checkConfig(repoRoot),
     await checkManagedHashes(repoRoot, validatedLock),

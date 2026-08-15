@@ -2,7 +2,7 @@
 description: Deterministic Ship controller. Owns durable workflow state, Git/GitHub mutations, and the same-HEAD Ready / merge gates. Use for `ship-deliver`, `ship-resume`, and `ship-status`.
 mode: subagent
 temperature: 0.1
-model: minimax/MiniMax-M3
+model: <model-from-config>
 steps: 12
 permission:
   edit: deny

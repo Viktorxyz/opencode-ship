@@ -133,7 +133,26 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
     migrationSeed: migrationReport?.proposedConfigSeed ?? null,
     models,
   });
-  const filePlan = await planFileInstall({ repoRoot, lock, allowUnowned: Boolean(replaceManaged), catalog: activeCatalog });
+
+  // When the engineering profile has configured model roles, the
+  // installer renders the workflow agent frontmatter so the
+  // consumer's agents carry the configured `model:` value. The
+  // lock pins the rendered sha256 so subsequent updates detect
+  // the model change as a managed asset update.
+  const { buildRenderedOverride } = await import("./agent-renderer.js");
+  const configModels = configPlan?.configValue?.workflow?.models ?? {};
+  const rendered = await buildRenderedOverride({
+    models: resolved.profile === "engineering" ? configModels : null,
+    catalog: CATALOG,
+  });
+
+  const filePlan = await planFileInstall({
+    repoRoot,
+    lock,
+    allowUnowned: Boolean(replaceManaged),
+    catalog: activeCatalog,
+    renderedOverride: rendered.map,
+  });
   const staleFilePlan = await planStaleFileRemoval({ repoRoot, lock, staleCatalog });
   const migrationPlan = await planMigrationCleanup({
     repoRoot,

@@ -57,16 +57,20 @@ function lookupLockedFile(lock, targetPath) {
   return lock.files.find((entry) => entry.path === targetPath) ?? null;
 }
 
-async function planManagedFile({ entry, repoRoot, lock, allowUnowned }) {
+async function planManagedFile({ entry, repoRoot, lock, allowUnowned, renderedOverride = null }) {
+  const override = renderedOverride && renderedOverride.get?.(entry.path);
   const targetPath = `${repoRoot}/${entry.path}`;
   const locked = lookupLockedFile(lock, entry.path);
   const current = await readBytes(targetPath);
-  const desired = await readDesiredBytes(entry.source);
+  const desired = override
+    ? { bytes: override.bytes, hash: override.sha256 }
+    : await readDesiredBytes(entry.source);
   if (!current) {
     return {
       kind: "create", op: "file", target: targetPath, relPath: entry.path,
       kindOf: entry.kind, bytes: desired?.bytes ?? Buffer.alloc(0),
-      sha256: desired?.hash, mode: 0o644, reason: "managed file missing",
+      sha256: desired?.hash, mode: 0o644,
+      reason: override ? "rendered agent with configured model" : "managed file missing",
     };
   }
   if (desired.hash === current.hash) {
@@ -83,7 +87,9 @@ async function planManagedFile({ entry, repoRoot, lock, allowUnowned }) {
       kind: "update", op: "file", target: targetPath, relPath: entry.path,
       bytes: desired?.bytes ?? Buffer.alloc(0),
       sha256: desired?.hash, mode: 0o644,
-      reason: "safe update: previous lock matches current bytes",
+      reason: override
+        ? "rendered agent with new configured model"
+        : "safe update: previous lock matches current bytes",
     };
   }
   if (locked?.sha256 && locked.sha256 !== current.hash && allowUnowned) {
@@ -103,10 +109,10 @@ async function planManagedFile({ entry, repoRoot, lock, allowUnowned }) {
   };
 }
 
-export async function planFileInstall({ repoRoot, lock, allowUnowned = false, catalog = CATALOG }) {
+export async function planFileInstall({ repoRoot, lock, allowUnowned = false, catalog = CATALOG, renderedOverride = null }) {
   const plan = [];
   for (const entry of catalog) {
-    plan.push(await planManagedFile({ entry, repoRoot, lock, allowUnowned }));
+    plan.push(await planManagedFile({ entry, repoRoot, lock, allowUnowned, renderedOverride }));
   }
   return plan;
 }
