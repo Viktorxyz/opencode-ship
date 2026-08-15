@@ -15,7 +15,7 @@ import {
   renderedModelFor,
   computeRenderedAgents,
   buildRenderedOverride,
-  MODEL_PLACEHOLDER,
+  modelMarker,
 } from "../../src/installer/agent-renderer.js";
 import { CATALOG } from "../../src/installer/catalog.js";
 
@@ -54,7 +54,7 @@ test("renderedModelFor: returns the configured model for each role", () => {
 });
 
 test("renderedModelFor: returns the placeholder when role is missing", () => {
-  assert.equal(renderedModelFor({ agentName: "ship-planner", models: {} }), MODEL_PLACEHOLDER());
+  assert.equal(renderedModelFor({ agentName: "ship-planner", models: {} }), modelMarker());
 });
 
 test("computeRenderedAgents: every workflow agent has no hardcoded model id in the source", () => {
