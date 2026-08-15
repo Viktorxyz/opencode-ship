@@ -72,28 +72,28 @@ test("release.yml: validates tag against package.json and publishes to npm", () 
 test("docs: shipping docs reference the approved engineering-workflow plan", () => {
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
-  // The authoritative 1.0 execution plan lives under
+  // The authoritative stabilization plan lives under
   // `docs/release/`. Live docs must point at that path rather than
   // a historical plan SHA so a refactor of the execution plan
   // can move it without breaking the release contract.
-  const planPath = "docs/release/1.0.0-execution-plan.md";
+  const planPath = "docs/release/1.1.1-stabilization-plan.md";
   for (const [name, text] of [["CHANGELOG.md", changelog], ["README.md", readme]]) {
     assert.ok(text.includes(planPath), `${name} must reference the authoritative execution plan path`);
-    assert.ok(text.includes("core"), `${name} must keep the documented core profile`);
+    assert.ok(text.includes("engineering"), `${name} must keep the documented engineering profile`);
     assert.ok(!text.includes("practices"), `${name} must not reference the obsolete practices profile`);
   }
 });
 
-test("docs: live README/CHANGELOG declare release/0.10.0 as the live release branch", () => {
-  // The release/1.0-completion branch is not the live release
-  // branch. The live docs must instead declare release/0.10.0 as
-  // the live branch for both `0.10.0` and `1.0.0`.
+test("docs: live README/CHANGELOG declare fix/1.1.1-stabilization as the active stabilization branch", () => {
+  // From 1.1.0 onward the active stabilization branch carries
+  // the 1.1.x repair work; the older `release/0.10.0` branch is
+  // the historical 0.10.x record.
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
   for (const [name, text] of [["CHANGELOG.md", changelog], ["README.md", readme]]) {
     assert.ok(
-      /release\/0\.10\.0[^.]*\blive\b/i.test(text),
-      `${name} must declare release/0.10.0 as the live branch`,
+      /fix\/1\.1\.1-stabilization/.test(text) || /1\.1\.1 stabilization/i.test(text),
+      `${name} must reference the active 1.1.1 stabilization line`,
     );
   }
 });
