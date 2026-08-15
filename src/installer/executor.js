@@ -159,7 +159,7 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
     migrationReport,
     allowUnowned: Boolean(replaceManaged),
   });
-  // The Plan Mode permission block is consumer-owned from 1.1.1
+  // The Plan Mode permission block is consumer-owned from the current release
   // on. The installer only owns Build-agent delivery pointers and
   // does NOT inject /agent/plan/permission. The active-profile
   // gate stays the same precedence chain for the file install.

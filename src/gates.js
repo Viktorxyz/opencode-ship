@@ -3,7 +3,7 @@
  *
  * The lifecycle guarantees that we never mark a PR Ready, and never
  * merge it, without observing the same HEAD SHA across every gate.
- * From 1.1.1 the engineering workflow requires:
+ * From this release the engineering workflow requires:
  *
  *   1. Standards final review (final-standards-reviewer) at this SHA.
  *   2. Spec final review (final-spec-reviewer) at this SHA.
@@ -12,7 +12,7 @@
  *      bucket on this SHA.
  *
  * The legacy single-review gate is still available for consumers on
- * pre-1.1.1 manifests that have not migrated to dual-axis final
+ * pre-current-release manifests that have not migrated to dual-axis final
  * review.
  *
  * Missing or pending checks return typed envelopes that the calling

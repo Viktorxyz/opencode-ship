@@ -67,13 +67,13 @@ export function resolveProfile({ cli = null, config = null, lock = null } = {}) 
   if (cli !== null && cli !== undefined) {
     if (isLegacyCoreProfile(cli)) {
       throw new Error(
-        `unknown CLI profile 'core' (only 'engineering' is supported in 1.1.1; the 'core' profile was removed; existing persisted 'core' is promoted to engineering on next init/update)`
+        `unknown CLI profile 'core' (only 'engineering' is supported in this release; the 'core' profile was removed; existing persisted 'core' is promoted to engineering on next init/update)`
       );
     }
     const v = normalizeProfile(cli);
     if (v === null) {
       throw new Error(
-        `unknown CLI profile '${cli}' (only 'engineering' is supported in 1.1.1)`
+        `unknown CLI profile '${cli}' (only 'engineering' is supported in current release)`
       );
     }
     return { profile: v, source: "cli" };
@@ -85,7 +85,7 @@ export function resolveProfile({ cli = null, config = null, lock = null } = {}) 
     const v = normalizeProfile(config.profile);
     if (v === null) {
       throw new Error(
-        `unknown ship.config.json profile '${config.profile}' (only 'engineering' is supported in 1.1.1)`
+        `unknown ship.config.json profile '${config.profile}' (only 'engineering' is supported in current release)`
       );
     }
     return { profile: v, source: "config" };
@@ -97,7 +97,7 @@ export function resolveProfile({ cli = null, config = null, lock = null } = {}) 
     const v = normalizeProfile(lock.manager.profile);
     if (v === null) {
       throw new Error(
-        `unknown lock manager.profile '${lock.manager.profile}' (only 'engineering' is supported in 1.1.1)`
+        `unknown lock manager.profile '${lock.manager.profile}' (only 'engineering' is supported in current release)`
       );
     }
     return { profile: v, source: "lock" };
