@@ -1,7 +1,7 @@
 /*
  * opencode-ship root permission matrix.
  *
- * From 1.1.1 the engineering profile needs a coordinated root
+ * From this release the engineering profile needs a coordinated root
  * OpenCode document that lets the workflow agents and the
  * consumer's own rules coexist. The matrix below is the single
  * declarative source of truth for every installer-owned

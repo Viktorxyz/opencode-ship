@@ -76,7 +76,7 @@ export function desiredPointersForProfile(profile) {
   // permission pointers are engineering-scoped. Legacy core
   // pointer records in existing locks are read-promoted too.
   //
-  // The Plan Mode pointer is consumer-owned from 1.1.1: the
+  // The Plan Mode pointer is consumer-owned from the current release: the
   // installer no longer injects a permission block under
   // `/agent/plan/permission`. The consumer keeps whatever value
   // is already there (or none).
@@ -164,7 +164,7 @@ export async function planRootReconciliation(input) {
   let doc;
   if (fileMissing && input.forceRepair) {
     doc = synthesizeDefaultRootConfig();
-    // From 1.1.1 the installer does NOT own the Plan Mode
+    // From this release the installer does NOT own the Plan Mode
     // permission block. The consumer may configure it through the
     // built-in Plan agent; opencode-ship provides a dedicated
     // ship-planner instead. We only seed Build-agent permissions.
