@@ -1,9 +1,9 @@
 /*
  * Canonical opencode-ship tool set.
  *
- * The bundled plugin registers exactly 24 typed tools (9
- * existing delivery + 7 control-plane + 8 workflow). This module
- * is the single source of truth for the expected set so:
+ * The bundled plugin registers exactly 32 typed tools (16
+ * delivery + 4 control-plane + 12 ship). This module is the
+ * single source of truth for the expected set so:
  *
  *   - the in-process plugin-load test asserts the contract at the
  *     plugin boundary;
@@ -17,7 +17,7 @@
  */
 
 export const EXPECTED_OPENCODE_SHIP_TOOLS = Object.freeze([
-  // 9 existing delivery tools
+  // 16 delivery tools
   "delivery_cleanup",
   "delivery_github_read",
   "delivery_inspect",
@@ -34,15 +34,23 @@ export const EXPECTED_OPENCODE_SHIP_TOOLS = Object.freeze([
   "delivery_sync",
   "delivery_verify",
   "delivery_worktree",
-  // 7 control-plane + 8 workflow tools
+  // 12 ship tools
+  "ship_final_review",
   "ship_plan_approve",
   "ship_plan_start",
   "ship_plan_submit",
   "ship_resume",
   "ship_run_start",
+  "ship_skill_audit",
+  "ship_skill_discover",
+  "ship_skill_install",
+  "ship_skill_uninstall",
   "ship_status",
+  "ship_task_commit",
+  "ship_task_complete",
   "ship_task_report",
   "ship_task_review",
+  "ship_task_start",
 ]);
 
 /**

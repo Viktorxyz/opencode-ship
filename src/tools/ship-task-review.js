@@ -52,8 +52,8 @@ export function createTaskReviewTool(deps) {
     } catch (err) {
       return failure("task-review", `reviewer model unresolved: ${err?.message ?? err}`, { operationId: opId, retryable: false });
     }
-    if (!submittedBy.startsWith(models.finalReviewer)) {
-      return failure("task-review", `submittedBy must be the configured finalReviewer model ${models.finalReviewer}`, { operationId: opId, retryable: false });
+    if (!submittedBy.startsWith(models.builder)) {
+      return failure("task-review", `submittedBy must be the configured builder model ${models.builder}`, { operationId: opId, retryable: false });
     }
     let runState;
     try {
@@ -79,7 +79,7 @@ export function createTaskReviewTool(deps) {
         taskId,
         round,
         submittedBy,
-        reviewer: models.finalReviewer,
+        reviewer: models.builder,
         spec,
         quality,
         state: specPass && qualityPass ? "commit-pending" : "fix-pending",

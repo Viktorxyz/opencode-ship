@@ -94,7 +94,9 @@ test("init: persisted legacy lock with profile=core is promoted to engineering",
   assert.equal(r.code, 0, r.stderr);
   const lock = JSON.parse(readFileSync(join(repoRoot, ".opencode/ship.lock.json"), "utf8"));
   assert.equal(lock.manager.profile, "engineering");
-  assert.equal(lock.manager.setupComplete, true);
+  // init no longer elevates setupComplete; only the explicit
+  // `setup-complete` command does.
+  assert.equal(lock.manager.setupComplete, false);
 });
 
 test("init: persisted legacy ship.config.json with profile=core is promoted to engineering", async (t) => {

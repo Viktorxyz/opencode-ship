@@ -9,6 +9,7 @@ import { parseCommand, helpText } from "./installer/cli-args.js";
 import { runInit } from "./installer/commands/init.js";
 import { runDiff } from "./installer/commands/diff.js";
 import { runUpdate } from "./installer/commands/update.js";
+import { runSetupComplete } from "./installer/commands/setup-complete.js";
 import { runUninstall } from "./installer/commands/uninstall.js";
 import { runDoctor } from "./installer/commands/doctor.js";
 import { PACKAGE_VERSION } from "./version.js";
@@ -69,6 +70,9 @@ async function main() {
       return;
     case "doctor":
       await runDoctor({ json: !!opts.json, rootPath: opts.rootPath, profile });
+      return;
+    case "setup-complete":
+      await runSetupComplete({ json: !!opts.json, rootPath: opts.rootPath });
       return;
     case "uninstall":
       await runUninstall({ json: !!opts.json, rootPath: opts.rootPath, profile, purgeConfig: !!opts.purgeConfig });

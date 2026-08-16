@@ -81,6 +81,34 @@ export const POINTER_ENTRIES = [
     strategy: "value",
     value: "allow",
   },
+  // Build -> ship-controller delegation so the deep plan/build/review
+  // chain works with subagent_depth=2.
+  {
+    pointer: "/agent/build/permission/task/ship-controller",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/subagent_depth",
+    strategy: "value",
+    value: 2,
+  },
+  // Build-tool permission ask/allow/deny surface.
+  {
+    pointer: "/agent/build/permission/ship_plan_approve",
+    strategy: "value",
+    value: "ask",
+  },
+  {
+    pointer: "/agent/build/permission/ship_resume",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/agent/build/permission/ship_status",
+    strategy: "value",
+    value: "allow",
+  },
 ];
 
 const ROOT_PATH_CANDIDATES = ["opencode.json", "opencode.jsonc"];
