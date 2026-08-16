@@ -84,7 +84,9 @@ test("neutral: engineering init from a packed tarball on a fresh repo succeeds",
   assert.ok(existsSync(join(repo, ".opencode/ship.lock.json")));
   const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
   assert.equal(lock.manager.profile, "engineering");
-  assert.equal(lock.manager.setupComplete, true);
+  // init no longer elevates setupComplete; only the explicit
+  // `setup-complete` command does.
+  assert.equal(lock.manager.setupComplete, false);
 });
 
 test("neutral: engineering init without explicit --profile defaults to engineering", async (t) => {

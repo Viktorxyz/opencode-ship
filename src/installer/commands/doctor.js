@@ -231,6 +231,24 @@ async function checkRootConfig(repoRoot) {
   };
 }
 
+async function checkSetupState(repoRoot, configValue) {
+  const { setupComplete } = await import("../setup-state.js");
+  const state = await setupComplete(repoRoot, configValue);
+  if (state.ok) {
+    return { name: "setup-complete", ok: true, detail: "models + docs + AGENTS.md all present" };
+  }
+  // Setup-completeness is informational: the controller is the
+  // gate, not doctor. Reporting it as a non-failing check keeps
+  // the doctor exit code aligned with the install/contract state
+  // WITHOUT conflating "setup workflow still pending" with
+  // "install is broken".
+  return {
+    name: "setup-complete",
+    ok: true,
+    detail: `pending: ${state.missing.join(", ") || "(none)"}`,
+  };
+}
+
 function writeEnvelope({ command, plan, summary, diagnostics, json, exitCode }) {
   const conflicts = plan.filter((p) => p.kind === "conflict");
   if (json) {
@@ -281,6 +299,7 @@ export async function runDoctor({ rootPath, profile, json, writeOutput = true })
     await checkManagedHashes(repoRoot, validatedLock),
     await checkActiveProfileFootprint(repoRoot, validatedLock, resolved.profile),
     await checkRootConfig(repoRoot),
+    await checkSetupState(repoRoot, configValue),
   ];
   const issues = checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail}`);
   const plan = checks.map((c) => ({

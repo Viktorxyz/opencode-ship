@@ -169,12 +169,12 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
   // When the engineering profile is being applied without models
   // we mark the consumer as "setup pending" so the controller
   // routes ship-deliver through /setup-ship-workflow until the
-  // workflow.models fields are populated. The marker is removed by
-  // the setup-ship-workflow skill on success.
+  // workflow.models fields are populated AND the setup-completion
+  // gate has recorded all required artifacts. The marker is
+  // removed only by the explicit `setup-complete` command (the
+  // setup-ship-workflow skill now ALSO calls that command).
   const setupPending = resolved.profile === "engineering"
-    && !lock?.manager?.setupComplete
-    && !hasCompletedModels(configValue)
-    && !models?.planner;
+    && !hasCompletedModels(configValue);
 
   const plan = [...(filePlan ?? []), ...staleFilePlan, ...migrationPlan, configPlan, rootPlan];
   const conflicts = plan.filter((p) => p && p.kind === "conflict");
@@ -229,7 +229,7 @@ function summarise(plan) {
   return counts;
 }
 
-async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profile = null, models = null }) {
+async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profile = null, models = null, fullSetupComplete = false }) {
   const files = [];
   const remain = lock?.files?.filter((f) => !plan.some((op) => op?.relPath === f.path)) ?? [];
 
@@ -264,10 +264,13 @@ async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profil
     || (lock?.manager?.rootDocuments && lock.manager.rootDocuments.length > 0);
 
   // Models are considered "complete" once all three roles are
-  // populated in the assembled config. The setupComplete flag
-  // tells the controller that dispatch can begin; the absence of
-  // this flag (or setupPending=true in the preview) forces the
-  // ship-deliver controller to route through /setup-ship-workflow.
+  // populated in the assembled config. Setup-completion is a
+  // stricter predicate: it requires models + docs/agents + AGENTS.md
+  // block + marker absence. Only the explicit `setup-complete`
+  // command elevates the lock to `setupComplete: true`; ordinary
+  // init/update keep `setupComplete: false` even when models are
+  // populated so the controller routes the next ship-deliver
+  // through the chat setup workflow.
   const assembledConfig = configPlan?.configValue
     ?? (lock?.manager?.config?.models
       ? { workflow: { models: lock.manager.config.models } }
@@ -286,7 +289,7 @@ async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profil
       templateSet: TEMPLATE_SET_ID,
       profile: resolvedProfile,
       appliedAt: new Date().toISOString(),
-      setupComplete: completedModels,
+      setupComplete: Boolean(fullSetupComplete) && completedModels,
       config: {
         path: ".opencode/ship.config.json",
         sha256: configSha ?? lock?.manager?.config?.sha256 ?? "",
@@ -304,7 +307,7 @@ async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profil
   };
 }
 
-export async function commitInstall(preview, { json, command }) {
+export async function commitInstall(preview, { json, command, fullSetupComplete = false }) {
   if (!preview.ok) {
     return {
       ok: false, command, plan: [], conflicts: [], summary: summarise([]),
@@ -333,6 +336,7 @@ export async function commitInstall(preview, { json, command }) {
     configPlan,
     rootPlan,
     profile: preview.profile?.profile,
+    fullSetupComplete,
   });
 
   const txPlan = await stageFiles(fileOnly, repoRoot);

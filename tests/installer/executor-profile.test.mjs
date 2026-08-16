@@ -45,7 +45,9 @@ test("init: --profile engineering writes manager.profile=engineering in the lock
   assert.equal(r.code, 0, r.stderr);
   const lock = JSON.parse(readFileSync(join(repoRoot, ".opencode/ship.lock.json"), "utf8"));
   assert.equal(lock.manager.profile, "engineering");
-  assert.equal(lock.manager.setupComplete, true);
+  // init no longer elevates setupComplete; only the explicit
+  // `setup-complete` command does.
+  assert.equal(lock.manager.setupComplete, false);
 });
 
 test("init: --profile core exits 2 with an error message (core removed in 1.1.0)", async (t) => {

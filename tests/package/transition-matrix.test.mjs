@@ -64,7 +64,50 @@ test("transition matrix: lock manager.profile matches the active engineering pro
   assert.equal(r.code, 0, r.stderr);
   const lock = JSON.parse(await readFile(join(repoRoot, ".opencode/ship.lock.json"), "utf8"));
   assert.equal(lock.manager.profile, "engineering");
+  // init alone does NOT set setupComplete=true; only the explicit
+  // `setup-complete` command elevates the lock once the docs/
+  // AGENTS.md/marker predicates pass.
+  assert.equal(lock.manager.setupComplete, false);
+});
+
+test("transition matrix: setup-complete elevates setupComplete only after all artifacts present", async (t) => {
+  const { readFile } = await import("node:fs/promises");
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const init = cli(repoRoot, [
+    "init", "--profile", "engineering", "--json",
+    "--planner-model", "fake/strong-planner",
+    "--builder-model", "fake/cheap-builder",
+    "--final-reviewer-model", "fake/strong-reviewer",
+  ]);
+  assert.equal(init.code, 0, init.stderr);
+  await mkdir(join(repoRoot, "docs/agents"), { recursive: true });
+  await writeFile(join(repoRoot, "docs/agents/issue-tracker.md"), "# issue tracker\n");
+  await writeFile(join(repoRoot, "docs/agents/domain.md"), "# domain\n");
+  await writeFile(join(repoRoot, "docs/agents/triage-labels.md"), "# triage\n");
+  await writeFile(join(repoRoot, "AGENTS.md"), "## Ship workflow\n- install\n");
+  const r = cli(repoRoot, ["setup-complete", "--json"]);
+  assert.equal(r.code, 0, r.stderr || r.stdout);
+  const lock = JSON.parse(await readFile(join(repoRoot, ".opencode/ship.lock.json"), "utf8"));
   assert.equal(lock.manager.setupComplete, true);
+});
+
+test("transition matrix: setup-complete refuses when docs or AGENTS.md are missing", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const init = cli(repoRoot, [
+    "init", "--profile", "engineering", "--json",
+    "--planner-model", "fake/strong-planner",
+    "--builder-model", "fake/cheap-builder",
+    "--final-reviewer-model", "fake/strong-reviewer",
+  ]);
+  assert.equal(init.code, 0, init.stderr);
+  const r = cli(repoRoot, ["setup-complete", "--json"]);
+  assert.notEqual(r.code, 0, "setup-complete must refuse without docs");
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.status, "error");
+  assert.match(out.diagnostics.join("\n"), /missing/);
 });
 
 test("transition matrix: persisted legacy core lock is promoted to engineering on next init", async (t) => {

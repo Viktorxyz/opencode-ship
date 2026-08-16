@@ -17,13 +17,14 @@ import { PROFILES, isValidProfile } from "../profile.js";
 const USAGE = `opencode-ship <command> [options]
 
 Commands:
-  init        Install managed files in this project. One-liner: pnpm dlx opencode-ship@latest init
-  diff        Show what would change without writing.
-  update      Apply pending updates after recovering the journal.
-  doctor      Validate environment, lock, and references.
-  uninstall   Remove managed files that still match the lock.
-  --version   Print the version and exit.
-  --help      Show this usage and exit.
+  init             Install managed files in this project. One-liner: pnpm dlx opencode-ship@latest init
+  diff             Show what would change without writing.
+  update           Apply pending updates after recovering the journal.
+  doctor           Validate environment, lock, and references.
+  setup-complete   Sole writer of lock.manager.setupComplete = true. Validates models + docs + AGENTS.md.
+  uninstall        Remove managed files that still match the lock.
+  --version        Print the version and exit.
+  --help           Show this usage and exit.
 
 Options:
   --root <path>               Project root (defaults to cwd).
@@ -38,8 +39,10 @@ Options:
   --final-reviewer-model <id> Final Standards + Spec reviewer model id (init only, optional).
   --json                      Emit a JSON envelope instead of human output.
 
-After init succeeds, restart OpenCode and run /setup-ship-workflow to
-fill in the workflow.models fields and the per-repo docs.
+After init succeeds, restart OpenCode and run /setup-ship-workflow.
+The setup skill calls 'opencode-ship setup-complete' at the end so
+the lock.manager.setupComplete flag flips to true and the ship
+controller can dispatch.
 `;
 
 const MODEL_ID_RE = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
@@ -114,6 +117,7 @@ export function parseCommand(argv) {
     case "diff":
     case "update":
     case "doctor":
+    case "setup-complete":
     case "uninstall":
       return { command: cmd, options: flags };
     default:

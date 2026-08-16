@@ -45,11 +45,9 @@ export async function runUpdate(options) {
     return emitFailure(3, "modified managed files; rerun with --replace-managed", options.json, "update");
   }
   const committed = await commitInstall(preview, { json: options.json, command: "update" });
-  // After a successful update, clear the setup-pending marker so
-  // `ship-deliver` does not need to route through setup again.
-  if (committed.extra?.exitCode === 0 && preview.repoRoot && !preview.setupPending) {
-    clearSetupPending(preview.repoRoot);
-  }
+  // `update` no longer auto-clears the setup-pending marker.
+  // The marker is removed only by the explicit `setup-complete`
+  // command, which is the only writer of `lock.manager.setupComplete`.
   if (options.json) {
     process.stdout.write(JSON.stringify({
       reportVersion: 1,
