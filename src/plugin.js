@@ -40,10 +40,18 @@ import {
   createPlanSubmitTool,
   createPlanApproveTool,
   createRunStartTool,
+  createTaskStartTool,
+  createTaskCommitTool,
+  createTaskCompleteTool,
   createTaskReportTool,
   createTaskReviewTool,
+  createFinalReviewTool,
   createResumeTool,
   createStatusTool,
+  createSkillDiscoverTool,
+  createSkillInstallTool,
+  createSkillAuditTool,
+  createSkillUninstallTool,
 } from "./tools/index.js";
 import { recoverManifestAfterCrash } from "./recovery.js";
 import { reconcileOwner } from "./installer/plugin-owner.js";
@@ -75,10 +83,18 @@ const toolDefs = [
   ["ship_plan_submit", "Planner-only immutable PlanV2 submission.", "planSubmit"],
   ["ship_plan_approve", "Interactive approval + immutable local seal.", "planApprove"],
   ["ship_run_start", "Start execution of an approved plan.", "runStart"],
+  ["ship_task_start", "Dispatch a task to the configured builder agent.", "taskStart"],
+  ["ship_task_commit", "Record the immutable commit binding for a reviewed task.", "taskCommit"],
+  ["ship_task_complete", "Advance the run to the next task or to ALL_TASKS_DONE.", "taskComplete"],
   ["ship_task_report", "Builder-only immutable task report.", "taskReport"],
   ["ship_task_review", "Task reviewer Spec/Quality verdict.", "taskReview"],
+  ["ship_final_review", "Record one final review axis (standards or spec).", "finalReview"],
   ["ship_resume", "Restore, reconcile, and continue idempotently.", "resume"],
   ["ship_status", "Read-only compact workflow state.", "status"],
+  ["ship_skill_discover", "Query the trusted skill registry and partition candidates.", "skillDiscover"],
+  ["ship_skill_install", "Install a trusted skill into the active issue worktree.", "skillInstall"],
+  ["ship_skill_audit", "Audit the installed trusted skills inventory.", "skillAudit"],
+  ["ship_skill_uninstall", "Remove a trusted skill whose recorded sha256 still matches.", "skillUninstall"],
 ];
 
 function wrapEnvelopeV2(id, result) {
@@ -431,6 +447,116 @@ const factories = {
       config: rt.configValue,
     }),
   },
+  taskStart: {
+    args: {
+      workflowId: tool.schema.string(),
+      taskId: tool.schema.string(),
+      briefHash: tool.schema.string(),
+      sessionID: tool.schema.string(),
+      submittedBy: tool.schema.string(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createTaskStartTool({
+      repoRoot: rt.repoRoot,
+      owner: rt.owner,
+      config: rt.configValue,
+    }),
+  },
+  taskCommit: {
+    args: {
+      workflowId: tool.schema.string(),
+      taskId: tool.schema.string(),
+      expectedHead: tool.schema.string(),
+      commitSha: tool.schema.string(),
+      planHash: tool.schema.string(),
+      reviewHash: tool.schema.string(),
+      round: tool.schema.number(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createTaskCommitTool({
+      repoRoot: rt.repoRoot,
+      owner: rt.owner,
+      config: rt.configValue,
+    }),
+  },
+  taskComplete: {
+    args: {
+      workflowId: tool.schema.string(),
+      taskId: tool.schema.string(),
+      moreTasks: tool.schema.boolean(),
+      nextTaskId: tool.schema.string().optional(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createTaskCompleteTool({
+      repoRoot: rt.repoRoot,
+      owner: rt.owner,
+      config: rt.configValue,
+    }),
+  },
+  finalReview: {
+    args: {
+      workflowId: tool.schema.string(),
+      axis: tool.schema.enum(["standards", "spec"]),
+      verdict: tool.schema.enum(["pass", "fail", "blocked"]),
+      headSha: tool.schema.string(),
+      mergeBaseSha: tool.schema.string(),
+      packageHash: tool.schema.string(),
+      submittedBy: tool.schema.string(),
+      findings: tool.schema.array(tool.schema.unknown()).optional(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createFinalReviewTool({
+      repoRoot: rt.repoRoot,
+      owner: rt.owner,
+      config: rt.configValue,
+    }),
+  },
+  skillDiscover: {
+    args: {
+      query: tool.schema.string(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createSkillDiscoverTool({
+      repoRoot: rt.repoRoot,
+      owner: rt.owner,
+      config: rt.configValue,
+    }),
+  },
+  skillInstall: {
+    args: {
+      package: tool.schema.string(),
+      skillName: tool.schema.string(),
+      worktreePath: tool.schema.string(),
+      version: tool.schema.string().optional(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createSkillInstallTool({
+      repoRoot: rt.repoRoot,
+      owner: rt.owner,
+      config: rt.configValue,
+    }),
+  },
+  skillAudit: {
+    args: {
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createSkillAuditTool({
+      repoRoot: rt.repoRoot,
+      owner: rt.owner,
+      config: rt.configValue,
+    }),
+  },
+  skillUninstall: {
+    args: {
+      skill: tool.schema.string(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createSkillUninstallTool({
+      repoRoot: rt.repoRoot,
+      owner: rt.owner,
+      config: rt.configValue,
+    }),
+  },
   planSubmit: {
     args: {
       workflowId: tool.schema.string(),
@@ -507,6 +633,7 @@ const factories = {
     build: (rt) => createTaskReviewTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
+      config: rt.configValue,
     }),
   },
   resume: {

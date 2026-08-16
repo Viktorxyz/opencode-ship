@@ -96,14 +96,22 @@ test("packed-artifact: bundled plugin loads with nine tools in an isolated consu
     "delivery_sync",
     "delivery_verify",
     "delivery_worktree",
+    "ship_final_review",
     "ship_plan_approve",
     "ship_plan_start",
     "ship_plan_submit",
     "ship_resume",
     "ship_run_start",
+    "ship_skill_audit",
+    "ship_skill_discover",
+    "ship_skill_install",
+    "ship_skill_uninstall",
     "ship_status",
+    "ship_task_commit",
+    "ship_task_complete",
     "ship_task_report",
     "ship_task_review",
+    "ship_task_start",
   ]);
   // Cleanup tarball
   await rm(tarballPath, { force: true }).catch(() => null);

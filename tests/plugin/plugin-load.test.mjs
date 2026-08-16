@@ -29,7 +29,7 @@ test("plugin: default export is a function", async () => {
   assert.equal(typeof mod.ShipPlugin, "function");
 });
 
-test("plugin: registers exactly 24 tools", async () => {
+test("plugin: registers exactly 32 tools", async () => {
   const mod = await import(pluginPath);
   const fakeCtx = {
     worktree: process.cwd(),
