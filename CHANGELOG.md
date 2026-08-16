@@ -2,6 +2,55 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## 1.1.2-rc.1 — Complete contract correction
+
+> Active stabilization branch: `fix/1.1.2-self-hosting`.
+> Parent tracker: https://github.com/Viktorxyz/opencode-ship/issues/56.
+
+`1.1.1` shipped a partial contract: 24 of the 32 promised tools, an
+executor that conflated "all three model fields populated" with
+"setup workflow completed", a setup skill that left consumers
+without `docs/agents/**` or an `AGENTS.md` Ship workflow block, and
+root permissions that still used the legacy 11-pointer list with
+no controller delegation.
+
+This release corrects every one of those gaps:
+
+- 32 typed tools are registered. The previously missing
+  `ship_task_start`, `ship_task_commit`, `ship_task_complete`,
+  `ship_final_review`, `ship_skill_discover`, `ship_skill_install`,
+  `ship_skill_audit`, and `ship_skill_uninstall` are now first-class.
+- `ship_task_review` authorizes against the configured builder
+  model (the task reviewer is rendered with the builder model),
+  not the final reviewer. The factory now passes the config so
+  the tool can resolve model roles.
+- New `opencode-ship setup-complete` command is the sole writer
+  of `lock.manager.setupComplete: true`. The lock flip requires
+  all three model roles populated AND the install-owned docs
+  (`docs/agents/{issue-tracker,domain,triage-labels}.md`) AND
+  the `AGENTS.md` "Ship workflow" block AND the setup-pending
+  marker absent. The five predicates are deterministic from
+  on-disk artifacts.
+- `update` no longer auto-clears the setup-pending marker.
+  Marker removal is exclusively the setup-complete command's
+  responsibility.
+- Executor refuses to set `setupComplete: true` on `init` or
+  `update`; the flag is only ever passed through
+  `commitInstall(..., { fullSetupComplete: true })`.
+- Doctor reports setup-complete state as informational so
+  already-installed neutral consumers do not regress.
+- Root permission matrix wires `subagent_depth: 2` and the
+  Build → ship-controller delegation. The legacy 11-pointer
+  list is augmented with the depth and delegation surfaces.
+- Lock schema v4 (`schema/ship-lock.schema.json`) now accepts
+  `manager.setupComplete` and the `support` file kind, and
+  explicitly drops `cleanupPending` (it lives under the Git
+  common directory).
+- New `src/skills/{policy,registry,inventory}.js` modules
+  back the four `ship_skill_*` tools. The inventory is
+  hash-chained and recorded in `.opencode/ship.skills.lock.json`
+  under the consumer repo.
+
 ## 1.1.1 — Stabilization + first self-hosting release (UNRELEASED)
 
 > Active stabilization branch: `fix/1.1.1-stabilization`.

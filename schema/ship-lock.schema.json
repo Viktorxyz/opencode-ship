@@ -6,13 +6,13 @@
   "required": ["contractVersion", "manager", "files", "integrity"],
   "additionalProperties": false,
   "properties": {
-    "contractVersion": { "enum": [1, 2, 3] },
+    "contractVersion": { "enum": [1, 2, 3, 4] },
     "manager": {
       "type": "object",
       "required": ["schemaVersion", "name", "version", "appliedAt", "config"],
       "additionalProperties": false,
       "properties": {
-        "schemaVersion": { "enum": [1, 2, 3] },
+        "schemaVersion": { "enum": [1, 2, 3, 4] },
         "name": { "type": "string", "pattern": "^opencode-ship$" },
         "version": { "type": "string", "minLength": 1 },
         "templateSet": { "type": "string", "minLength": 1 },
@@ -21,6 +21,10 @@
           "description": "Profile the lock was applied under. Required on locks written at schema 2; absent on legacy schema-1 locks (resolved to core by the profile precedence layer)."
         },
         "appliedAt": { "type": "string", "format": "date-time" },
+        "setupComplete": {
+          "type": "boolean",
+          "description": "True when the consumer has finished the chat-only setup workflow. Sole writer is the opencode-ship setup-complete command."
+        },
         "config": {
           "type": "object",
           "required": ["path", "sha256"],
@@ -79,7 +83,7 @@
           "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
           "mode": { "type": "integer", "minimum": 0, "maximum": 511 },
           "template": { "type": "string", "minLength": 1 },
-          "kind": { "enum": ["plugin", "agent", "skill", "config", "lock"] }
+          "kind": { "enum": ["plugin", "agent", "skill", "config", "lock", "support"] }
         }
       }
     },
@@ -97,21 +101,6 @@
       "properties": {
         "opencodeMin": { "type": "string" },
         "coreVersion": { "type": "string" }
-      }
-    },
-    "cleanupPending": {
-      "type": "array",
-      "description": "Tasks whose immediate post-merge cleanup could not complete; retry on next delivery task or plugin startup.",
-      "items": {
-        "type": "object",
-        "required": ["taskId", "failedAt", "stage", "reason"],
-        "additionalProperties": false,
-        "properties": {
-          "taskId": { "type": "string" },
-          "failedAt": { "type": "string", "format": "date-time" },
-          "stage": { "enum": ["preconditions", "worktree-remove", "branch-delete", "manifest-seal", "manifest-delete"] },
-          "reason": { "type": "string" }
-        }
       }
     }
   }
