@@ -2,54 +2,61 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
-## 1.1.2-rc.1 — Complete contract correction
+## 1.1.2-rc.2 — Complete contract correction
 
 > Active stabilization branch: `fix/1.1.2-self-hosting`.
 > Parent tracker: https://github.com/Viktorxyz/opencode-ship/issues/56.
+> Authoritative plan: docs/release/1.1.2-correction-plan.md.
 
-`1.1.1` shipped a partial contract: 24 of the 32 promised tools, an
-executor that conflated "all three model fields populated" with
-"setup workflow completed", a setup skill that left consumers
-without `docs/agents/**` or an `AGENTS.md` Ship workflow block, and
-root permissions that still used the legacy 11-pointer list with
-no controller delegation.
+`1.1.1` and `1.1.2-rc.1` shipped partial contracts: 24 of the 32
+promised tools, no real OpenCode dispatch, an executor that conflated
+"all three model fields populated" with "setup workflow completed",
+a setup skill that left consumers without `docs/agents/**` or an
+`AGENTS.md` Ship workflow block, and root permissions that still used
+a duplicated pointer list.
 
 This release corrects every one of those gaps:
 
 - 32 typed tools are registered. The previously missing
   `ship_task_start`, `ship_task_commit`, `ship_task_complete`,
   `ship_final_review`, `ship_skill_discover`, `ship_skill_install`,
-  `ship_skill_audit`, and `ship_skill_uninstall` are now first-class.
+  `ship_skill_audit`, and `ship_skill_uninstall` are first-class.
+- The workflow agents are dispatched through real OpenCode
+  sessions via `client.session.create` and `client.session.promptAsync`.
+  The controller session id is persisted in dispatch records so
+  plan/task/final-review tools can authorize the caller from the
+  ToolContext, not from a caller-supplied `submittedBy` string.
 - `ship_task_review` authorizes against the configured builder
-  model (the task reviewer is rendered with the builder model),
-  not the final reviewer. The factory now passes the config so
-  the tool can resolve model roles.
-- New `opencode-ship setup-complete` command is the sole writer
-  of `lock.manager.setupComplete: true`. The lock flip requires
-  all three model roles populated AND the install-owned docs
-  (`docs/agents/{issue-tracker,domain,triage-labels}.md`) AND
-  the `AGENTS.md` "Ship workflow" block AND the setup-pending
-  marker absent. The five predicates are deterministic from
-  on-disk artifacts.
-- `update` no longer auto-clears the setup-pending marker.
-  Marker removal is exclusively the setup-complete command's
-  responsibility.
-- Executor refuses to set `setupComplete: true` on `init` or
-  `update`; the flag is only ever passed through
-  `commitInstall(..., { fullSetupComplete: true })`.
-- Doctor reports setup-complete state as informational so
-  already-installed neutral consumers do not regress.
-- Root permission matrix wires `subagent_depth: 2` and the
-  Build → ship-controller delegation. The legacy 11-pointer
-  list is augmented with the depth and delegation surfaces.
-- Lock schema v4 (`schema/ship-lock.schema.json`) now accepts
-  `manager.setupComplete` and the `support` file kind, and
-  explicitly drops `cleanupPending` (it lives under the Git
-  common directory).
-- New `src/skills/{policy,registry,inventory}.js` modules
-  back the four `ship_skill_*` tools. The inventory is
-  hash-chained and recorded in `.opencode/ship.skills.lock.json`
-  under the consumer repo.
+  model (the task reviewer is rendered with the builder model).
+  `ship_final_review` requires the configured finalReviewer model.
+  Both gate on the controller session id.
+- The setup-complete command is the sole writer of
+  `lock.manager.setupComplete: true`. It validates models + docs +
+  AGENTS.md + lock BEFORE the lock write, then removes the
+  setup-pending marker in the same critical section. A failed
+  validation leaves the marker untouched.
+- The root permission matrix is the single source of truth. The
+  legacy `POINTER_ENTRIES` list is replaced by `rootPermissionMatrix()`.
+  `subagent_depth: 2` and the Build → ship-controller delegation
+  are wired so the deep plan / build / review chain works without
+  manual permission patching.
+- JSONC reads and writes use `jsonc-parser`. The apply step merges
+  sibling section insertions into a single JSONC edit insert so the
+  `applyEdits` call does not throw on overlapping ranges. Plain
+  JSON files are preserved key-by-key by the same matrix.
+- The `setup-ship-workflow` skill is GitHub-only. The 1.1.2
+  controller's delivery tool belt is GitHub-bound; the skill
+  refuses to drive GitLab, Jira, Linear, or local markdown.
+  The command is a thin wrapper that just invokes the skill.
+- Lock schema v4 explicitly accepts `manager.setupComplete` and
+  the `support` file kind, and drops `cleanupPending` (its state
+  lives under the Git common directory).
+
+## 1.1.2-rc.1 — (incomplete) placeholder
+
+The 1.1.2-rc.1 release shipped with a partial contract and is
+deprecated as soon as 1.1.2 stable is published. Upgrade to
+1.1.2-rc.2 or later.
 
 ## 1.1.1 — Stabilization + first self-hosting release (UNRELEASED)
 
