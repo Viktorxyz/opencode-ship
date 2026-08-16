@@ -40,6 +40,7 @@ import {
 import { getPointer, setPointer, removePointer, stableStringify } from "./json-pointer.js";
 import { bytesHashString } from "./hash.js";
 import { planModePermissions } from "./plan-mode-permissions.js";
+import { matrixLeafPointers, LEGACY_DELIVERY_POINTERS } from "./root-permissions.js";
 
 export const PLAN_MODE_POINTER = "/agent/plan/permission";
 
@@ -80,12 +81,18 @@ export function desiredPointersForProfile(profile) {
   // installer no longer injects a permission block under
   // `/agent/plan/permission`. The consumer keeps whatever value
   // is already there (or none).
-  return POINTER_ENTRIES.map((entry) => ({
+  //
+  // The canonical engineering pointers are the matrix-derived leaf
+  // pointers; the legacy delivery_* pointers are folded in for
+  // consumers that already adopted opencode-delivery 0.1.x.
+  const leaves = matrixLeafPointers();
+  const legacy = LEGACY_DELIVERY_POINTERS.map((entry) => ({
     pointer: entry.pointer,
-    strategy: /** @type {"value" | "object-entry" | "array-member"} */ (entry.strategy),
+    strategy: /** @type {"value" | "object-entry" | "array-member"} */ ("value"),
     scope: /** @type {Profile} */ ("engineering"),
     value: entry.value,
   }));
+  return [...leaves, ...legacy];
 }
 
 /**
@@ -557,7 +564,10 @@ function collapseEmptyAncestors(doc) {
   const out = {};
   for (const k of Object.keys(doc)) {
     if (k === "__sourceOrder__") continue;
-    out[k] = collapseEmptyAncestors(doc[k]);
+    const collapsed = collapseEmptyAncestors(doc[k]);
+    // Drop keys whose value collapsed to undefined (empty shells).
+    if (collapsed === undefined) continue;
+    out[k] = collapsed;
   }
   // Re-emit the source order for stable serialization.
   if (Array.isArray(doc.__sourceOrder__)) {
@@ -589,6 +599,11 @@ function seedPointerRecords(descriptors, previousRecords) {
 
 function mergePointerRecords(descriptors, previousRecords, result, beforeSnapshot) {
   const out = previousRecords.map((r) => ({ ...r }));
+  // Index tracks what is already in `out` (including prior records
+  // and any applied pointers we added). Used to prevent duplicate
+  // records when the desired list contains the same pointer twice
+  // (e.g. the matrix leaf and a legacy pointer entry both targeting
+  // `/agent/build/permission/delivery_inspect: allow`).
   const index = new Map(out.map((r, idx) => [r.pointer, idx]));
   for (const a of result.applied) {
     const previousEntry = beforeSnapshot?.[a.pointer];
@@ -621,6 +636,7 @@ function mergePointerRecords(descriptors, previousRecords, result, beforeSnapsho
       };
     } else {
       out.push(next);
+      index.set(a.pointer, out.length - 1);
     }
   }
   for (const s of result.skipped) {
@@ -641,6 +657,7 @@ function mergePointerRecords(descriptors, previousRecords, result, beforeSnapsho
       installedSha256: bytesHashString(stableStringify(existing ?? null)),
       previous,
     });
+    index.set(s.pointer, out.length - 1);
   }
   return out;
 }

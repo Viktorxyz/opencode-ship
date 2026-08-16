@@ -84,16 +84,16 @@ test("docs: shipping docs reference the approved engineering-workflow plan", () 
   }
 });
 
-test("docs: live README/CHANGELOG declare fix/1.1.1-stabilization as the active stabilization branch", () => {
-  // From 1.1.0 onward the active stabilization branch carries
-  // the 1.1.x repair work; the older `release/0.10.0` branch is
-  // the historical 0.10.x record.
+test("docs: live README/CHANGELOG declare fix/1.1.2-rc.3-contract as the active stabilization branch", () => {
+  // From 1.1.2 onward the active stabilization branch carries
+  // the 1.1.2 contract repair work. The older `fix/1.1.1-stabilization`
+  // branch is the historical 1.1.1 record.
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
   for (const [name, text] of [["CHANGELOG.md", changelog], ["README.md", readme]]) {
     assert.ok(
-      /fix\/1\.1\.1-stabilization/.test(text) || /1\.1\.1 stabilization/i.test(text),
-      `${name} must reference the active 1.1.1 stabilization line`,
+      /fix\/1\.1\.2-rc\.3-contract/.test(text) || /1\.1\.2 stabilization/i.test(text),
+      `${name} must reference the active 1.1.2 stabilization line`,
     );
   }
 });

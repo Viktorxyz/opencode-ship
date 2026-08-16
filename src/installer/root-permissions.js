@@ -167,6 +167,74 @@ export const LEGACY_DELIVERY_POINTERS = [
   { pointer: "/agent/build/permission/task/delivery-verifier", value: "allow" },
 ];
 
+/**
+ * Flatten the canonical matrix into leaf-level pointer entries
+ * suitable for the installer's POINTER_ENTRIES pipeline. The
+ * returned array uses JSON pointer paths (RFC 6901) under
+ * /agent/<name>/permission/<sub>/<key> and includes
+ * /subagent_depth. Every leaf is a scalar (string permission
+ * value), so the existing scalar-only reconciler pipeline can
+ * apply them without changes.
+ *
+ * The matrix is the single source of truth: every entry below is
+ * derived from `rootPermissionMatrix()` so a change to the
+ * matrix automatically propagates to the install/update/uninstall
+ * flows.
+ *
+ * @returns {Array<{ pointer: string, strategy: "value", value: string | number, scope: "engineering" }>}
+ */
+export function matrixLeafPointers() {
+  const matrix = rootPermissionMatrix();
+  /** @type {Array<{ pointer: string, strategy: "value", value: string | number, scope: "engineering" }>} */
+  const out = [];
+  out.push({ pointer: "/subagent_depth", strategy: "value", value: matrix.subagentDepth, scope: "engineering" });
+  const agents = [
+    { name: "build", block: matrix.build },
+    { name: "ship-controller", block: matrix.shipController },
+  ];
+  for (const agent of agents) {
+    const perm = agent.block.permission;
+    for (const category of Object.keys(perm)) {
+      // The bash policy map is enforced by the OpenCode runtime;
+      // it is not installer-owned state and would create empty
+      // containers when the consumer has no bash rules. Skip it.
+      if (category === "bash") continue;
+      const map = perm[category];
+      for (const key of Object.keys(map)) {
+        // Skip the wildcard sentinel; it is the "all other keys"
+        // default and should not be written as a literal pointer.
+        if (key === "*") continue;
+        const v = map[key];
+        if (v === undefined || v === null) continue;
+        out.push({
+          pointer: `/agent/${agent.name}/permission/${category}/${key}`,
+          strategy: "value",
+          value: v,
+          scope: "engineering",
+        });
+      }
+    }
+    const tools = agent.block.tools;
+    if (tools && typeof tools === "object") {
+      for (const key of Object.keys(tools)) {
+        // Same wildcard guard as above; the wildcard default is
+        // materialised at the consumer OpenCode runtime, not via
+        // an installer-owned pointer.
+        if (key === "*") continue;
+        const v = tools[key];
+        if (v === undefined || v === null) continue;
+        out.push({
+          pointer: `/agent/${agent.name}/permission/${key}`,
+          strategy: "value",
+          value: v,
+          scope: "engineering",
+        });
+      }
+    }
+  }
+  return out;
+}
+
 void ASK;
 void ALLOW;
 void DENY;

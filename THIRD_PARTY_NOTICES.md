@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-`opencode-ship@1.1.2-rc.2` ships the complete Matt Pocock and Superpowers
+`opencode-ship@1.1.2-rc.3` ships the complete Matt Pocock and Superpowers
 methodology under the MIT license, plus the Ship-owned installer,
 plugin, agents, and skills. The complete immutable pin list is in
 `vendor/sources.json`; the upstream snapshots are under

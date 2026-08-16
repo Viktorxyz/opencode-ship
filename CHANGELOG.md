@@ -2,7 +2,74 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
-## 1.1.2-rc.2 — Complete contract correction
+## 1.1.2-rc.3 — Complete contract correction (round 2)
+
+> Branch: `fix/1.1.2-rc.3-contract`.
+> Tracker: https://github.com/Viktorxyz/opencode-ship/issues/56.
+
+`1.1.2-rc.2` shipped green CI but its CHANGELOG claimed more than the
+codebase delivered: the B2 dispatch work stayed on an unmerged branch,
+the B4 matrix was wired but the per-leaf pointer records were not
+written by `init`, the B5 setup-complete command cleared the
+setup-pending marker BEFORE validating the artifacts (so a failed
+validation lost the marker with no compensating lock write), and the
+B7 trusted-skill install wrote a placeholder `SKILL.md` whose hash
+matched the inventory by construction.
+
+This release corrects those gaps and ships only what is true at the
+byte level:
+
+- **`ship_skill_install`** materialises real bytes via the public
+  `skills` CLI pinned to a known version, copies them through a
+  staging directory, hashes every installed file, and verifies the
+  on-disk bytes match the staged bytes before appending to the
+  inventory. The tool fails closed when the CLI is unavailable; no
+  placeholder `SKILL.md` is ever written.
+- The inventory is now append-only schema v2 with a hash-chained
+  event log. Install events carry per-file sha256 + provenance
+  (registry snapshot, cli package, registryId); uninstall events
+  append a tombstone that references the install hash and never
+  splices the chain.
+- `ship_skill_install` validates the destination worktree via
+  `git worktree list --porcelain -z`. It refuses the main checkout,
+  unregistered paths, symlink traversal, and any destination whose
+  ancestor is a symlink. Paths that lexically contain `..` or
+  absolute segments are refused at append time.
+- The root permission matrix is the single source of truth.
+  `desiredPointersForProfile("engineering")` derives its pointer
+  list from `rootPermissionMatrix()` (no parallel `POINTER_ENTRIES`
+  list); the wildcard `*` default is never serialised as a literal
+  pointer, and bash policy is left to the OpenCode runtime instead
+  of being installer-owned state. Empty intermediate containers
+  (`agent.<name>.permission: {}`) are pruned on install/uninstall so
+  byte-identical restoration holds for empty consumer configs.
+- `setup-complete` validates lock, models, docs, and AGENTS.md
+  BEFORE any writes. The setup-pending marker is no longer part of
+  the gate (it is a chat-time signal, not an artifact). When the
+  gate passes, the lock is written with `setupComplete: true` and
+  the marker is cleared as part of the same commit. When validation
+  fails, no state changes.
+- The 32-tool public surface is unchanged. The eight new tools
+  (`ship_task_start`, `ship_task_commit`, `ship_task_complete`,
+  `ship_final_review`, `ship_skill_discover`, `ship_skill_install`,
+  `ship_skill_audit`, `ship_skill_uninstall`) are still first-class.
+- Regressions covered by new test suites: `tests/skills/install.test.mjs`,
+  `tests/skills/inventory.test.mjs`, `tests/skills/worktree.test.mjs`,
+  `tests/installer/root-permission-matrix.test.mjs`,
+  `tests/installer/setup-pending.test.mjs` (extended).
+
+## 1.1.2-rc.2 — Rejected, incomplete
+
+`1.1.2-rc.2` is published on npm `next` but is rejected as an
+incomplete candidate. The CHANGELOG for that release claimed
+behavior the source tree did not contain: the B2 dispatch work
+lived only on the unmerged branch `fix/1.1.2-rc.2-contract`, the
+root permission matrix was dead-code (POINTER_ENTRIES was the
+active source), the setup-complete command cleared the marker
+before validating, and `ship_skill_install` wrote a placeholder
+`SKILL.md` whose hash matched the inventory by construction. The
+published `1.1.2-rc.2` tarball is byte-equivalent to this rejected
+release.
 
 > Active stabilization branch: `fix/1.1.2-self-hosting`.
 > Parent tracker: https://github.com/Viktorxyz/opencode-ship/issues/56.
