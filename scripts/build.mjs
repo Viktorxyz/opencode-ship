@@ -27,6 +27,9 @@ async function bundlePlugin(pkg) {
     banner: { js: `// opencode-ship v${pkg.version}` },
     define: { "process.env.OPENCODE_SHIP_VERSION": JSON.stringify(pkg.version) },
     external: ["node:*", "bun:*"],
+    alias: {
+      "jsonc-parser": "jsonc-parser/lib/esm/main.js",
+    },
   });
 }
 
@@ -42,6 +45,10 @@ async function bundleCore(pkg) {
     sourcemap: false,
     logLevel: "info",
     banner: { js: `// opencode-ship/core v${pkg.version}` },
+    external: ["node:*", "bun:*"],
+    alias: {
+      "jsonc-parser": "jsonc-parser/lib/esm/main.js",
+    },
   });
 }
 
@@ -61,6 +68,9 @@ async function bundleCli(pkg) {
     },
     define: { "process.env.OPENCODE_SHIP_VERSION": JSON.stringify(pkg.version) },
     external: ["node:*", "bun:*"],
+    alias: {
+      "jsonc-parser": "jsonc-parser/lib/esm/main.js",
+    },
   });
 }
 

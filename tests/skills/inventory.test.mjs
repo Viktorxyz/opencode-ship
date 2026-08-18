@@ -22,6 +22,7 @@ import {
   appendEvent,
   verifyInventory,
   findActiveInstall,
+  hashEvent,
   INVENTORY_SCHEMA,
 } from "../../src/skills/inventory.js";
 
@@ -62,6 +63,11 @@ test("inventory: appendEvent writes a hash-chained install event", async () => {
     });
     assert.equal(ev.sequence, 1);
     assert.equal(ev.previousHash, ZERO);
+    assert.equal(ev.skill, "find-skills");
+    assert.equal(ev.package, "vercel-labs/skills");
+    assert.equal(ev.destination, ".opencode/skills/find-skills");
+    assert.equal(ev.files[0].path, "SKILL.md");
+    assert.equal(ev.source.registryId, "vercel-labs/skills/find-skills");
     assert.match(ev.hash, /^[0-9a-f]{64}$/);
     const inv = await readInventory(root);
     assert.equal(inv.events.length, 1);
@@ -87,6 +93,59 @@ test("inventory: appendEvent refuses an absolute destination", async () => {
       }),
       /absolute destination/i,
     );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("inventory: appendEvent refuses parent-relative destination and file paths", async () => {
+  const root = mkdtempSync(join(tmpdir(), "opencode-ship-inv-"));
+  try {
+    await assert.rejects(
+      appendEvent(root, {
+        type: "install",
+        skill: "x",
+        package: "p",
+        source: {},
+        destination: "../escape",
+        files: [],
+      }),
+      /unsafe destination/i,
+    );
+    await assert.rejects(
+      appendEvent(root, {
+        type: "install",
+        skill: "x",
+        package: "p",
+        source: {},
+        destination: ".opencode/skills/x",
+        files: [{ path: "../../victim", sha256: ZERO, mode: 0o644, size: 0 }],
+      }),
+      /unsafe file path/i,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("inventory: verify rejects a hash-valid event with an unsafe path", async () => {
+  const root = mkdtempSync(join(tmpdir(), "opencode-ship-inv-"));
+  try {
+    const payload = {
+      sequence: 1,
+      type: "install",
+      previousHash: ZERO,
+      recordedAt: new Date().toISOString(),
+      skill: "x",
+      package: "p",
+      source: {},
+      destination: "../escape",
+      files: [],
+    };
+    await writeInventory(root, { events: [{ ...payload, hash: hashEvent(payload) }] });
+    const chain = await verifyInventory(root);
+    assert.equal(chain.ok, false);
+    assert.match(chain.reason, /unsafe destination/i);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -176,6 +235,9 @@ test("inventory: findActiveInstall returns the latest install before a tombstone
       destination: ".opencode/skills/x",
       files: [{ path: "SKILL.md", sha256: ZERO, mode: 0o644, size: 0 }],
     });
+    const active = await findActiveInstall(root, "x");
+    assert.equal(active.ok, true);
+    assert.equal(active.install?.hash, installed.hash);
     await appendEvent(root, {
       type: "uninstall", skill: "x", package: "p", installHash: installed.hash,
       destination: ".opencode/skills/x",
@@ -183,6 +245,7 @@ test("inventory: findActiveInstall returns the latest install before a tombstone
     const found = await findActiveInstall(root, "x");
     assert.equal(found.ok, true);
     assert.equal(found.install, null, "tombstone should make the skill inactive");
+    assert.match(found.uninstallHash, /^[0-9a-f]{64}$/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

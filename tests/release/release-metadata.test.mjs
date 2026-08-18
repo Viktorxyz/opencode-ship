@@ -170,13 +170,13 @@ test("release.yml: prerelease flag is driven by the resolve-prerelease step", ()
   assert.match(
     yaml,
     /prerelease:\s*\$\{\{\s*steps\.prerelease\.outputs\.prerelease\s*\}\}/,
-    "publish release action must consume the resolve-prerelease step output",
+    "publish job must expose the resolve-prerelease step output",
   );
+  assert.match(yaml, /PRERELEASE:\s*\$\{\{\s*needs\.publish\.outputs\.prerelease\s*\}\}/);
 });
 
 test("release.yml: does not pin prerelease to a literal true/false", () => {
-  // The softprops/action-gh-release input must be an expression,
-  // not a constant. A literal `prerelease: true` would force every
+  // A literal prerelease value would force every
   // release into the prerelease channel; a literal `false` would
   // expose RCs as Latest. The expression form is the contract.
   //
@@ -196,6 +196,18 @@ test("release.yml: does not pin prerelease to a literal true/false", () => {
     literalFalse,
     "publish release action must not pin prerelease to literal false",
   );
+});
+
+test("release.yml: npm OIDC and GitHub release write privileges are isolated", () => {
+  const yaml = readText(".github/workflows/release.yml");
+  const publish = yaml.slice(yaml.indexOf("  publish:"), yaml.indexOf("  github-release:"));
+  const githubRelease = yaml.slice(yaml.indexOf("  github-release:"));
+  assert.match(publish, /contents:\s*read/);
+  assert.match(publish, /id-token:\s*write/);
+  assert.doesNotMatch(publish, /contents:\s*write/);
+  assert.match(githubRelease, /contents:\s*write/);
+  assert.doesNotMatch(githubRelease, /id-token:/);
+  assert.doesNotMatch(yaml, /softprops\/action-gh-release/);
 });
 
 test("is-prerelease: RC versions resolve to true", async () => {

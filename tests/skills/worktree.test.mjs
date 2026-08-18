@@ -15,6 +15,7 @@ import {
   listRegisteredWorktrees,
   validateLinkedWorktree,
   validateRelativeInstallPath,
+  validateInstallDestination,
 } from "../../src/skills/worktree.js";
 
 function git(args, cwd) {
@@ -71,6 +72,20 @@ test("validateLinkedWorktree: refuses a non-registered path outside the main rep
   }
 });
 
+test("validateLinkedWorktree: refuses a non-registered directory inside the main repo", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "opencode-ship-wt-"));
+  try {
+    git(["init", "-q", "-b", "main", repo]);
+    const fake = join(repo, ".worktrees", "not-registered");
+    mkdirSync(fake, { recursive: true });
+    const r = await validateLinkedWorktree(repo, fake);
+    assert.equal(r.ok, false);
+    assert.equal(r.kind, "unlinked");
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("validateLinkedWorktree: refuses an ancestor symlink alias", async () => {
   const repo = mkdtempSync(join(tmpdir(), "opencode-ship-wt-"));
   try {
@@ -112,6 +127,21 @@ test("validateRelativeInstallPath: refuses parent-relative escapes", () => {
 test("validateRelativeInstallPath: accepts a clean relative path", () => {
   const r = validateRelativeInstallPath(".opencode/skills/find-skills");
   assert.equal(r.ok, true);
+});
+
+test("validateInstallDestination: refuses a symlinked destination ancestor", async () => {
+  const worktree = mkdtempSync(join(tmpdir(), "opencode-ship-dest-"));
+  const outside = mkdtempSync(join(tmpdir(), "opencode-ship-dest-out-"));
+  try {
+    mkdirSync(join(worktree, ".opencode"), { recursive: true });
+    symlinkSync(outside, join(worktree, ".opencode", "skills"));
+    const r = await validateInstallDestination(worktree, ".opencode/skills/example");
+    assert.equal(r.ok, false);
+    assert.equal(r.kind, "symlink");
+  } finally {
+    rmSync(worktree, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
 });
 
 test("listRegisteredWorktrees: returns linked worktrees excluding the main", async () => {

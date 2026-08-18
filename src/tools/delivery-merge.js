@@ -10,6 +10,8 @@
 import { readManifest, writeManifest } from "../state/manifest-store.js";
 import { transition } from "../state/lifecycle.js";
 import { checkGates, gateFailureEnvelope } from "../gates.js";
+import { readFinalReviewEvidence } from "../workflow/final-review-store.js";
+import { appendRunEvent, RUN_EVENT_KINDS } from "../workflow/run-controller.js";
 
 export function createMergeTool(deps) {
   return async function merge(input) {
@@ -29,6 +31,16 @@ export function createMergeTool(deps) {
     }
 
     const freshGates = deps.adapter?.merge?.requireFreshGates !== false;
+    let finalEvidence = null;
+    if (m.workflowId) {
+      try {
+        finalEvidence = await readFinalReviewEvidence(deps.repoRoot, m.workflowId);
+      } catch (err) {
+        return { kind: "invalid-final-review-evidence", workflowId: m.workflowId, reason: String(err?.message ?? err) };
+      }
+    } else if (m.schemaVersion >= 2) {
+      return { kind: "missing-workflow-link", taskId: m.taskId };
+    }
     if (freshGates) {
       const required = deps.adapter?.ready?.requires ?? [
         "review",
@@ -45,7 +57,12 @@ export function createMergeTool(deps) {
           })
         : [];
       const result = checkGates({
-        manifest: { ...m, adapter: deps.adapter },
+        manifest: {
+          ...m,
+          finalStandardsReview: finalEvidence?.standards ?? m.finalStandardsReview,
+          finalSpecReview: finalEvidence?.spec ?? m.finalSpecReview,
+          adapter: deps.adapter,
+        },
         prHead: pr.headSha,
         checks,
         requires: required,
@@ -87,6 +104,12 @@ export function createMergeTool(deps) {
       updatedAt: new Date().toISOString(),
     };
     const path = await writeManifest(deps.repoRoot, next);
+    if (finalEvidence && m.workflowId) {
+      await appendRunEvent(deps.repoRoot, m.workflowId, finalEvidence.runState, {
+        kind: RUN_EVENT_KINDS.MERGE,
+        data: { mergeSha: merged.mergeSha ?? merged.mergeCommitSha ?? merged.headSha },
+      });
+    }
     return { kind: "merge", contractVersion: 1, manifestPath: path, pr: m.prNumber, taskId: m.taskId };
   };
 }

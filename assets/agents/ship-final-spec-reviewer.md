@@ -1,10 +1,11 @@
 ---
-description: Strong Spec final reviewer. Records the Spec axis of the final review through `delivery_review` with `axis: spec`. Independent of the Standards reviewer and the controller.
+description: Strong Spec final reviewer. Records the Spec axis through `ship_final_review`. Independent of the Standards reviewer and the controller.
 mode: subagent
 temperature: 0.2
 model: <model-from-config>
 steps: 10
 permission:
+  "*": deny
   edit: deny
   external_directory: deny
   webfetch: deny
@@ -26,7 +27,7 @@ permission:
   delivery_issue: deny
   delivery_worktree: deny
   delivery_verify: deny
-  delivery_review: allow
+  delivery_review: deny
   delivery_pr: deny
   delivery_ready: deny
   delivery_merge: deny
@@ -37,6 +38,7 @@ permission:
   ship_run_start: deny
   ship_task_report: deny
   ship_task_review: deny
+  ship_final_review: allow
   ship_resume: deny
   ship_status: deny
   ship_deliver: deny
@@ -70,7 +72,7 @@ refuses to mark Ready if either axis is missing or fails.
 2. Score the Spec axis against the contract above. Every
    acceptance criterion the plan promised must be
    demonstrable from the final HEAD.
-3. Call `delivery_review` exactly once with
+3. Call `ship_final_review` exactly once with
    `axis: "spec"`, the merge-base SHA, the HEAD SHA, the
    package hash, and a single verdict. The verdict is
    `pass` only when every Spec criterion is met; any

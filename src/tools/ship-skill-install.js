@@ -30,7 +30,8 @@ import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { readPolicy, isAutoInstallable } from "../skills/policy.js";
 import { appendEvent, readInventory, verifyInventory } from "../skills/inventory.js";
-import { validateLinkedWorktree, validateRelativeInstallPath } from "../skills/worktree.js";
+import { validateLinkedWorktree, validateRelativeInstallPath, validateInstallDestination } from "../skills/worktree.js";
+import { listSkills } from "../skills/registry.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 const SAFE_NAME_RE = /^[A-Za-z0-9._/-]{1,160}$/;
@@ -57,18 +58,14 @@ export function createSkillInstallTool(deps) {
       return failure("skill-install", "version must match a safe semver spec", { operationId: opId, retryable: false });
     }
     const policy = await readPolicy(deps.repoRoot);
-    const candidate = {
+    const ownerCandidate = {
       package: packageSpec,
       skill: skillName,
-      // The actual install count is verified separately; the
-      // candidate descriptor here only carries the value used by
-      // isAutoInstallable for the owner allowlist check. Real
-      // install counts come from the registry metadata.
-      installs: policy.minInstalls,
+      installs: Number.MAX_SAFE_INTEGER,
     };
-    const decision = isAutoInstallable(candidate, policy);
-    if (!decision.ok) {
-      return failure("skill-install", `policy forbids install: ${decision.reason}`, { operationId: opId, retryable: false });
+    const ownerDecision = isAutoInstallable(ownerCandidate, policy);
+    if (!ownerDecision.ok) {
+      return failure("skill-install", `policy forbids install: ${ownerDecision.reason}`, { operationId: opId, retryable: false });
     }
     const wtCheck = await validateLinkedWorktree(deps.repoRoot, worktreePath);
     if (!wtCheck.ok) {
@@ -79,13 +76,30 @@ export function createSkillInstallTool(deps) {
     if (!pathCheck.ok) {
       return failure("skill-install", `destination rejected: ${pathCheck.message}`, { operationId: opId, retryable: false });
     }
-    const destAbs = resolve(wtCheck.path, destRel);
+    const destinationCheck = await validateInstallDestination(wtCheck.path, destRel);
+    if (!destinationCheck.ok) {
+      return failure("skill-install", `destination rejected: ${destinationCheck.message}`, { operationId: opId, retryable: false });
+    }
+    const destAbs = destinationCheck.path;
     if (existsSync(destAbs)) {
       return failure("skill-install", "destination already exists; use ship_skill_audit to detect drift", { operationId: opId, retryable: false });
     }
     const managedCatalog = (deps.config?.value?.skills ?? []).map((s) => s?.name).filter(Boolean);
     if (managedCatalog.includes(skillName)) {
       return failure("skill-install", "candidate shadows a managed skill", { operationId: opId, retryable: false });
+    }
+    const discover = deps.discoverSkills ?? listSkills;
+    const discovery = await discover({ repoRoot: deps.repoRoot, query: packageSpec });
+    if (!discovery?.ok) {
+      return failure("skill-install", "registry metadata unavailable; refusing unverified install", { operationId: opId, retryable: true });
+    }
+    const candidate = discovery.candidates?.find((entry) => entry.package === packageSpec && entry.skill === skillName);
+    if (!candidate) {
+      return failure("skill-install", "exact skill package was not found in registry metadata", { operationId: opId, retryable: false });
+    }
+    const decision = isAutoInstallable(candidate, policy);
+    if (!decision.ok) {
+      return failure("skill-install", `policy forbids install: ${decision.reason}`, { operationId: opId, retryable: false });
     }
     // 1. Materialise real bytes via the skills CLI in a staging
     //    directory. We refuse to write anything to the worktree
@@ -94,7 +108,8 @@ export function createSkillInstallTool(deps) {
     const stage = await mkdtemp(join(tmpdir(), `ship-skill-stage-${randomBytes(4).toString("hex")}-`));
     let installedFiles;
     try {
-      installedFiles = await materialiseFromSkillsCli({
+      const materialise = deps.materialiseFromSkillsCli ?? materialiseFromSkillsCli;
+      installedFiles = await materialise({
         packageSpec,
         skillName,
         version,
@@ -114,6 +129,11 @@ export function createSkillInstallTool(deps) {
       await mkdir(dirname(destAbs), { recursive: true });
       const destTmp = `${destAbs}.${randomBytes(4).toString("hex")}.tmp`;
       await copyDir(installedFiles.stagedDir, destTmp);
+      const finalDestinationCheck = await validateInstallDestination(wtCheck.path, destRel);
+      if (!finalDestinationCheck.ok) {
+        await rm(destTmp, { recursive: true, force: true });
+        return failure("skill-install", `destination rejected: ${finalDestinationCheck.message}`, { operationId: opId, retryable: false });
+      }
       await rename(destTmp, destAbs);
       // 4. Verify the on-disk hashes match the staged hashes. If
       //    the rename target somehow drifted, abort with a clear
@@ -124,7 +144,7 @@ export function createSkillInstallTool(deps) {
         return failure("skill-install", "drift detected after copy; rolled back", { operationId: opId, retryable: false });
       }
       // 5. Append to the inventory chain (schema v2).
-      const recorded = await appendEvent(deps.repoRoot, {
+      const recorded = await appendEvent(wtCheck.path, {
         type: "install",
         skill: skillName,
         package: packageSpec,
@@ -164,16 +184,20 @@ async function materialiseFromSkillsCli({ packageSpec, skillName, version, stage
   //   skills add <package> --skill <name> --agent opencode --copy -y
   // We pin the CLI to a known version so we are not at the mercy
   // of the latest published bit.
-  const cliPkg = version ? `skills@${SKILLS_CLI_VERSION}` : `skills@${SKILLS_CLI_VERSION}`;
+  const cliPkg = `skills@${SKILLS_CLI_VERSION}`;
+  const resolvedPackageSpec = version ? `${packageSpec}@${version}` : packageSpec;
   // The `<package>` argument can be a GitHub owner/repo or a full
   // npm package spec. The CLI handles both. We always pass through
   // the user-supplied spec verbatim (validated against the safe id
   // regex at the top of this tool).
   const args = [
-    "dlx",
-    cliPkg,
+    "exec",
+    "--yes",
+    `--package=${cliPkg}`,
+    "--",
+    "skills",
     "add",
-    packageSpec,
+    resolvedPackageSpec,
     "--skill",
     skillName,
     "--agent",
@@ -227,10 +251,10 @@ async function materialiseFromSkillsCli({ packageSpec, skillName, version, stage
     ok: true,
     stagedDir,
     source: {
-      packageSpec,
+      packageSpec: resolvedPackageSpec,
       skillName,
       cliPackage: cliPkg,
-      registryId: `${packageSpec}/${skillName}`,
+      registryId: `${resolvedPackageSpec}/${skillName}`,
       // The CLI does not currently expose a registry snapshot
       // hash; we record the staged directory's hash instead so
       // the audit tool can prove the staged bytes equal the

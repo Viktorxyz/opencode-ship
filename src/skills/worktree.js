@@ -18,7 +18,7 @@
  */
 import { execFile } from "node:child_process";
 import { promises as fs, existsSync } from "node:fs";
-import { resolve, dirname, sep, isAbsolute } from "node:path";
+import { resolve, dirname, sep, isAbsolute, join } from "node:path";
 
 /**
  * Read the registered worktrees for the main repo via
@@ -118,21 +118,6 @@ export async function validateLinkedWorktree(mainRepo, worktreePath) {
   if (wt === main) {
     return { ok: false, kind: "main", message: "installs into the main worktree are forbidden" };
   }
-  // The worktree must lexically live inside the consumer's repo
-  // tree OR be an external linked worktree. A registered linked
-  // worktree can live outside the main checkout directory (e.g.
-  // a sibling path), so we accept either: inside the main
-  // directory, or outside but not escaping `..` past any ancestor.
-  const insideMain = wt.startsWith(main + sep) || wt === main;
-  const linked = await listRegisteredWorktrees(main);
-  const matched = linked.find((entry) => entry.path === wt);
-  if (!matched && !insideMain) {
-    return {
-      ok: false,
-      kind: "unlinked",
-      message: `worktree ${wt} is not registered (git worktree list) and is not inside ${main}`,
-    };
-  }
   // Ancestor-symlink walk: refuse any path whose lexically-named
   // ancestor is a symlink. We walk from wt up to the root.
   let cursor = wt;
@@ -159,6 +144,15 @@ export async function validateLinkedWorktree(mainRepo, worktreePath) {
       message: `worktree ${wt} resolves through a symlink to ${real}`,
     };
   }
+  const linked = await listRegisteredWorktrees(main);
+  const matched = linked.find((entry) => entry.path === wt);
+  if (!matched) {
+    return {
+      ok: false,
+      kind: "unlinked",
+      message: `worktree ${wt} is not registered (git worktree list)`,
+    };
+  }
   return { ok: true, path: wt, registered: !!matched };
 }
 
@@ -176,11 +170,37 @@ export function validateRelativeInstallPath(destRel) {
   if (isAbsolute(destRel)) {
     return { ok: false, kind: "absolute", message: `destination must be relative: ${destRel}` };
   }
-  const parts = destRel.split(sep);
+  if (destRel.includes("\\")) {
+    return { ok: false, kind: "parent-relative", message: `destination must use POSIX separators: ${destRel}` };
+  }
+  const parts = destRel.split("/");
   for (const p of parts) {
-    if (p === "..") {
+    if (p === "" || p === "." || p === "..") {
       return { ok: false, kind: "parent-relative", message: `destination escapes worktree: ${destRel}` };
     }
   }
   return { ok: true };
+}
+
+export async function validateInstallDestination(worktreeRoot, destRel) {
+  const relativeCheck = validateRelativeInstallPath(destRel);
+  if (!relativeCheck.ok) return relativeCheck;
+  const root = resolve(worktreeRoot);
+  const destination = resolve(root, ...destRel.split("/"));
+  if (destination !== root && !destination.startsWith(root + sep)) {
+    return { ok: false, kind: "escape", message: `destination escapes worktree: ${destRel}` };
+  }
+  let cursor = root;
+  for (const part of destRel.split("/")) {
+    cursor = join(cursor, part);
+    const entry = await fs.lstat(cursor).catch(() => null);
+    if (!entry) continue;
+    if (entry.isSymbolicLink()) {
+      return { ok: false, kind: "symlink", message: `destination path contains a symlink at ${cursor}` };
+    }
+    if (cursor !== destination && !entry.isDirectory()) {
+      return { ok: false, kind: "not-directory", message: `destination ancestor is not a directory: ${cursor}` };
+    }
+  }
+  return { ok: true, path: destination };
 }

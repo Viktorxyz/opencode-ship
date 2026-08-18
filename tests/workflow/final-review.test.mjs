@@ -28,6 +28,7 @@ function baseInput(overrides = {}) {
     mergeBaseSha: "b".repeat(40),
     planHash: "c".repeat(64),
     approvalHash: "d".repeat(64),
+    gateTaskId: "delivery-1",
     verificationHash: "e".repeat(64),
     ciHash: "f".repeat(64),
     tasks: [

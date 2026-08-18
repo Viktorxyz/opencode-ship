@@ -27,6 +27,7 @@ import { canonicalJson } from "../installer/json-pointer.js";
  * @property {string} packageHash
  * @property {Array<{ axis: "standards" | "spec", severity: "info" | "warning" | "blocking", message: string, pointer?: string, reproducer?: string }>} findings
  * @property {string} [verdictHash]
+ * @property {string} [reviewHash]
  */
 
 /**
@@ -36,6 +37,7 @@ import { canonicalJson } from "../installer/json-pointer.js";
  * @property {string} mergeBaseSha
  * @property {string} planHash
  * @property {string} approvalHash
+ * @property {string} gateTaskId
  * @property {string} verificationHash
  * @property {string} ciHash
  * @property {Array<{ taskId: string, commitSha: string, taskHash: string, reviewHash: string }>} tasks
@@ -55,6 +57,7 @@ import { canonicalJson } from "../installer/json-pointer.js";
  *   mergeBaseSha: string,
  *   planHash: string,
  *   approvalHash: string,
+ *   gateTaskId: string,
  *   verificationHash: string,
  *   ciHash: string,
  *   tasks: Array<{ taskId: string, commitSha: string, taskHash: string, reviewHash: string }>,
@@ -96,7 +99,8 @@ export function buildFinalReviewPackage(input) {
  * @returns {string}
  */
 export function hashFinalReviewPackage(pkg) {
-  return pkg.packageHash ?? sha256(canonicalJson(pkg));
+  const { packageHash: _packageHash, ...payload } = pkg;
+  return sha256(canonicalJson(payload));
 }
 
 /**
@@ -104,7 +108,8 @@ export function hashFinalReviewPackage(pkg) {
  * @returns {string}
  */
 export function hashAxisRecord(record) {
-  return sha256(canonicalJson(record));
+  const { reviewHash: _reviewHash, ...payload } = record;
+  return sha256(canonicalJson(payload));
 }
 
 /**

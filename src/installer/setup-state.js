@@ -30,7 +30,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { hasCompletedModels } from "./config.js";
-import { readValidatedLock, isSetupComplete as lockSays } from "./lock.js";
+import { readValidatedLock, isSetupComplete as lockSays, CURRENT_LOCK_SCHEMA } from "./lock.js";
 
 const REQUIRED_DOCS = [
   "docs/agents/issue-tracker.md",
@@ -81,7 +81,9 @@ export async function setupComplete(repoRoot, configValue) {
   // setup-complete command is elevating. Re-using the lock
   // setupComplete bit as the gate would force the gate to hold
   // its own key.
-  const lockOk = lockResult.kind === "ok" || lockResult.kind === "missing";
+  const lockOk = lockResult.kind === "ok"
+    && lockResult.lock?.contractVersion === CURRENT_LOCK_SCHEMA
+    && lockResult.lock?.manager?.schemaVersion === CURRENT_LOCK_SCHEMA;
   const ok = cfgOk && lockOk && missing.length === 0;
   return {
     ok,

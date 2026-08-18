@@ -22,7 +22,7 @@
 
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, posix } from "node:path";
 import { bytesHashString } from "./hash.js";
 import { stableStringify } from "./json-pointer.js";
 import { DEFAULT_PROFILE, isValidProfile } from "../profile.js";
@@ -181,6 +181,13 @@ export function validateLock(rawLock) {
   if (!rawLock.files || !Array.isArray(rawLock.files)) {
     issues.push("files must be an array");
     kind = kind === "ok" ? "shape" : kind;
+  } else {
+    for (const entry of rawLock.files) {
+      if (!entry || typeof entry !== "object" || !isSafeManagedPath(entry.path)) {
+        issues.push(`unsafe managed file path: ${JSON.stringify(entry?.path)}`);
+        kind = kind === "ok" ? "shape" : kind;
+      }
+    }
   }
 
   if (!rawLock.integrity || typeof rawLock.integrity !== "object") {
@@ -195,6 +202,12 @@ export function validateLock(rawLock) {
   }
 
   return { ok: issues.length === 0, kind, issues };
+}
+
+export function isSafeManagedPath(value) {
+  if (typeof value !== "string" || value.length === 0 || value.includes("\\")) return false;
+  if (posix.isAbsolute(value) || posix.normalize(value) !== value) return false;
+  return value.split("/").every((part) => part !== "" && part !== "." && part !== "..");
 }
 
 /**

@@ -1,13 +1,11 @@
 /*
  * Re-export every Ship tool factory so the bundled plugin can
- * wire them all from a single import path. The 24-tool surface
+ * wire them all from a single import path. The 32-tool surface
  * is composed of:
  *
- *   9 delivery_* tools (existing build/inspect/verify/review/...)
- *   7 Git/GitHub control-plane tools (issue read, comment, labels,
- *     link, close, sync, publish)
- *   8 ship_* workflow tools (plan start/submit/approve, run start,
- *     task report/review, resume, status)
+ *   16 delivery_* tools for the Git/GitHub delivery lifecycle
+ *   16 ship_* tools for planning, task execution, final review,
+ *      resume/status, and trusted skill management
  *
  * The bundle preserves the existing behavior; it just centralises
  * the export surface for the plugin entry.

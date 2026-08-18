@@ -36,7 +36,7 @@
 import { previewInstall, commitInstall, serializePlan } from "../executor.js";
 import { loadConfig } from "../config.js";
 import { setupComplete, SETUP_REQUIREMENTS } from "../setup-state.js";
-import { clearSetupPending, isSetupPending } from "../setup-pending.js";
+import { isSetupPending, setupPendingPath, SETUP_PENDING_REL_PATH } from "../setup-pending.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -84,14 +84,17 @@ export async function runSetupComplete(options) {
     json: options.json,
     command: "setup-complete",
     fullSetupComplete: true,
+    transactionEntries: markerWasPresent ? [{
+      op: "file",
+      kind: "delete",
+      target: setupPendingPath(repoRoot),
+      relPath: SETUP_PENDING_REL_PATH,
+      reason: "clear setup-pending marker in the setup-complete transaction",
+    }] : [],
   });
   if (committed.extra?.exitCode !== 0) {
     return emitFailure(committed.extra?.exitCode ?? 1, "commit failed", options.json, { committed });
   }
-  // 4. Marker cleanup is part of the successful path. A failed
-  //    commit or invalid artifacts above never reach this line, so
-  //    the marker cannot be lost on a false success.
-  clearSetupPending(repoRoot);
   if (options.json) {
     process.stdout.write(JSON.stringify({
       reportVersion: 1,

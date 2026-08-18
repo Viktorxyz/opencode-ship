@@ -28,6 +28,7 @@ import { spawnSync } from "node:child_process";
 import * as git from "../drivers/git.js";
 import { transition } from "../state/lifecycle.js";
 import { readManifest, writeManifest, deleteManifest } from "../state/manifest-store.js";
+import { appendRunEvent, readRunState, RUN_EVENT_KINDS } from "../workflow/run-controller.js";
 
 function safeRemoveWorktree(repoRoot, path) {
   const r = spawnSync("git", ["worktree", "remove", path], {
@@ -141,6 +142,14 @@ export function createCleanupTool(deps) {
     // skip the driver.readPullRequest call entirely (the driver would
     // refuse on a missing PR anyway) and proceed to deletion.
     const isBootstrapRecovery = m.state === "cleanup-pending" && m.prNumber === null;
+    let workflowRun = null;
+    if (!isBootstrapRecovery && m.schemaVersion >= 2) {
+      if (!m.workflowId) return { kind: "missing-workflow-link", taskId: m.taskId };
+      workflowRun = await readRunState(deps.repoRoot, m.workflowId);
+      if (!workflowRun || workflowRun.state !== "merged") {
+        return { kind: "workflow-not-merged", workflowId: m.workflowId, state: workflowRun?.state ?? null };
+      }
+    }
 
     if (!isBootstrapRecovery && m.prNumber === null) {
       return { kind: "missing-pr" };
@@ -221,6 +230,12 @@ export function createCleanupTool(deps) {
     const branchResult = casDeleteBranch(deps.repoRoot, m.branch, expectedSha);
     if (branchResult.status !== 0 && branchStillExists(deps.repoRoot, m.branch)) {
       return { kind: "branch-delete-failed", stderr: branchResult.stderr };
+    }
+    if (workflowRun && m.workflowId) {
+      await appendRunEvent(deps.repoRoot, m.workflowId, workflowRun, {
+        kind: RUN_EVENT_KINDS.DONE,
+        data: { taskId: m.taskId },
+      });
     }
 
     const tCleanup = transition(m, "cleanup-pending", { reason: "worktree removed" });

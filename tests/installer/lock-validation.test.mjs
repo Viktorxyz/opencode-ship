@@ -117,6 +117,15 @@ test("validateLock: rejects a non-object root with kind=shape", () => {
   assert.equal(r.kind, "shape");
 });
 
+test("validateLock: rejects managed file paths that escape the repository", () => {
+  const lock = baseLock();
+  lock.files = [{ path: "../victim", sha256: "a".repeat(64) }];
+  const r = validateLock(sealIntegrity(lock));
+  assert.equal(r.ok, false);
+  assert.equal(r.kind, "shape");
+  assert.match(r.issues.join("\n"), /unsafe managed file path/i);
+});
+
 test("writeValidatedLock helper: persists schemaVersion overrides", async () => {
   const dir = await writeValidatedLock(sealIntegrity(baseLock()), { manager: { schemaVersion: 99 } });
   const file = readFileSync(`${dir}/ship.lock.json`, "utf8");

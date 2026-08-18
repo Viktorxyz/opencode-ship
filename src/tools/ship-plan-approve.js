@@ -9,7 +9,8 @@
  */
 
 import { success, failure } from "./envelope.js";
-import { publishApproval } from "../workflow/plan-store.js";
+import { publishApproval, readPlanRevision } from "../workflow/plan-store.js";
+import { authorizeControllerCall } from "../runtime/opencode-dispatcher.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -32,18 +33,27 @@ export function createPlanApproveTool(deps) {
     if (!subject) {
       return failure("plan-approve", "user permission subject required", { operationId: opId, retryable: false });
     }
+    const ctx = input.ctx ?? deps.ctx ?? null;
+    const auth = await authorizeControllerCall(deps.repoRoot, workflowId, ctx);
+    if (!auth.ok) {
+      return failure("plan-approve", `controller authorization failed: ${auth.message}`, { operationId: opId, retryable: false });
+    }
     try {
+      const planRecord = await readPlanRevision(deps.repoRoot, workflowId, revision);
+      if (!planRecord || planRecord.hash !== sha256) {
+        return failure("plan-approve", "plan revision is missing or does not match sha256", { operationId: opId, retryable: false });
+      }
       const result = await publishApproval(deps.repoRoot, {
         workflowId,
         revision,
         decision: "approved",
-        sessionID: input.sessionID ?? "ship-controller",
+        sessionID: auth.sessionID,
         approvedBy: subject,
         approvedAt: new Date().toISOString(),
         chunkIds: Array.isArray(input.chunkIds) ? input.chunkIds : [],
         chunkHashes: Array.isArray(input.chunkHashes) ? input.chunkHashes : [],
-        baseSha: input.baseSha ?? "",
-        models: input.models ?? null,
+        baseSha: planRecord.plan.source.baseSha,
+        models: planRecord.plan.models ?? deps.configValue?.workflow?.models ?? null,
         sha256,
       });
       return success("plan-approve", {

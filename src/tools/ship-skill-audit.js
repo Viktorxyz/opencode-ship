@@ -20,13 +20,19 @@ import { existsSync } from "node:fs";
 import { resolve, join, isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
 import { readInventory, verifyInventory } from "../skills/inventory.js";
+import { validateLinkedWorktree, validateInstallDestination } from "../skills/worktree.js";
 
 export function createSkillAuditTool(deps) {
   return async function skillAudit(input) {
     const opId = input.operationId ?? `skill-audit-${Date.now().toString(36)}`;
     const repoRoot = resolve(deps.repoRoot);
-    const inventory = await readInventory(repoRoot);
-    const chain = await verifyInventory(repoRoot);
+    const worktree = await validateLinkedWorktree(repoRoot, String(input.worktreePath ?? ""));
+    if (!worktree.ok) {
+      return failure("skill-audit", `worktree rejected: ${worktree.message}`, { operationId: opId, retryable: false });
+    }
+    const inventoryRoot = worktree.path;
+    const inventory = await readInventory(inventoryRoot);
+    const chain = await verifyInventory(inventoryRoot);
     // Compute active installs: walk chain in order; an install is
     // active until an uninstall event for the same skill appears.
     const active = new Map();
@@ -53,8 +59,12 @@ export function createSkillAuditTool(deps) {
       // because that is where the audit is invoked. If the skill
       // was installed into a separate linked worktree, the audit
       // can be invoked with the matching worktreeRoot instead.
-      const worktreeRoot = input.worktreeRoot ?? deps.repoRoot;
-      const installRoot = resolve(worktreeRoot);
+      const installRoot = inventoryRoot;
+      const destination = await validateInstallDestination(installRoot, ev.destination);
+      if (!destination.ok) {
+        drifted.push({ skill: ev.skill, path: ev.destination, reason: destination.message, sequence: ev.sequence });
+        continue;
+      }
       for (const f of ev.files ?? []) {
         const filePath = join(installRoot, ev.destination, f.path);
         if (!existsSync(filePath)) {
@@ -69,7 +79,7 @@ export function createSkillAuditTool(deps) {
       }
     }
     const untracked = [];
-    const opencodeDir = join(repoRoot, ".opencode", "skills");
+    const opencodeDir = join(inventoryRoot, ".opencode", "skills");
     if (existsSync(opencodeDir)) {
       const entries = await readdir(opencodeDir, { withFileTypes: true }).catch(() => []);
       for (const e of entries) {

@@ -108,6 +108,27 @@ test("run controller: events are append-only and ordered", async (t) => {
     RUN_EVENT_KINDS.TASK_REVIEW,
   ]);
   assert.deepEqual(restored.events.map((e) => e.sequence), [1, 2, 3]);
+  assert.ok(restored.events.every((event) => /^[0-9a-f]{64}$/.test(event.hash)));
+  assert.equal(restored.events[1].priorHash, restored.events[0].hash);
+});
+
+test("run controller: readRunState rejects a snapshot that disagrees with the immutable ledger", async (t) => {
+  const dir = await makeRepo();
+  t.after(async () => rm(dir, { recursive: true, force: true }));
+  let state = createInitialState("wf-tamper", 1, "a".repeat(64));
+  ({ state } = await appendRunEvent(dir, "wf-tamper", state, {
+    kind: RUN_EVENT_KINDS.RUN_START,
+    data: { revision: 1, sha256: "a".repeat(64) },
+  }));
+  const runPath = join(dir, ".git", "opencode-ship", "runs", "wf-tamper", "run.json");
+  const snapshot = JSON.parse(await readFile(runPath, "utf8"));
+  snapshot.state = "ready-pending";
+  snapshot.finalReview = {
+    standards: { verdict: "pass" },
+    spec: { verdict: "pass" },
+  };
+  await writeFile(runPath, JSON.stringify(snapshot, null, 2));
+  await assert.rejects(() => readRunState(dir, "wf-tamper"), /snapshot does not match immutable event ledger/);
 });
 
 test("commit trailers: encode workflow, plan, task, review, round", () => {

@@ -1,27 +1,27 @@
 /**
  * ship_task_start tool.
  *
- * Dispatch a task to the configured builder agent. The first
- * event recorded against the active run is TASK_DISPATCH; the
- * reducer preserves the task id across fix rounds so the at-most-
- * one-active-task invariant holds.
+ * Controller-only: dispatch the configured builder child session
+ * for a specific task and round. The ToolContext must hold the
+ * active controller lease; the builder child session id is
+ * recorded against the dispatch key `builder:<taskId>:<round>`.
  *
- * The tool refuses to dispatch a task whose `id` is not declared
- * in the approved plan. The plan revision must be the latest
- * approved revision. The reviewer must be authorised against the
- * builder model so the runtime cannot be tricked into running a
- * reviewer as a builder.
+ * Authorization happens via the controller lease and the
+ * dispatcher (`authorizeControllerCall` + `dispatchWorker`).
  */
+
 import { success, failure } from "./envelope.js";
-import { readFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
 import { publishImmutableJson } from "../state/durable-store.js";
 import { appendRunEvent, readRunState, RUN_EVENT_KINDS } from "../workflow/run-controller.js";
 import { resolveModelRoles } from "../installer/engineering-config.js";
-import { isSetupComplete } from "../installer/lock.js";
-import { readLock } from "../installer/lock.js";
+import { isSetupComplete, readLock } from "../installer/lock.js";
+import { dispatchWorker, authorizeControllerCall, ROLES } from "../runtime/opencode-dispatcher.js";
+import { readPlanRevision } from "../workflow/plan-store.js";
+import { canonicalJson } from "../installer/json-pointer.js";
+import { createHash } from "node:crypto";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -30,23 +30,16 @@ export function createTaskStartTool(deps) {
     const opId = input.operationId ?? `task-start-${Date.now().toString(36)}`;
     const workflowId = String(input.workflowId ?? "");
     const taskId = String(input.taskId ?? "");
-    const briefHash = String(input.briefHash ?? "");
-    const sessionID = String(input.sessionID ?? "");
-    const submittedBy = String(input.submittedBy ?? "");
     if (!workflowId || !SAFE_ID_RE.test(workflowId)) {
       return failure("task-start", "workflowId required (safe id)", { operationId: opId, retryable: false });
     }
     if (!taskId || !SAFE_ID_RE.test(taskId)) {
       return failure("task-start", "taskId required (safe id)", { operationId: opId, retryable: false });
     }
-    if (!briefHash || !/^[0-9a-f]{64}$/.test(briefHash)) {
-      return failure("task-start", "briefHash required (sha256)", { operationId: opId, retryable: false });
-    }
-    if (!sessionID) {
-      return failure("task-start", "sessionID required (must identify builder session)", { operationId: opId, retryable: false });
-    }
-    if (!submittedBy) {
-      return failure("task-start", "submittedBy required (must identify builder model)", { operationId: opId, retryable: false });
+    const ctx = input.ctx ?? deps.ctx ?? null;
+    const auth = await authorizeControllerCall(deps.repoRoot, workflowId, ctx);
+    if (!auth.ok) {
+      return failure("task-start", `controller authorization failed: ${auth.message}`, { operationId: opId, retryable: false });
     }
     const lock = await readLock(deps.repoRoot);
     if (!isSetupComplete(lock)) {
@@ -58,9 +51,6 @@ export function createTaskStartTool(deps) {
     } catch (err) {
       return failure("task-start", `builder model unresolved: ${err?.message ?? err}`, { operationId: opId, retryable: false });
     }
-    if (!submittedBy.startsWith(models.builder)) {
-      return failure("task-start", `submittedBy must be the configured builder model ${models.builder}`, { operationId: opId, retryable: false });
-    }
     let runState;
     try {
       runState = await readRunState(deps.repoRoot, workflowId);
@@ -70,16 +60,65 @@ export function createTaskStartTool(deps) {
     if (!runState) {
       return failure("task-start", "run not started", { operationId: opId, retryable: false });
     }
+    const planRecord = await readPlanRevision(deps.repoRoot, workflowId, runState.revision);
+    if (!planRecord || planRecord.hash !== runState.sha256) {
+      return failure("task-start", "approved plan is missing or does not match the run", { operationId: opId, retryable: false });
+    }
+    const remainingTasks = planRecord.plan.tasks.filter((task) => !runState.completedTasks.includes(task.id));
+    const task = remainingTasks[0];
+    if (!task || task.id !== taskId) {
+      return failure("task-start", `task ${taskId} is not the next task in the approved plan`, { operationId: opId, retryable: false });
+    }
+    const unsatisfied = (task.dependsOn ?? []).filter((dependency) => !runState.completedTasks.includes(dependency));
+    if (unsatisfied.length > 0) {
+      return failure("task-start", `task dependencies are incomplete: ${unsatisfied.join(", ")}`, { operationId: opId, retryable: false });
+    }
+    const briefHash = createHash("sha256").update(canonicalJson(task), "utf8").digest("hex");
+    const round = runState.round > 0 ? runState.round : 1;
     try {
+      let dispatchResult = null;
+      if (deps.opencodeClient) {
+        dispatchResult = await dispatchWorker({
+          repoRoot: deps.repoRoot,
+          workflowId,
+          role: ROLES.BUILDER,
+          keyInput: { taskId, round },
+          payload: {
+            promptText: [
+              `Implement workflow ${workflowId} task ${taskId} round ${round}.`,
+              `Call ship_task_report with workflowId=${workflowId}, taskId=${taskId}, and round=${round}.`,
+              `Approved task brief:\n${JSON.stringify(task, null, 2)}`,
+            ].join("\n\n"),
+          },
+          client: deps.opencodeClient,
+          parentSessionID: ctx.sessionID,
+          titleMarker: `ship-task-builder-${workflowId}-${taskId}`,
+          agent: "ship-task-builder",
+          model: models.builder,
+        });
+      }
       const commonDir = await resolveGitCommonDir(deps.repoRoot);
-      const dispatchDir = join(opencodeShipStateDir(commonDir), "runs", workflowId, "tasks", taskId, "dispatch");
+      const dispatchDir = join(
+        opencodeShipStateDir(commonDir),
+        "runs",
+        workflowId,
+        "tasks",
+        taskId,
+        "rounds",
+        String(round).padStart(4, "0"),
+        "dispatch",
+      );
       await mkdir(dispatchDir, { recursive: true });
       const record = {
         workflowId,
         taskId,
-        sessionID,
+        round,
+        builderSessionID: dispatchResult?.sessionID ?? null,
+        dispatchKey: dispatchResult?.dispatchKey ?? null,
+        controllerSessionID: ctx.sessionID,
         builder: models.builder,
         briefHash,
+        task,
         dispatchedAt: new Date().toISOString(),
       };
       await publishImmutableJson(join(dispatchDir, "dispatch.json"), record);
@@ -87,9 +126,20 @@ export function createTaskStartTool(deps) {
         deps.repoRoot,
         workflowId,
         runState,
-        { kind: RUN_EVENT_KINDS.TASK_DISPATCH, data: { taskId, briefHash, sessionID } },
+        {
+          kind: RUN_EVENT_KINDS.TASK_DISPATCH,
+          data: { taskId, briefHash, sessionID: dispatchResult?.sessionID ?? null },
+        },
       );
-      return success("task-start", { workflowId, taskId, state: state.state, sequence: event.sequence, round: state.round }, { operationId: opId });
+      return success("task-start", {
+        workflowId,
+        taskId,
+        builderSessionID: dispatchResult?.sessionID ?? null,
+        dispatchKey: dispatchResult?.dispatchKey ?? null,
+        state: state.state,
+        sequence: event.sequence,
+        round: state.round,
+      }, { operationId: opId });
     } catch (err) {
       return failure("task-start", String(err?.message ?? err), { operationId: opId, retryable: true });
     }

@@ -25,6 +25,8 @@
  *     controller; the Build agent never sees them.
  */
 
+import { pointerPath } from "./json-pointer.js";
+
 const ASK = "ask";
 const ALLOW = "allow";
 const DENY = "deny";
@@ -40,8 +42,47 @@ const CONTROLLER_TASK_ALLOW = [
   "ship-final-spec-reviewer",
   "delivery-verifier",
 ];
-const BUILD_TOOL_ALLOW = [
+const PUBLIC_TOOL_IDS = [
+  "delivery_cleanup",
+  "delivery_github_read",
   "delivery_inspect",
+  "delivery_issue",
+  "delivery_issue_close",
+  "delivery_issue_comment",
+  "delivery_issue_labels",
+  "delivery_issue_link",
+  "delivery_merge",
+  "delivery_pr",
+  "delivery_publish",
+  "delivery_ready",
+  "delivery_review",
+  "delivery_sync",
+  "delivery_verify",
+  "delivery_worktree",
+  "ship_final_review",
+  "ship_plan_approve",
+  "ship_plan_start",
+  "ship_plan_submit",
+  "ship_resume",
+  "ship_run_start",
+  "ship_skill_audit",
+  "ship_skill_discover",
+  "ship_skill_install",
+  "ship_skill_uninstall",
+  "ship_status",
+  "ship_task_commit",
+  "ship_task_complete",
+  "ship_task_report",
+  "ship_task_review",
+  "ship_task_start",
+];
+const BUILD_TOOL_ALLOW = [
+  "delivery_cleanup",
+  "delivery_inspect",
+  "delivery_issue",
+  "delivery_pr",
+  "delivery_ready",
+  "delivery_worktree",
   "ship_status",
   "ship_resume",
 ];
@@ -53,23 +94,28 @@ const BUILD_TOOL_ASK = [
 ];
 const CONTROLLER_TOOL_ALLOW = [
   "delivery_inspect",
+  "delivery_cleanup",
+  "delivery_github_read",
   "delivery_issue",
+  "delivery_issue_comment",
+  "delivery_issue_labels",
+  "delivery_issue_link",
   "delivery_worktree",
   "delivery_pr",
   "delivery_ready",
   "delivery_publish",
+  "delivery_sync",
   "ship_plan_start",
-  "ship_plan_submit",
   "ship_run_start",
   "ship_task_start",
   "ship_task_commit",
   "ship_task_complete",
-  "ship_final_review",
   "ship_resume",
   "ship_status",
   "ship_skill_discover",
   "ship_skill_install",
   "ship_skill_audit",
+  "ship_skill_uninstall",
 ];
 const CONTROLLER_TOOL_ASK = [
   "ship_plan_approve",
@@ -107,6 +153,14 @@ function denyMap(globs) {
   return out;
 }
 
+function toolPermissionMap(allow, ask) {
+  const out = { "*": DENY };
+  for (const id of PUBLIC_TOOL_IDS) out[id] = DENY;
+  for (const id of allow) out[id] = ALLOW;
+  for (const id of ask) out[id] = ASK;
+  return out;
+}
+
 export function rootPermissionMatrix() {
   return {
     subagentDepth: SUBAGENT_DEPTH,
@@ -126,9 +180,7 @@ export function rootPermissionMatrix() {
         },
       },
       tools: {
-        "*": "deny",
-        ...Object.fromEntries(BUILD_TOOL_ALLOW.map((t) => [t, "allow"])),
-        ...Object.fromEntries(BUILD_TOOL_ASK.map((t) => [t, "ask"])),
+        ...toolPermissionMap(BUILD_TOOL_ALLOW, BUILD_TOOL_ASK),
       },
     },
     shipController: {
@@ -140,9 +192,7 @@ export function rootPermissionMatrix() {
         bash: denyMap(FORBIDDEN_BASH_GLOBS_CONTROLLER),
       },
       tools: {
-        "*": "deny",
-        ...Object.fromEntries(CONTROLLER_TOOL_ALLOW.map((t) => [t, "allow"])),
-        ...Object.fromEntries(CONTROLLER_TOOL_ASK.map((t) => [t, "ask"])),
+        ...toolPermissionMap(CONTROLLER_TOOL_ALLOW, CONTROLLER_TOOL_ASK),
       },
     },
   };
@@ -195,19 +245,12 @@ export function matrixLeafPointers() {
   for (const agent of agents) {
     const perm = agent.block.permission;
     for (const category of Object.keys(perm)) {
-      // The bash policy map is enforced by the OpenCode runtime;
-      // it is not installer-owned state and would create empty
-      // containers when the consumer has no bash rules. Skip it.
-      if (category === "bash") continue;
       const map = perm[category];
       for (const key of Object.keys(map)) {
-        // Skip the wildcard sentinel; it is the "all other keys"
-        // default and should not be written as a literal pointer.
-        if (key === "*") continue;
         const v = map[key];
         if (v === undefined || v === null) continue;
         out.push({
-          pointer: `/agent/${agent.name}/permission/${category}/${key}`,
+          pointer: pointerPath(["agent", agent.name, "permission", category, key]),
           strategy: "value",
           value: v,
           scope: "engineering",
@@ -217,14 +260,10 @@ export function matrixLeafPointers() {
     const tools = agent.block.tools;
     if (tools && typeof tools === "object") {
       for (const key of Object.keys(tools)) {
-        // Same wildcard guard as above; the wildcard default is
-        // materialised at the consumer OpenCode runtime, not via
-        // an installer-owned pointer.
-        if (key === "*") continue;
         const v = tools[key];
         if (v === undefined || v === null) continue;
         out.push({
-          pointer: `/agent/${agent.name}/permission/${key}`,
+          pointer: pointerPath(["agent", agent.name, "permission", key]),
           strategy: "value",
           value: v,
           scope: "engineering",
@@ -234,7 +273,3 @@ export function matrixLeafPointers() {
   }
   return out;
 }
-
-void ASK;
-void ALLOW;
-void DENY;

@@ -8,7 +8,7 @@
  * project's own `.opencode/ship.config.json` (falling back to
  * autodetection when the file is missing).
  *
- * The plugin exposes the canonical nine `delivery_*` typed tools and
+ * The plugin exposes the canonical 32 typed tools and
  * relays every execute call to the existing core factories. Plugin
  * startup performs no writes other than a best-effort retry of the
  * `cleanupPending` queue tracked in `.opencode/ship.lock.json`.
@@ -59,7 +59,7 @@ import { loadConfig, renderDefaultConfig, configPath } from "./installer/config.
 import { readLock } from "./installer/lock.js";
 import { detectProject } from "./installer/detection/project.js";
 import { tryImmediateCleanup, listPending } from "./installer/cleanup.js";
-import { flattenShipConfig } from "./installer/ship-adapter.js";
+import { flattenShipConfig, selectRuntimeAdapter } from "./installer/ship-adapter.js";
 import { PACKAGE_VERSION } from "./version.js";
 
 const toolDefs = [
@@ -185,17 +185,17 @@ async function bestEffortCleanupQueue(repoRoot, adapter) {
   return { pending, manifestTasks: tasks.map((t) => t.taskId), ...out };
 }
 
-async function buildRuntime(worktree) {
+async function buildRuntime(worktree, opencodeClient, driverOverride) {
   const repoRootAbs = resolve(worktree ?? process.cwd());
   const detection = detectProject(repoRootAbs);
   const legacyAdapter = await loadAdapter(repoRootAbs);
   const config = await loadConfig(repoRootAbs);
   const configValue = config?.ok ? config.value : renderDefaultConfig(detection);
   const shipAdapter = flattenShipConfig(configValue);
-  const adapter = legacyAdapter.ok ? legacyAdapter.adapter : shipAdapter;
+  const adapter = selectRuntimeAdapter({ config, shipAdapter, legacyAdapter });
   const repoSlug = await resolveRepoSlug(repoRootAbs, detection, config);
   const owner = await resolveOwner(repoRootAbs, detection, config, adapter);
-  const driver = createGhDriver({ cwd: repoRootAbs });
+  const driver = driverOverride ?? createGhDriver({ cwd: repoRootAbs });
 
   const cleanup = await bestEffortCleanupQueue(repoRootAbs, adapter).catch(() => null);
 
@@ -210,6 +210,7 @@ async function buildRuntime(worktree) {
     configValue,
     repoSlug: repoSlug ?? "owner/repo",
     owner,
+    opencodeClient: opencodeClient ?? null,
     driver,
     packageVersion: PACKAGE_VERSION,
     lastTaskId: null,
@@ -311,7 +312,7 @@ const factories = {
       remote: "origin",
     }),
   },
-  ready: { args: { taskId: tool.schema.string() }, build: (rt) => createReadyTool({
+  ready: { args: { taskId: tool.schema.string(), workflowId: tool.schema.string().optional() }, build: (rt) => createReadyTool({
     driver: rt.driver,
     repoRoot: rt.repoRoot,
     repoSlug: rt.repoSlug,
@@ -441,25 +442,26 @@ const factories = {
       issueNumber: tool.schema.number(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createPlanStartTool({
+    build: (rt, ctx) => createPlanStartTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
       config: rt.configValue,
+      opencodeClient: rt.opencodeClient,
+      ctx,
     }),
   },
   taskStart: {
     args: {
       workflowId: tool.schema.string(),
       taskId: tool.schema.string(),
-      briefHash: tool.schema.string(),
-      sessionID: tool.schema.string(),
-      submittedBy: tool.schema.string(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createTaskStartTool({
+    build: (rt, ctx) => createTaskStartTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
       config: rt.configValue,
+      opencodeClient: rt.opencodeClient,
+      ctx,
     }),
   },
   taskCommit: {
@@ -473,10 +475,11 @@ const factories = {
       round: tool.schema.number(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createTaskCommitTool({
+    build: (rt, ctx) => createTaskCommitTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
       config: rt.configValue,
+      ctx,
     }),
   },
   taskComplete: {
@@ -485,12 +488,18 @@ const factories = {
       taskId: tool.schema.string(),
       moreTasks: tool.schema.boolean(),
       nextTaskId: tool.schema.string().optional(),
+      expectedHead: tool.schema.string().optional(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createTaskCompleteTool({
+    build: (rt, ctx) => createTaskCompleteTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
       config: rt.configValue,
+      opencodeClient: rt.opencodeClient,
+      driver: rt.driver,
+      adapter: rt.adapter,
+      repoSlug: rt.repoSlug,
+      ctx,
     }),
   },
   finalReview: {
@@ -501,14 +510,14 @@ const factories = {
       headSha: tool.schema.string(),
       mergeBaseSha: tool.schema.string(),
       packageHash: tool.schema.string(),
-      submittedBy: tool.schema.string(),
       findings: tool.schema.array(tool.schema.unknown()).optional(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createFinalReviewTool({
+    build: (rt, ctx) => createFinalReviewTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
       config: rt.configValue,
+      ctx,
     }),
   },
   skillDiscover: {
@@ -538,6 +547,7 @@ const factories = {
   },
   skillAudit: {
     args: {
+      worktreePath: tool.schema.string(),
       operationId: tool.schema.string().optional(),
     },
     build: (rt) => createSkillAuditTool({
@@ -549,6 +559,7 @@ const factories = {
   skillUninstall: {
     args: {
       skill: tool.schema.string(),
+      worktreePath: tool.schema.string(),
       operationId: tool.schema.string().optional(),
     },
     build: (rt) => createSkillUninstallTool({
@@ -563,12 +574,12 @@ const factories = {
       revision: tool.schema.number(),
       plan: tool.schema.unknown(),
       sha256: tool.schema.string().optional(),
-      submittedBy: tool.schema.string(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createPlanSubmitTool({
+    build: (rt, ctx) => createPlanSubmitTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
+      ctx,
     }),
   },
   planApprove: {
@@ -579,9 +590,11 @@ const factories = {
       subject: tool.schema.string(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createPlanApproveTool({
+    build: (rt, ctx) => createPlanApproveTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
+      configValue: rt.configValue,
+      ctx,
     }),
   },
   runStart: {
@@ -591,10 +604,11 @@ const factories = {
       sha256: tool.schema.string().optional(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createRunStartTool({
+    build: (rt, ctx) => createRunStartTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
       configValue: rt.configValue,
+      ctx,
     }),
   },
   taskReport: {
@@ -602,16 +616,17 @@ const factories = {
       workflowId: tool.schema.string(),
       taskId: tool.schema.string(),
       round: tool.schema.number(),
-      submittedBy: tool.schema.string(),
       summary: tool.schema.string(),
       changes: tool.schema.array(tool.schema.unknown()).optional(),
       tests: tool.schema.array(tool.schema.unknown()).optional(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createTaskReportTool({
+    build: (rt, ctx) => createTaskReportTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
       config: rt.configValue,
+      opencodeClient: rt.opencodeClient,
+      ctx,
     }),
   },
   taskReview: {
@@ -619,7 +634,6 @@ const factories = {
       workflowId: tool.schema.string(),
       taskId: tool.schema.string(),
       round: tool.schema.number(),
-      submittedBy: tool.schema.string(),
       spec: tool.schema.object({
         verdict: tool.schema.enum(["pass", "none", "fail"]),
         notes: tool.schema.string().optional(),
@@ -630,10 +644,11 @@ const factories = {
       }),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createTaskReviewTool({
+    build: (rt, ctx) => createTaskReviewTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
       config: rt.configValue,
+      ctx,
     }),
   },
   resume: {
@@ -641,9 +656,10 @@ const factories = {
       workflowId: tool.schema.string(),
       operationId: tool.schema.string().optional(),
     },
-    build: (rt) => createResumeTool({
+    build: (rt, ctx) => createResumeTool({
       repoRoot: rt.repoRoot,
       owner: rt.owner,
+      ctx,
     }),
   },
   status: {
@@ -660,7 +676,7 @@ const factories = {
 
 export const ShipPlugin = async (ctx) => {
   const worktree = (ctx && ctx.worktree) || process.cwd();
-  const runtime = await buildRuntime(worktree);
+  const runtime = await buildRuntime(worktree, ctx?.client, ctx?.driver);
   const tools = {};
   for (const [id, description, key] of toolDefs) {
     const factory = factories[key];

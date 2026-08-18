@@ -197,6 +197,7 @@ function stripJsonc(text) {
 }
 
 export function applyOwnedPointers(rootDoc, { pointerEntries = POINTER_ENTRIES, allowEqualValues = true } = {}) {
+  /** @type {{ doc: any, applied: Array<{ pointer: string, value: any }>, skipped: Array<{ pointer: string, reason: string, existing?: any, desired?: any }> }} */
   const result = { doc: rootDoc, applied: [], skipped: [] };
   let doc = rootDoc;
   for (const entry of pointerEntries) {
@@ -222,6 +223,10 @@ export function applyOwnedPointers(rootDoc, { pointerEntries = POINTER_ENTRIES, 
       existing, desired: entry.value,
     });
   }
+  // `setPointer` is immutable; the final `doc` is the fully
+  // materialised value. Update the public reference so callers
+  // that diff `rootDoc` vs `result.doc` see the post-edit state.
+  result.doc = doc;
   return result;
 }
 
@@ -254,32 +259,13 @@ export function planModeBlock() {
 }
 
 /*
- * Synthesise a minimal root opencode.json that contains only the
- * installer-owned Build-agent permission block. Used when `init` is
- * asked to create a missing root config.
+ * Synthesise the consumer-owned root shell. The reconciler applies
+ * every installer-owned permission descriptor in canonical order so
+ * wildcard deny rules precede their explicit exceptions.
  */
 export function synthesizeDefaultRootConfig() {
   return {
     $schema: "https://opencode.ai/config.json",
-    agent: {
-      build: {
-        permission: {
-          delivery_inspect: "allow",
-          delivery_issue: "allow",
-          delivery_worktree: "allow",
-          delivery_verify: "deny",
-          delivery_review: "deny",
-          delivery_pr: "allow",
-          delivery_ready: "allow",
-          delivery_merge: "ask",
-          delivery_cleanup: "allow",
-          task: {
-            "delivery-reviewer": "allow",
-            "delivery-verifier": "allow",
-          },
-        },
-      },
-    },
   };
 }
 

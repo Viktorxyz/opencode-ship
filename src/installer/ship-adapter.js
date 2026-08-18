@@ -59,6 +59,12 @@ export function flattenShipConfig(ship) {
   return adapter;
 }
 
+export function selectRuntimeAdapter({ config, shipAdapter, legacyAdapter }) {
+  if (config?.ok) return shipAdapter;
+  if (legacyAdapter?.ok) return legacyAdapter.adapter;
+  return shipAdapter;
+}
+
 export function shipConfigPath(repoRoot) {
   return resolve(repoRoot, ".opencode", "ship.config.json");
 }

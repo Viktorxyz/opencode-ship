@@ -208,6 +208,36 @@ test("uninstall restores the prior root pointer values byte-by-byte", async (t) 
   assert.equal(existsSync(lockPath(repoRoot)), false, "uninstall must remove the lock");
 });
 
+test("uninstall preserves JSONC comments and trailing commas byte-for-byte", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const rootPath = resolve(repoRoot, "opencode.jsonc");
+  const originalBytes = `{
+  // consumer comment
+  "$schema": "https://opencode.ai/config.json",
+  "username": "fixture-user",
+}
+`;
+  await writeFile(rootPath, originalBytes);
+  const { runInit } = await import("../../src/installer/commands/init.js");
+  const { runUninstall } = await import("../../src/installer/commands/uninstall.js");
+  const init = await runInit({
+    json: true,
+    rootPath: repoRoot,
+    profile: "engineering",
+    forceConfig: true,
+    models: {
+      planner: "fake/strong-planner",
+      builder: "fake/cheap-builder",
+      finalReviewer: "fake/strong-reviewer",
+    },
+  });
+  assert.equal(init.exitCode, 0, JSON.stringify(init));
+  const unin = await runUninstall({ json: true, rootPath: repoRoot });
+  assert.equal(unin.exitCode, 0, JSON.stringify(unin));
+  assert.equal(readFileSync(rootPath, "utf8"), originalBytes);
+});
+
 test("lock deletion is transactional (lock file is removed inside the journal)", async (t) => {
   const { parent, repoRoot } = await makeProject();
   t.after(async () => cleanProject(parent));

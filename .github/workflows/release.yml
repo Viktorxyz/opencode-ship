@@ -8,19 +8,11 @@ on:
       - "1.0.*"
       - "1.1.*"
     branches: []
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag to release (must already exist on origin/main)"
-        required: true
-        type: string
-
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -30,7 +22,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      id-token: write
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -104,18 +95,10 @@ jobs:
           fi
       - name: resolve ref
         id: refs
+        env:
+          RELEASE_REF: ${{ github.ref_name }}
         run: |
-          # The release may be triggered by a tag push or by a
-          # workflow_dispatch input. The latter takes precedence.
-          # Use ${{ github.ref_name }} (workflow expression) instead
-          # of ${GITHUB_REF_NAME} (shell env) so the value is always
-          # populated from the workflow context.
-          if [[ -n "${{ github.event.inputs.tag }}" ]]; then
-            ref="${{ github.event.inputs.tag }}"
-          else
-            ref="${{ github.ref_name }}"
-          fi
-          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "ref=${RELEASE_REF}" >> "$GITHUB_OUTPUT"
       - name: validate ref exists
         run: |
           set -euo pipefail
@@ -300,30 +283,25 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+      - name: install dependencies
+        run: npm ci --no-audit --no-fund --include=dev
       - name: download pack
         uses: actions/download-artifact@v4
         with:
           name: pack
           path: dist-pkg/
-      - name: setup-node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.14.0"
       - name: run packed workflow e2e
         run: |
           set -euo pipefail
           tarball="$(realpath "$(ls dist-pkg/opencode-ship-*.tgz | head -1)")"
-          # Extract the tarball into a clean consumer directory and
-          # run the two-task workflow using the packed artifact.
-          mkdir -p /tmp/packed-workflow
-          cd /tmp/packed-workflow
-          tar -xzf "$tarball"
-          node ./package/dist/cli.js --version
-          # The two-task workflow test is independent of the source
-          # checkout by construction; the packed artifact contains
-          # the same plugin and CLI binary. Install dependencies is
-          # intentionally omitted here: the test only consumes the
-          # packed tarball, which already carries its own binaries.
+          OPENCODE_SHIP_TARBALL="$tarball" \
+            node --test --test-reporter=spec tests/package/two-task-workflow.test.mjs
 
   opencode-discovery:
     name: opencode-discovery
@@ -578,19 +556,15 @@ jobs:
             echo "::error::package.json (${pkg_version}) != package-lock.json (${lock_version})"
             exit 2
           fi
-      - name: ensure tag is reachable from a tracked branch
+      - name: ensure tag is reachable from origin/main
         run: |
           set -euo pipefail
-          # Fetch depth and tags are already configured on the checkout
-          # step. The tag may be on origin/main, on a release/* branch,
-          # or on any other tracked branch; in every case the release
-          # is admissible as long as the tag commit is reachable from
-          # at least one remote branch.
+          git fetch origin main
           TAG_SHA="$(git rev-parse "${{ github.ref_name }}")"
-          if git branch -r --contains "${TAG_SHA}" | grep -q 'origin/'; then
-            echo "tag ${{ github.ref_name }} is reachable from a tracked origin branch"
+          if git merge-base --is-ancestor "${TAG_SHA}" origin/main; then
+            echo "tag ${{ github.ref_name }} is reachable from origin/main"
           else
-            echo "::error::tag ${{ github.ref_name }} is not reachable from any origin branch; merge first"
+            echo "::error::tag ${{ github.ref_name }} is not reachable from origin/main; merge first"
             exit 2
           fi
       - name: validate pins
@@ -716,11 +690,11 @@ jobs:
     needs: [source-verify, pack, consumer-install, consumer-transitions, workflow-e2e, opencode-discovery, opencode-compat, node-compat, release-policy, qualification-report]
     timeout-minutes: 30
     permissions:
-      contents: write
+      contents: read
       id-token: write
+    outputs:
+      prerelease: ${{ steps.prerelease.outputs.prerelease }}
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PKG_VERSION: ${{ needs.pack.outputs.pkg_version }}
       TARBALL_NAME: ${{ needs.pack.outputs.tarball_name }}
       RELEASE_REF: ${{ needs.pack.outputs.release_ref }}
@@ -929,34 +903,43 @@ jobs:
           echo "last install log:"
           tail -50 "${smoke_dir}/install.log" || true
           exit 2
-      - name: publish release
-        uses: softprops/action-gh-release@v2
+
+  github-release:
+    name: github-release
+    runs-on: ubuntu-latest
+    needs: [pack, qualification-report, publish]
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PKG_VERSION: ${{ needs.pack.outputs.pkg_version }}
+      RELEASE_REF: ${{ needs.pack.outputs.release_ref }}
+      PRERELEASE: ${{ needs.publish.outputs.prerelease }}
+    steps:
+      - name: download pack
+        uses: actions/download-artifact@v4
         with:
-          tag_name: ${{ env.RELEASE_REF }}
-          name: opencode-ship ${{ env.PKG_VERSION }}
-          # Prerelease metadata is computed by the resolve-prelease
-          # step above from PKG_VERSION. RC / alpha / beta versions
-          # become `prerelease: true`; stable versions become
-          # `prerelease: false`. The local test
-          # `tests/release/release-metadata.test.mjs` proves the
-          # mapping for both branches.
-          prerelease: ${{ steps.prerelease.outputs.prerelease }}
-          body: |
-            ## opencode-ship ${{ env.PKG_VERSION }}
-
-            npm-distributed OpenCode installer and delivery plugin.
-
-            ### Install
-
-            ```sh
-            pnpm dlx opencode-ship@${{ env.PKG_VERSION }} init
-            ```
-
-            ### Evidence
-
-            See the workflow run for the full qualification report.
-          files: |
-            dist-pkg/opencode-ship-*.tgz
-            dist-pkg/opencode-ship-*.tgz.sha256
-            dist-pkg/opencode-ship-*.spdx.json
+          name: pack
+          path: dist-pkg/
+      - name: download qualification report
+        uses: actions/download-artifact@v4
+        with:
+          name: qualification-report
+          path: dist-pkg/
+      - name: publish release
+        run: |
+          set -euo pipefail
+          args=(
+            release create "${RELEASE_REF}"
+            --title "opencode-ship ${PKG_VERSION}"
+            --notes "opencode-ship ${PKG_VERSION}. Install with: pnpm dlx opencode-ship@${PKG_VERSION} init. See this workflow run for qualification evidence."
+          )
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh "${args[@]}" \
+            dist-pkg/opencode-ship-*.tgz \
+            dist-pkg/opencode-ship-*.tgz.sha256 \
+            dist-pkg/opencode-ship-*.spdx.json \
             dist-pkg/opencode-ship-*.qualification.json

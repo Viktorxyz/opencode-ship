@@ -31,7 +31,7 @@
  */
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { resolve, dirname, isAbsolute } from "node:path";
+import { resolve, dirname, isAbsolute, posix } from "node:path";
 import { createHash } from "node:crypto";
 
 export const INVENTORY_PATH = ".opencode/ship.skills.lock.json";
@@ -117,6 +117,13 @@ export function hashEvent(event) {
  */
 export async function appendEvent(repoRoot, eventInput) {
   const inventory = await readInventory(repoRoot);
+  if (inventory.parseError) {
+    throw new Error(`inventory is unreadable: ${inventory.parseError}`);
+  }
+  const existingChain = await verifyInventory(repoRoot);
+  if (!existingChain.ok) {
+    throw new Error(`inventory chain invalid: ${existingChain.reason}`);
+  }
   const previousHash = inventory.events.length > 0
     ? inventory.events[inventory.events.length - 1].hash
     : "0".repeat(64);
@@ -133,7 +140,18 @@ export async function appendEvent(repoRoot, eventInput) {
   };
   // Build the event without the `hash` field; sort canonicalize
   // produces a stable hash for the rest of the payload.
-  const payload = { ...base, ...eventInput.payload };
+  const {
+    hash: _hash,
+    sequence: _sequence,
+    previousHash: _previousHash,
+    recordedAt: _recordedAt,
+    payload: legacyPayload,
+    type: _type,
+    ...fields
+  } = eventInput;
+  const payload = { ...(legacyPayload ?? {}), ...fields, ...base };
+  const shape = validateEventShape(payload);
+  if (!shape.ok) throw new Error(shape.reason);
   // Strip any caller-supplied hash so it cannot be spoofed.
   delete payload.hash;
   const stamped = { ...payload, hash: hashEvent(payload) };
@@ -155,6 +173,10 @@ export async function verifyInventory(repoRoot) {
   if (inventory.events.length === 0) return { ok: true, count: 0 };
   let prev = "0".repeat(64);
   for (const ev of inventory.events) {
+    const shape = validateEventShape(ev);
+    if (!shape.ok) {
+      return { ok: false, reason: shape.reason, sequence: ev.sequence };
+    }
     if (ev.sequence !== inventory.events.indexOf(ev) + 1) {
       return { ok: false, reason: "sequence-gap", sequence: ev.sequence };
     }
@@ -169,6 +191,36 @@ export async function verifyInventory(repoRoot) {
     prev = ev.hash;
   }
   return { ok: true, count: inventory.events.length };
+}
+
+function validateEventShape(event) {
+  if (event?.type !== "install" && event?.type !== "uninstall") {
+    return { ok: false, reason: `unsupported inventory event type: ${JSON.stringify(event?.type)}` };
+  }
+  if (typeof event.skill !== "string" || !/^[A-Za-z0-9._-]{1,128}$/.test(event.skill)) {
+    return { ok: false, reason: `invalid skill id: ${JSON.stringify(event.skill)}` };
+  }
+  if (!isSafeRelativePosix(event.destination)) {
+    return { ok: false, reason: `unsafe destination: ${JSON.stringify(event.destination)}` };
+  }
+  if (event.type === "install") {
+    if (!Array.isArray(event.files)) return { ok: false, reason: "install event files must be an array" };
+    for (const file of event.files) {
+      if (!file || !isSafeRelativePosix(file.path)) {
+        return { ok: false, reason: `unsafe file path: ${JSON.stringify(file?.path)}` };
+      }
+      if (typeof file.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(file.sha256)) {
+        return { ok: false, reason: `invalid file sha256: ${JSON.stringify(file.sha256)}` };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function isSafeRelativePosix(value) {
+  if (typeof value !== "string" || value.length === 0 || value.includes("\\")) return false;
+  if (posix.isAbsolute(value) || posix.normalize(value) !== value) return false;
+  return value.split("/").every((part) => part !== "" && part !== "." && part !== "..");
 }
 
 /**

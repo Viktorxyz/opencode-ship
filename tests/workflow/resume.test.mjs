@@ -21,6 +21,8 @@ import {
 } from "../../src/workflow/resume.js";
 import { renderCompactionBlock, parseCompactionBlock, hashCompactionBlock, COMPACTION_MAX_BYTES } from "../../src/workflow/compaction.js";
 import { createInitialState, appendRunEvent, RUN_EVENT_KINDS } from "../../src/workflow/run-controller.js";
+import { issueControllerLease, readControllerLease } from "../../src/runtime/opencode-dispatcher.js";
+import { createResumeTool } from "../../src/tools/ship-resume.js";
 
 async function makeRepo() {
   const dir = await mkdtemp(join(tmpdir(), "resume-"));
@@ -157,4 +159,22 @@ test("resume: two concurrent resumes serialise on the per-run lock", async (t) =
   ({ state } = await appendRunEvent(dir, "wf-resume-4", state, { kind: RUN_EVENT_KINDS.RUN_START, data: { revision: 1, sha256: "a".repeat(64) } }));
   const [a, b] = await Promise.all([resumeRun(dir, "wf-resume-4"), resumeRun(dir, "wf-resume-4")]);
   assert.equal(a.nextAction, b.nextAction);
+});
+
+test("ship_resume transfers the controller lease to the current controller session", async (t) => {
+  const dir = await makeRepo();
+  t.after(async () => rm(dir, { recursive: true, force: true }));
+  let state = createInitialState("wf-resume-lease", 1, "a".repeat(64));
+  ({ state } = await appendRunEvent(dir, "wf-resume-lease", state, {
+    kind: RUN_EVENT_KINDS.RUN_START,
+    data: { revision: 1, sha256: "a".repeat(64) },
+  }));
+  await issueControllerLease(dir, "wf-resume-lease", "controller-old");
+  const tool = createResumeTool({
+    repoRoot: dir,
+    ctx: { sessionID: "controller-new", agent: "ship-controller" },
+  });
+  const result = await tool({ workflowId: "wf-resume-lease" });
+  assert.equal(result.ok, true, result.message);
+  assert.equal((await readControllerLease(dir, "wf-resume-lease")).controllerSessionID, "controller-new");
 });

@@ -4,6 +4,91 @@ import { loadAdapter } from "../../src/adapter.js";
 import { createReadyTool, createMergeTool, createCleanupTool } from "../../src/index.js";
 import { makeFixtureRepo, cleanupFixture } from "../helpers/fixture.mjs";
 import { writeManifest, readManifest } from "../../src/state/manifest-store.js";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { appendRunEvent, createInitialState, readRunState, RUN_EVENT_KINDS } from "../../src/workflow/run-controller.js";
+import { buildFinalReviewPackage, hashAxisRecord } from "../../src/workflow/final-review.js";
+import { publishGateReceipt } from "../../src/workflow/gate-receipts.js";
+
+async function seedFinalReview(repoRoot, workflowId, taskId, headSha = "abc") {
+  const mergeBaseSha = "base";
+  const { receipt: verification } = await publishGateReceipt(repoRoot, taskId, "verification", {
+    headSha,
+    commandId: "canonical",
+    argv: ["npm", "test"],
+    exitCode: 0,
+    stdoutSha256: "c".repeat(64),
+    stderrSha256: "d".repeat(64),
+  });
+  const { receipt: ci } = await publishGateReceipt(repoRoot, taskId, "ci", {
+    headSha,
+    prNumber: 7,
+    checks: [{ name: "delivery-verify", bucket: "pass" }],
+  });
+  const pkg = buildFinalReviewPackage({
+    workflowId,
+    headSha,
+    mergeBaseSha,
+    planHash: "a".repeat(64),
+    approvalHash: "b".repeat(64),
+    gateTaskId: taskId,
+    verificationHash: verification.receiptHash,
+    ciHash: ci.receiptHash,
+    tasks: [{ taskId, commitSha: headSha, taskHash: "e".repeat(64), reviewHash: "f".repeat(64) }],
+    builtAt: new Date().toISOString(),
+  });
+  const makeReview = (axis) => {
+    const record = {
+      workflowId,
+      axis,
+      verdict: "pass",
+      headSha,
+      mergeBaseSha,
+      packageHash: pkg.packageHash,
+      reviewerSessionID: `${axis}-session`,
+      reviewerModel: "fake/reviewer",
+      findings: [],
+      reviewedAt: new Date().toISOString(),
+    };
+    return { ...record, reviewHash: hashAxisRecord(record) };
+  };
+  const standards = makeReview("standards");
+  const spec = makeReview("spec");
+  const finalDir = join(repoRoot, ".git", "opencode-ship", "runs", workflowId, "final-review");
+  await mkdir(join(finalDir, "standards"), { recursive: true });
+  await mkdir(join(finalDir, "spec"), { recursive: true });
+  await writeFile(join(finalDir, "package.json"), JSON.stringify(pkg, null, 2));
+  await writeFile(join(finalDir, "standards", "review.json"), JSON.stringify(standards, null, 2));
+  await writeFile(join(finalDir, "spec", "review.json"), JSON.stringify(spec, null, 2));
+
+  let state = createInitialState(workflowId, 1, "a".repeat(64));
+  const append = async (kind, data) => {
+    ({ state } = await appendRunEvent(repoRoot, workflowId, state, { kind, data }));
+  };
+  await append(RUN_EVENT_KINDS.RUN_START, { revision: 1, sha256: "a".repeat(64) });
+  await append(RUN_EVENT_KINDS.TASK_DISPATCH, { taskId, briefHash: "1".repeat(64) });
+  await append(RUN_EVENT_KINDS.TASK_REPORT, { taskId, reportHash: "2".repeat(64) });
+  await append(RUN_EVENT_KINDS.TASK_REVIEW, { taskId, verdict: "pass", reviewHash: "3".repeat(64) });
+  await append(RUN_EVENT_KINDS.COMMIT, { commitSha: headSha });
+  await append(RUN_EVENT_KINDS.TASK_COMPLETE, { taskId, moreTasks: false });
+  for (const review of [standards, spec]) {
+    await append(RUN_EVENT_KINDS.FINAL_REVIEW, {
+      axis: review.axis,
+      verdict: review.verdict,
+      headSha,
+      mergeBaseSha,
+      packageHash: pkg.packageHash,
+      review: {
+        verdict: review.verdict,
+        headSha,
+        mergeBaseSha,
+        packageHash: pkg.packageHash,
+        reviewHash: review.reviewHash,
+      },
+    });
+  }
+  return { pkg, standards, spec };
+}
 
 function manifest(repoRoot, taskId, overrides) {
   return {
@@ -160,6 +245,34 @@ suite("delivery_ready", { concurrency: false }, () => {
       assert.equal(r.pr, 7);
       const m = await readManifest(fixture.dir, "t1");
       assert.equal(m.state, "ready");
+    } finally {
+      cleanupFixture(fixture);
+    }
+  });
+
+  test("bridges dual-axis workflow reviews into delivery Ready", { serial: true }, async () => {
+    const fixture = makeFixtureRepo();
+    try {
+      const adapter = await loadAdapter(fixture.dir);
+      const headSha = "a".repeat(40);
+      await writeManifest(fixture.dir, manifest(fixture.dir, "t1", {
+        schemaVersion: 2,
+        state: "validating",
+        lastReviewerSha: null,
+        lastVerifierSha: headSha,
+        workflowId: "wf-ready",
+      }));
+      await seedFinalReview(fixture.dir, "wf-ready", "t1", headSha);
+      const tool = createReadyTool({
+        repoRoot: fixture.dir,
+        driver: driverWith({ headSha }),
+        repoSlug: "a/b",
+        owner: "test",
+        adapter: adapter.adapter,
+      });
+      const result = await tool({ taskId: "t1" });
+      assert.equal(result.contractVersion, 1, JSON.stringify(result));
+      assert.equal((await readRunState(fixture.dir, "wf-ready")).state, "ready");
     } finally {
       cleanupFixture(fixture);
     }

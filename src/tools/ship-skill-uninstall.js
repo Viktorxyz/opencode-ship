@@ -17,11 +17,12 @@
  * finds no active install).
  */
 import { success, failure } from "./envelope.js";
-import { readFile, unlink, writeFile, rm } from "node:fs/promises";
+import { readFile, unlink, rm, readdir, lstat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { createHash } from "node:crypto";
 import { readInventory, verifyInventory, findActiveInstall, appendEvent } from "../skills/inventory.js";
+import { validateLinkedWorktree, validateInstallDestination } from "../skills/worktree.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -33,22 +34,44 @@ export function createSkillUninstallTool(deps) {
       return failure("skill-uninstall", "skill required (safe id)", { operationId: opId, retryable: false });
     }
     const repoRoot = resolve(deps.repoRoot);
-    const chain = await verifyInventory(repoRoot);
+    const worktree = await validateLinkedWorktree(repoRoot, String(input.worktreePath ?? ""));
+    if (!worktree.ok) {
+      return failure("skill-uninstall", `worktree rejected: ${worktree.message}`, { operationId: opId, retryable: false });
+    }
+    const inventoryRoot = worktree.path;
+    const chain = await verifyInventory(inventoryRoot);
     if (!chain.ok) {
       return failure("skill-uninstall", `inventory chain invalid: ${chain.reason}`, { operationId: opId, retryable: false });
     }
-    const found = await findActiveInstall(repoRoot, skillName);
+    const found = await findActiveInstall(inventoryRoot, skillName);
     if (!found.ok) {
       return failure("skill-uninstall", `inventory lookup failed: ${found.reason}`, { operationId: opId, retryable: false });
     }
     if (!found.install) {
       return failure("skill-uninstall", "skill not in active inventory", { operationId: opId, retryable: false });
     }
-    const worktreeRoot = input.worktreeRoot ?? deps.repoRoot;
-    const installRoot = resolve(worktreeRoot);
+    const installRoot = inventoryRoot;
+    const destination = await validateInstallDestination(installRoot, found.install.destination);
+    if (!destination.ok) {
+      return failure("skill-uninstall", `destination rejected: ${destination.message}`, { operationId: opId, retryable: false });
+    }
+    const skillDir = destination.path;
+    const actualFiles = await listInstalledFiles(skillDir);
+    if (!actualFiles.ok) {
+      return failure("skill-uninstall", actualFiles.message, { operationId: opId, retryable: false });
+    }
+    const recordedPaths = new Set((found.install.files ?? []).map((file) => file.path));
+    const extras = actualFiles.paths.filter((path) => !recordedPaths.has(path));
+    if (extras.length > 0) {
+      return failure("skill-uninstall", `untracked files present: ${extras.join(", ")}`, { operationId: opId, retryable: false });
+    }
     // Verify every recorded file is unchanged.
     for (const f of found.install.files ?? []) {
-      const filePath = join(installRoot, found.install.destination, f.path);
+      const fileCheck = await validateInstallDestination(installRoot, `${found.install.destination}/${f.path}`);
+      if (!fileCheck.ok) {
+        return failure("skill-uninstall", `recorded file rejected: ${fileCheck.message}`, { operationId: opId, retryable: false });
+      }
+      const filePath = fileCheck.path;
       if (!existsSync(filePath)) {
         return failure("skill-uninstall", `recorded file missing: ${f.path}`, { operationId: opId, retryable: false });
       }
@@ -61,17 +84,17 @@ export function createSkillUninstallTool(deps) {
     // Delete only the recorded files. Empty parent directories are
     // removed recursively only if no untracked content remains.
     for (const f of found.install.files ?? []) {
-      const filePath = join(installRoot, found.install.destination, f.path);
+      const filePath = join(skillDir, ...f.path.split("/"));
       await unlink(filePath).catch(() => null);
     }
-    // Best-effort remove the now-empty skill directory.
-    const skillDir = join(installRoot, found.install.destination);
+    // Remove the now-empty skill directory after proving the tree
+    // contained no untracked or symlinked entries.
     if (existsSync(skillDir)) {
-      await rm(skillDir, { recursive: false, force: true }).catch(() => null);
+      await rm(skillDir, { recursive: true, force: true });
     }
     // Append the uninstall tombstone. The install event stays in
     // the chain; the tombstone flips it to inactive.
-    const recorded = await appendEvent(repoRoot, {
+    const recorded = await appendEvent(inventoryRoot, {
       type: "uninstall",
       skill: skillName,
       installHash: found.install.hash,
@@ -85,4 +108,28 @@ export function createSkillUninstallTool(deps) {
       tombstoneSequence: recorded.sequence,
     }, { operationId: opId });
   };
+}
+
+async function listInstalledFiles(root) {
+  if (!existsSync(root)) return { ok: true, paths: [] };
+  const paths = [];
+  const walk = async (dir, prefix = "") => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const absolute = join(dir, entry.name);
+      const info = await lstat(absolute);
+      if (info.isSymbolicLink()) return { ok: false, message: `symlinked content present: ${relative}` };
+      if (info.isDirectory()) {
+        const nested = await walk(absolute, relative);
+        if (!nested.ok) return nested;
+      } else if (info.isFile()) {
+        paths.push(relative);
+      } else {
+        return { ok: false, message: `unsupported filesystem entry: ${relative}` };
+      }
+    }
+    return { ok: true };
+  };
+  const result = await walk(root);
+  return result.ok ? { ok: true, paths } : result;
 }

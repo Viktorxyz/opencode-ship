@@ -10,6 +10,7 @@
 
 import { success, failure } from "./envelope.js";
 import { resumeRun } from "../workflow/resume.js";
+import { withControllerLease } from "../runtime/opencode-dispatcher.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -20,8 +21,17 @@ export function createResumeTool(deps) {
     if (!workflowId || !SAFE_ID_RE.test(workflowId)) {
       return failure("resume", "workflowId required (safe id)", { operationId: opId, retryable: false });
     }
+    const ctx = input.ctx ?? deps.ctx ?? null;
+    if (!ctx || typeof ctx.sessionID !== "string" || ctx.agent !== "ship-controller") {
+      return failure("resume", "ToolContext must identify the ship-controller session", { operationId: opId, retryable: false });
+    }
     try {
-      const result = await resumeRun(deps.repoRoot, workflowId);
+      const result = await withControllerLease(
+        deps.repoRoot,
+        workflowId,
+        ctx.sessionID,
+        () => resumeRun(deps.repoRoot, workflowId),
+      );
       return success("resume", {
         workflowId,
         state: result.state,

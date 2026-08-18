@@ -15,6 +15,8 @@ import { spawn } from "node:child_process";
 import * as git from "../drivers/git.js";
 import { readManifest, writeManifest } from "../state/manifest-store.js";
 import { transition } from "../state/lifecycle.js";
+import { publishGateReceipt } from "../workflow/gate-receipts.js";
+import { createHash } from "node:crypto";
 
 function runCommand(argv, cwd, timeoutMs) {
   return new Promise((resolveP, rejectP) => {
@@ -95,8 +97,16 @@ export function createVerifyTool(deps) {
       };
     }
 
+    const { receipt } = await publishGateReceipt(deps.repoRoot, m.taskId, "verification", {
+      headSha: head,
+      commandId: cmd.id,
+      argv: cmd.argv,
+      exitCode: 0,
+      stdoutSha256: createHash("sha256").update(result.stdout, "utf8").digest("hex"),
+      stderrSha256: createHash("sha256").update(result.stderr, "utf8").digest("hex"),
+    });
     const t = transition(
-      { ...m, lastVerifierSha: head },
+      { ...m, lastVerifierSha: head, lastVerificationHash: receipt.receiptHash },
       "validating",
       { reason: `verify ok (${cmd.id})` },
     );
@@ -104,6 +114,7 @@ export function createVerifyTool(deps) {
     const next = {
       ...m,
       lastVerifierSha: head,
+      lastVerificationHash: receipt.receiptHash,
       state: t.to,
       transitionLog: [
         ...m.transitionLog,
@@ -120,6 +131,7 @@ export function createVerifyTool(deps) {
       stdoutTail,
       stderrTail,
       headSha: head,
+      verificationHash: receipt.receiptHash,
       manifestPath,
     };
   };

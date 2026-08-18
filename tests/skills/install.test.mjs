@@ -103,7 +103,11 @@ test("lifecycle: ship_skill_install fails closed when skills CLI is unavailable"
     // The skills CLI is not installed in the test environment;
     // the install must refuse rather than write a placeholder.
     const { createSkillInstallTool } = await import("../../src/tools/ship-skill-install.js");
-    const tool = createSkillInstallTool({ repoRoot: repo, config: { value: { skills: [] } } });
+    const tool = createSkillInstallTool({
+      repoRoot: repo,
+      config: { value: { skills: [] } },
+      discoverSkills: async () => ({ ok: true, candidates: [{ package: "vercel-labs/skills", skill: "find-skills", installs: 5000 }] }),
+    });
     const r = await tool({
       package: "vercel-labs/skills",
       worktreePath: linked,
@@ -123,12 +127,88 @@ test("lifecycle: ship_skill_install fails closed when skills CLI is unavailable"
   }
 });
 
+test("lifecycle: ship_skill_install enforces the registry install threshold", async () => {
+  const { repo, linked } = makeRepoWithLinkedWorktree();
+  try {
+    const { createSkillInstallTool } = await import("../../src/tools/ship-skill-install.js");
+    const tool = createSkillInstallTool({
+      repoRoot: repo,
+      config: { value: { skills: [] } },
+      discoverSkills: async () => ({ ok: true, candidates: [{ package: "vercel-labs/skills", skill: "find-skills", installs: 1 }] }),
+      materialiseFromSkillsCli: async () => { throw new Error("must not materialise below threshold"); },
+    });
+    const result = await tool({ package: "vercel-labs/skills", worktreePath: linked, skillName: "find-skills" });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /below-threshold/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("lifecycle: install, audit, and uninstall preserve real bytes in the linked worktree", async () => {
+  const { repo, linked } = makeRepoWithLinkedWorktree();
+  try {
+    const materialise = async ({ stageDir, skillName }) => {
+      const stagedDir = join(stageDir, ".opencode", "skills", skillName);
+      mkdirSync(join(stagedDir, "references"), { recursive: true });
+      writeFileSync(join(stagedDir, "SKILL.md"), "# Real skill\n", "utf8");
+      writeFileSync(join(stagedDir, "references", "guide.md"), "# Guide\n", "utf8");
+      return {
+        ok: true,
+        stagedDir,
+        source: {
+          packageSpec: "vercel-labs/skills",
+          skillName,
+          cliPackage: "skills@1.0.4",
+          registryId: `vercel-labs/skills/${skillName}`,
+          registrySnapshotHash: "a".repeat(64),
+        },
+      };
+    };
+    const { createSkillInstallTool } = await import("../../src/tools/ship-skill-install.js");
+    const install = createSkillInstallTool({
+      repoRoot: repo,
+      config: { value: { skills: [] } },
+      materialiseFromSkillsCli: materialise,
+      discoverSkills: async () => ({ ok: true, candidates: [{ package: "vercel-labs/skills", skill: "find-skills", installs: 5000 }] }),
+    });
+    const installed = await install({
+      package: "vercel-labs/skills",
+      worktreePath: linked,
+      skillName: "find-skills",
+    });
+    assert.equal(installed.ok, true, installed.message);
+    assert.ok(existsSync(join(linked, ".opencode", "skills", "find-skills", "SKILL.md")));
+    const inventory = await readInventory(linked);
+    assert.equal(inventory.events[0].skill, "find-skills");
+    assert.equal(inventory.events[0].files.length, 2);
+
+    const { createSkillAuditTool } = await import("../../src/tools/ship-skill-audit.js");
+    const audit = await createSkillAuditTool({ repoRoot: repo })({ worktreePath: linked });
+    assert.equal(audit.ok, true);
+    assert.equal(audit.data.active, 1);
+    assert.deepEqual(audit.data.missing, []);
+    assert.deepEqual(audit.data.drifted, []);
+
+    const { createSkillUninstallTool } = await import("../../src/tools/ship-skill-uninstall.js");
+    const removed = await createSkillUninstallTool({ repoRoot: repo })({
+      skill: "find-skills",
+      worktreePath: linked,
+    });
+    assert.equal(removed.ok, true, removed.message);
+    assert.equal(existsSync(join(linked, ".opencode", "skills", "find-skills")), false);
+    assert.deepEqual(await verifyInventory(linked), { ok: true, count: 2 });
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("lifecycle: ship_skill_audit returns an empty chain when no installs have been recorded", async () => {
-  const { repo } = makeRepoWithLinkedWorktree();
+  const { repo, linked } = makeRepoWithLinkedWorktree();
   try {
     const { createSkillAuditTool } = await import("../../src/tools/ship-skill-audit.js");
     const tool = createSkillAuditTool({ repoRoot: repo });
-    const r = await tool({});
+    const r = await tool({ worktreePath: linked });
     assert.equal(r.kind, "skill-audit");
     assert.equal(r.data.total, 0);
     assert.deepEqual(r.data.missing, []);
@@ -141,11 +221,11 @@ test("lifecycle: ship_skill_audit returns an empty chain when no installs have b
 });
 
 test("lifecycle: ship_skill_uninstall refuses an unknown skill", async () => {
-  const { repo } = makeRepoWithLinkedWorktree();
+  const { repo, linked } = makeRepoWithLinkedWorktree();
   try {
     const { createSkillUninstallTool } = await import("../../src/tools/ship-skill-uninstall.js");
     const tool = createSkillUninstallTool({ repoRoot: repo });
-    const r = await tool({ skill: "missing" });
+    const r = await tool({ skill: "missing", worktreePath: linked });
     assert.equal(r.kind, "skill-uninstall");
     assert.ok(/not in active|inventory/i.test(r.message));
   } finally {

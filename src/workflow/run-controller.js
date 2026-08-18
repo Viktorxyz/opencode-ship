@@ -59,10 +59,8 @@ async function readEventsFromDisk(repoRoot, workflowId) {
   const sorted = entries.filter((n) => n.endsWith(".json")).sort();
   const out = [];
   for (const name of sorted) {
-    try {
-      const raw = await readFile(join(dir, name), "utf8");
-      out.push(JSON.parse(raw));
-    } catch { /* skip unreadable */ }
+    const raw = await readFile(join(dir, name), "utf8");
+    out.push(JSON.parse(raw));
   }
   return out;
 }
@@ -94,6 +92,7 @@ const EVENT_KINDS = Object.freeze({
   READY_PENDING: "ready-pending",
   READY: "ready",
   MERGE: "merge",
+  DONE: "done",
   BLOCKED: "blocked",
 });
 
@@ -201,9 +200,11 @@ export function reduce(state, event) {
       }
       ensureActiveTask(state, event.data.taskId);
       // The builder's report transitions the task to "review
-      // pending" — the next event must be TASK_REVIEW.
+      // pending" — the next event must be TASK_REVIEW. Round
+      // does NOT advance on report; only failed verdicts consume
+      // a round.
       return {
-        state: nextState({ state: STATES.RUNNING, round: state.round + 1 }),
+        state: nextState({ state: STATES.RUNNING, taskReady: { taskId: event.data.taskId, reportHash: event.data.reportHash } }),
         event: recorded(EVENT_KINDS.TASK_REPORT, { taskId: event.data.taskId, reportHash: event.data.reportHash }),
       };
     }
@@ -213,13 +214,13 @@ export function reduce(state, event) {
       }
       ensureActiveTask(state, event.data.taskId);
       const failures = event.data.verdict === "pass" ? 0 : nextRound(state.failures);
-      const next = state.round + 1;
       if (event.data.verdict === "pass") {
         return {
-          state: nextState({ state: STATES.COMMIT_PENDING, round: state.round, taskReady: { taskId: event.data.taskId, reviewHash: event.data.reviewHash } }),
+          state: nextState({ state: STATES.COMMIT_PENDING, round: state.round, taskReady: { ...(state.taskReady ?? {}), taskId: event.data.taskId, reviewHash: event.data.reviewHash } }),
           event: recorded(EVENT_KINDS.TASK_REVIEW, { taskId: event.data.taskId, verdict: "pass", reviewHash: event.data.reviewHash }),
         };
       }
+      const next = nextRound(state.round);
       if (failures >= MAX_FIX_ROUNDS) {
         return {
           state: nextState({ state: STATES.REVISION_REQUIRED, failures, round: next, activeTask: null }),
@@ -227,7 +228,7 @@ export function reduce(state, event) {
         };
       }
       return {
-        state: nextState({ state: STATES.FIX_PENDING, failures, round: next, activeTask: null }),
+        state: nextState({ state: STATES.FIX_PENDING, failures, round: next, activeTask: null, taskReady: null }),
         event: recorded(EVENT_KINDS.TASK_REVIEW, { taskId: event.data.taskId, verdict: "fail", round: next, failures }),
       };
     }
@@ -235,9 +236,17 @@ export function reduce(state, event) {
       if (state.state !== STATES.COMMIT_PENDING) {
         throw new Error(`run reducer: COMMIT requires state=commit-pending, got ${state.state}`);
       }
+      const taskId = state.taskReady?.taskId;
+      // completedTasks is appended exactly once here (COMMIT). The
+      // TASK_COMPLETE handler must not duplicate the entry.
+      const completedTasks = taskId
+        ? state.completedTasks.includes(taskId)
+          ? state.completedTasks
+          : [...state.completedTasks, taskId]
+        : state.completedTasks;
       return {
-        state: nextState({ state: STATES.COMMITTED, activeTask: null, round: 0, failures: 0, completedTasks: [...state.completedTasks, state.taskReady?.taskId].filter(Boolean) }),
-        event: recorded(EVENT_KINDS.COMMIT, { taskId: state.taskReady?.taskId, commitSha: event.data.commitSha }),
+        state: nextState({ state: STATES.COMMITTED, activeTask: null, round: 0, failures: 0, completedTasks }),
+        event: recorded(EVENT_KINDS.COMMIT, { taskId, commitSha: event.data.commitSha }),
       };
     }
     case EVENT_KINDS.TASK_COMPLETE: {
@@ -249,13 +258,12 @@ export function reduce(state, event) {
       // that the plan has no more tasks and we should advance to
       // ALL_TASKS_DONE for the final review.
       const moreTasks = event.data.moreTasks === false ? false : true;
-      const completedTasks = [...state.completedTasks, state.taskReady?.taskId].filter(Boolean);
       const nextStateObj = moreTasks
-        ? { state: STATES.RUNNING, activeTask: null, taskReady: null, round: 0, failures: 0, completedTasks }
-        : { state: STATES.ALL_TASKS_DONE, activeTask: null, taskReady: null, completedTasks };
+        ? { state: STATES.RUNNING, activeTask: null, taskReady: null, round: 0, failures: 0 }
+        : { state: STATES.ALL_TASKS_DONE, activeTask: null, taskReady: null };
       return {
         state: nextState(nextStateObj),
-        event: recorded(EVENT_KINDS.TASK_COMPLETE, { taskId: event.data.taskId, moreTasks }),
+        event: recorded(EVENT_KINDS.TASK_COMPLETE, { taskId: event.data.taskId, moreTasks, nextTaskId: event.data.nextTaskId ?? null }),
       };
     }
     case EVENT_KINDS.FINAL_REVIEW: {
@@ -264,14 +272,28 @@ export function reduce(state, event) {
       }
       // Two axes (Standards + Spec) must both be recorded before
       // Ready. The reducer collects them via event.data.axis.
-      const nextReadyPending = state.state === STATES.READY_PENDING
-        ? state
-        : { ...state, state: STATES.READY_PENDING, finalReview: { [event.data.axis]: event.data.review } };
-      const finalReview = nextReadyPending.finalReview ?? {};
+      // Both axes must agree on the same immutable package hash,
+      // HEAD, and merge-base SHA. A drift invalidates the package.
+      const incomingHash = event.data.packageHash;
+      const incomingHead = event.data.headSha;
+      const incomingMergeBase = event.data.mergeBaseSha;
+      const finalReview = { ...(state.finalReview ?? {}) };
+      if (state.state === STATES.ALL_TASKS_DONE) {
+        finalReview.packageHash = incomingHash;
+        finalReview.headSha = incomingHead;
+        finalReview.mergeBaseSha = incomingMergeBase;
+      } else {
+        if (finalReview.packageHash !== incomingHash) {
+          throw new Error(`run reducer: FINAL_REVIEW axis ${event.data.axis} disagrees with package hash`);
+        }
+        if (finalReview.headSha !== incomingHead) {
+          throw new Error(`run reducer: FINAL_REVIEW axis ${event.data.axis} disagrees with HEAD`);
+        }
+        if (finalReview.mergeBaseSha !== incomingMergeBase) {
+          throw new Error(`run reducer: FINAL_REVIEW axis ${event.data.axis} disagrees with merge-base`);
+        }
+      }
       finalReview[event.data.axis] = event.data.review;
-      // If both axes are recorded, the controller can move to
-      // READY after verifier + CI bind to the same HEAD.
-      const bothRecorded = finalReview.standards && finalReview.spec;
       return {
         state: nextState({
           state: STATES.READY_PENDING,
@@ -280,9 +302,11 @@ export function reduce(state, event) {
         event: recorded(EVENT_KINDS.FINAL_REVIEW, {
           axis: event.data.axis,
           verdict: event.data.verdict,
-          headSha: event.data.headSha,
-          mergeBaseSha: event.data.mergeBaseSha,
-          packageHash: event.data.packageHash,
+          headSha: incomingHead,
+          mergeBaseSha: incomingMergeBase,
+          packageHash: incomingHash,
+          sessionID: event.data.sessionID,
+          review: event.data.review,
         }),
       };
     }
@@ -292,6 +316,11 @@ export function reduce(state, event) {
       }
       if (state.state === STATES.READY_PENDING && (!state.finalReview?.standards || !state.finalReview?.spec)) {
         throw new Error(`run reducer: READY requires both Standards and Spec final reviews`);
+      }
+      // READY must match the final-review HEAD; CI and verifier
+      // bind to this same SHA before merge.
+      if (state.state === STATES.READY_PENDING && state.finalReview.headSha && event.data.headSha && state.finalReview.headSha !== event.data.headSha) {
+        throw new Error(`run reducer: READY head drift (finalReview=${state.finalReview.headSha.slice(0,8)}, ready=${event.data.headSha.slice(0,8)})`);
       }
       return {
         state: nextState({ state: STATES.READY, activeTask: null, completedTasks: state.completedTasks }),
@@ -305,6 +334,15 @@ export function reduce(state, event) {
       return {
         state: nextState({ state: STATES.MERGED, mergedAt: ev.at, mergeSha: event.data.mergeSha }),
         event: recorded(EVENT_KINDS.MERGE, { mergeSha: event.data.mergeSha }),
+      };
+    }
+    case EVENT_KINDS.DONE: {
+      if (state.state !== STATES.MERGED) {
+        throw new Error(`run reducer: DONE requires state=merged, got ${state.state}`);
+      }
+      return {
+        state: nextState({ state: STATES.DONE, activeTask: null }),
+        event: recorded(EVENT_KINDS.DONE, { taskId: event.data.taskId }),
       };
     }
     case EVENT_KINDS.BLOCKED: {
@@ -336,6 +374,60 @@ export function createInitialState(workflowId, revision, sha256) {
 export const RUN_STATES = STATES;
 export const RUN_EVENT_KINDS = EVENT_KINDS;
 export const RUN_MAX_FIX_ROUNDS = MAX_FIX_ROUNDS;
+
+function snapshotFields(state) {
+  return {
+    workflowId: state.workflowId,
+    revision: state.revision,
+    sha256: state.sha256,
+    state: state.state,
+    activeTask: state.activeTask,
+    taskReady: state.taskReady ?? null,
+    failures: state.failures,
+    round: state.round,
+    completedTasks: state.completedTasks,
+    finalReview: state.finalReview ?? null,
+  };
+}
+
+function replayPersistedRun(workflowId, snapshot, events) {
+  if (!snapshot || events.length === 0) {
+    throw new Error("run state has no immutable event ledger");
+  }
+  const first = events[0];
+  if (first.kind !== EVENT_KINDS.RUN_START) {
+    throw new Error("run event ledger must begin with run-start");
+  }
+  let state = createInitialState(workflowId, first.data?.revision, first.data?.sha256);
+  let priorHash = "0".repeat(64);
+  for (let index = 0; index < events.length; index += 1) {
+    const persisted = events[index];
+    if (persisted.sequence !== index + 1 || persisted.priorHash !== priorHash) {
+      throw new Error(`run event ledger chain mismatch at sequence ${index + 1}`);
+    }
+    const expectedHash = sha256(canonicalize({
+      kind: persisted.kind,
+      data: persisted.data,
+      at: persisted.at,
+      sequence: persisted.sequence,
+      priorHash,
+    }));
+    if (persisted.hash !== expectedHash) {
+      throw new Error(`run event ledger hash mismatch at sequence ${index + 1}`);
+    }
+    const reduced = reduce(state, { kind: persisted.kind, data: persisted.data, at: persisted.at });
+    const replayedEvent = reduced.state.events.at(-1);
+    if (replayedEvent.hash !== persisted.hash) {
+      throw new Error(`run event ledger replay mismatch at sequence ${index + 1}`);
+    }
+    state = reduced.state;
+    priorHash = persisted.hash;
+  }
+  if (canonicalize(snapshotFields(state)) !== canonicalize(snapshotFields(snapshot))) {
+    throw new Error("run snapshot does not match immutable event ledger");
+  }
+  return state;
+}
 
 async function runDir(repoRoot, workflowId) {
   const common = await resolveGitCommonDir(repoRoot);
@@ -370,30 +462,22 @@ export async function appendRunEvent(repoRoot, workflowId, state, event) {
     // re-load.
     const persistedEvents = await readEventsFromDisk(repoRoot, workflowId);
     const persistedSnapshot = await readSnapshotFromDisk(repoRoot, workflowId);
-    const liveState = normalizeState({
-      ...(persistedSnapshot ?? state),
-      events: persistedEvents.length > 0 ? persistedEvents : (state.events ?? []),
-    });
+    const liveState = persistedEvents.length > 0
+      ? replayPersistedRun(workflowId, persistedSnapshot, persistedEvents)
+      : normalizeState(state);
     const { state: next, event: recorded } = reduce(liveState, event);
+    const chainedEvent = next.events.at(-1);
     const sequence = String(recorded.sequence).padStart(8, "0");
     const path = join(dir, `${sequence}.json`);
-    await publishImmutableJson(path, recorded);
+    await publishImmutableJson(path, chainedEvent);
     const runPath = join(opencodeShipStateDir(common), "runs", workflowId, "run.json");
     const snapshot = {
-      workflowId,
-      revision: next.revision,
-      sha256: next.sha256,
-      state: next.state,
-      activeTask: next.activeTask,
-      taskReady: next.taskReady ?? null,
-      failures: next.failures,
-      round: next.round,
-      completedTasks: next.completedTasks,
-      lastEvent: recorded,
+      ...snapshotFields(next),
+      lastEvent: chainedEvent,
       updatedAt: new Date().toISOString(),
     };
     await writeFile(runPath, JSON.stringify(snapshot, null, 2), "utf8");
-    return { state: next, event: recorded };
+    return { state: next, event: chainedEvent };
   });
 }
 
@@ -420,17 +504,7 @@ export async function readRunState(repoRoot, workflowId) {
           .map(async (n) => JSON.parse(await readFile(join(eventsDir, n), "utf8")))
       )
     : [];
-  return {
-    workflowId,
-    revision: snapshot.revision,
-    sha256: snapshot.sha256,
-    state: snapshot.state,
-    activeTask: snapshot.activeTask,
-    failures: snapshot.failures,
-    round: snapshot.round,
-    completedTasks: snapshot.completedTasks,
-    events,
-  };
+  return replayPersistedRun(workflowId, snapshot, events);
 }
 
 export function buildCommitTrailers({ workflowId, planHash, taskId, round, reviewHash }) {

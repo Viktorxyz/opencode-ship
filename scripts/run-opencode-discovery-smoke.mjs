@@ -12,10 +12,10 @@
  *     <project-dir> <opencode-version> <profile>
  *
  * Exit codes:
- *   0  healthy + 24-tool set confirmed
+ *   0  healthy + 32-tool set confirmed
  *   1  opencode CLI not on PATH
  *   2  server did not become healthy in time
- *   3  tool set did not match the canonical 24
+ *   3  tool set did not match the canonical 32
  *   4  unexpected runtime error
  */
 

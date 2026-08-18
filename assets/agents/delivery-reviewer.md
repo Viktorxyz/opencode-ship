@@ -4,6 +4,7 @@ mode: subagent
 temperature: 0.2
 steps: 8
 permission:
+  "*": deny
   edit: deny
   external_directory: deny
   webfetch: deny

@@ -32,7 +32,7 @@ test("createManifest starts at issue-linked", { serial: true }, () => {
   const m = createManifest(baseInput());
   assert.equal(m.state, "issue-linked");
   assert.equal(m.taskId, "task-1");
-  assert.equal(m.schemaVersion, 1);
+  assert.equal(m.schemaVersion, 2);
 });
 
 test("happy path walks every transition once", { serial: true }, () => {
