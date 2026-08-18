@@ -40,6 +40,9 @@ import {
 import { getPointer, setPointer, removePointer, stableStringify } from "./json-pointer.js";
 import { bytesHashString } from "./hash.js";
 import { planModePermissions } from "./plan-mode-permissions.js";
+import { matrixLeafPointers } from "./root-permissions.js";
+import { applyJsoncEdits, diffPointers } from "./jsonc-edit.js";
+import { parse as jsoncParse } from "jsonc-parser";
 
 export const PLAN_MODE_POINTER = "/agent/plan/permission";
 
@@ -80,12 +83,11 @@ export function desiredPointersForProfile(profile) {
   // installer no longer injects a permission block under
   // `/agent/plan/permission`. The consumer keeps whatever value
   // is already there (or none).
-  return POINTER_ENTRIES.map((entry) => ({
-    pointer: entry.pointer,
-    strategy: /** @type {"value" | "object-entry" | "array-member"} */ (entry.strategy),
-    scope: /** @type {Profile} */ ("engineering"),
-    value: entry.value,
-  }));
+  //
+  // The canonical engineering pointers are the matrix-derived leaf
+  // pointers; the legacy delivery_* pointers are folded in for
+  // consumers that already adopted opencode-delivery 0.1.x.
+  return matrixLeafPointers();
 }
 
 /**
@@ -168,6 +170,9 @@ export async function planRootReconciliation(input) {
     // permission block. The consumer may configure it through the
     // built-in Plan agent; opencode-ship provides a dedicated
     // ship-planner instead. We only seed Build-agent permissions.
+    for (const descriptor of descriptors) {
+      doc = setPointer(doc, descriptor.pointer, descriptor.value);
+    }
     const bytes = Buffer.from(formatRootConfig(doc), "utf8");
     return {
       kind: "create",
@@ -243,20 +248,43 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
     if (s.reason === "already equal") continue;
     edits.push({ kind: "conflict", pointer: s.pointer, reason: s.reason, existing: s.existing, desired: s.desired });
   }
+  const reorderPointers = equalExceptionsBeforeNewWildcard(doc.value, descriptors);
   let docForWrite = result.doc;
+  for (const descriptor of reorderPointers) {
+    docForWrite = setPointer(removePointer(docForWrite, descriptor.pointer), descriptor.pointer, descriptor.value);
+  }
   let bytes;
   try {
-    const { value: sourceValue } = parseRootConfigPreservingOrder(doc.raw ?? "");
-    if (sourceValue && typeof sourceValue === "object") {
-      docForWrite = sourceValue;
-      for (const a of result.applied) {
-        docForWrite = setPointer(docForWrite, a.pointer, a.value);
+    const isJsonc = doc.format === "jsonc";
+    if (isJsonc) {
+      // JSONC: use jsonc-parser so comments / trailing commas /
+      // ordering / line endings survive byte-for-byte.
+      const pointerEdits = diffPointers(
+        doc.value,
+        docForWrite,
+        result.applied.map((a) => a.pointer),
+      );
+      for (const descriptor of reorderPointers) {
+        pointerEdits.push({ pointer: descriptor.pointer, op: "delete" });
+        pointerEdits.push({ pointer: descriptor.pointer, value: descriptor.value, op: "set" });
       }
+      bytes = applyJsoncEdits(doc.raw ?? "", pointerEdits);
+    } else {
+      const { value: sourceValue } = parseRootConfigPreservingOrder(doc.raw ?? "");
+      if (sourceValue && typeof sourceValue === "object") {
+        docForWrite = sourceValue;
+        for (const a of result.applied) {
+          docForWrite = setPointer(docForWrite, a.pointer, a.value);
+        }
+        for (const descriptor of reorderPointers) {
+          docForWrite = setPointer(removePointer(docForWrite, descriptor.pointer), descriptor.pointer, descriptor.value);
+        }
+      }
+      bytes = Buffer.from(formatRootConfigPreserving(docForWrite), "utf8");
     }
-    bytes = Buffer.from(formatRootConfigPreserving(docForWrite), "utf8");
-  } catch {
-    bytes = Buffer.from(formatRootConfig(result.doc), "utf8");
-  }
+    } catch {
+      bytes = Buffer.from(formatRootConfig(result.doc), "utf8");
+    }
   const records = mergePointerRecords(descriptors, previousRecords, result, doc.before);
   return {
     kind: edits.some((e) => e.kind === "conflict") ? "conflict" : (edits.length ? "update" : "noop"),
@@ -274,6 +302,21 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
       ? "no installer-owned entries missing"
       : `apply ${result.applied.length} / skip ${result.skipped.length}`,
   };
+}
+
+function equalExceptionsBeforeNewWildcard(doc, descriptors) {
+  const wildcardParents = new Set();
+  for (const descriptor of descriptors) {
+    if (!descriptor.pointer.endsWith("/*") || getPointer(doc, descriptor.pointer) !== undefined) continue;
+    wildcardParents.add(descriptor.pointer.slice(0, descriptor.pointer.lastIndexOf("/")));
+  }
+  return descriptors.filter((descriptor) => {
+    if (descriptor.pointer.endsWith("/*")) return false;
+    const parent = descriptor.pointer.slice(0, descriptor.pointer.lastIndexOf("/"));
+    if (!wildcardParents.has(parent)) return false;
+    const existing = getPointer(doc, descriptor.pointer);
+    return existing !== undefined && stableStringify(existing) === stableStringify(descriptor.value);
+  });
 }
 
 function planProfileTransitionRoot({ doc, target, relPath, descriptors, previousRecords }) {
@@ -410,19 +453,35 @@ function planProfileTransitionRoot({ doc, target, relPath, descriptors, previous
   let docForWrite = next;
   let bytes;
   try {
-    const { value: sourceValue } = parseRootConfigPreservingOrder(doc.raw ?? "");
-    if (sourceValue && typeof sourceValue === "object") {
-      docForWrite = sourceValue;
+    const isJsonc = doc.format === "jsonc";
+    if (isJsonc) {
+      /** @type {Array<{ pointer: string, value?: unknown, op: "set" | "delete" }>} */
+      const pointerEdits = [];
       for (const e of edits) {
         if (e.kind === "create" || e.kind === "restore") {
-          docForWrite = setPointer(docForWrite, e.pointer, e.value);
+          pointerEdits.push({ pointer: e.pointer, value: e.value, op: /** @type {"set"} */ ("set") });
         } else if (e.kind === "remove") {
-          docForWrite = removePointer(docForWrite, e.pointer);
+          pointerEdits.push({ pointer: e.pointer, op: /** @type {"delete"} */ ("delete") });
         }
       }
+      bytes = applyJsoncEdits(doc.raw ?? "", pointerEdits);
+      const reparsed = jsoncParse(bytes.toString("utf8"), undefined, { allowTrailingComma: true });
+      docForWrite = collapseEmptyAncestors(reparsed) ?? reparsed;
+    } else {
+      const { value: sourceValue } = parseRootConfigPreservingOrder(doc.raw ?? "");
+      if (sourceValue && typeof sourceValue === "object") {
+        docForWrite = sourceValue;
+        for (const e of edits) {
+          if (e.kind === "create" || e.kind === "restore") {
+            docForWrite = setPointer(docForWrite, e.pointer, e.value);
+          } else if (e.kind === "remove") {
+            docForWrite = removePointer(docForWrite, e.pointer);
+          }
+        }
+      }
+      docForWrite = collapseEmptyAncestors(docForWrite) ?? docForWrite;
+      bytes = Buffer.from(formatRootConfigPreserving(docForWrite), "utf8");
     }
-    docForWrite = collapseEmptyAncestors(docForWrite) ?? docForWrite;
-    bytes = Buffer.from(formatRootConfigPreserving(docForWrite), "utf8");
   } catch {
     bytes = Buffer.from(formatRootConfig(collapseEmptyAncestors(next) ?? next), "utf8");
   }
@@ -515,22 +574,50 @@ function planUninstallRoot({ target, relPath, previousRecords, previousDocument 
   let docForWrite = doc;
   let bytes;
   try {
-    const { value: sourceValue } = parseRootConfigPreservingOrder(docResult.raw ?? "");
-    if (sourceValue && typeof sourceValue === "object") {
-      docForWrite = sourceValue;
+    const isJsonc = docResult.format === "jsonc";
+    if (isJsonc) {
+      /** @type {Array<{ pointer: string, value?: unknown, op: "set" | "delete" }>} */
+      const collapsed = collapseEmptyAncestors(doc) ?? doc;
+      const prunePointers = new Set();
       for (const e of edits) {
-        if (e.kind === "restore") {
-          docForWrite = setPointer(docForWrite, e.pointer, e.value);
-        } else if (e.kind === "remove") {
-          docForWrite = removePointer(docForWrite, e.pointer);
+        if (e.kind !== "remove") continue;
+        const tokens = e.pointer.split("/").slice(1);
+        for (let i = tokens.length - 1; i > 0; i--) {
+          const ancestor = `/${tokens.slice(0, i).join("/")}`;
+          if (getPointer(collapsed, ancestor) === undefined) prunePointers.add(ancestor);
         }
       }
+      const topPrunes = [...prunePointers]
+        .sort((a, b) => a.length - b.length)
+        .filter((pointer, index, all) => !all.slice(0, index).some((parent) => pointer.startsWith(`${parent}/`)));
+      const pointerEdits = [];
+      for (const e of edits) {
+        if (e.kind === "restore") {
+          pointerEdits.push({ pointer: e.pointer, value: e.value, op: /** @type {"set"} */ ("set") });
+        } else if (e.kind === "remove" && !topPrunes.some((parent) => e.pointer === parent || e.pointer.startsWith(`${parent}/`))) {
+          pointerEdits.push({ pointer: e.pointer, op: /** @type {"delete"} */ ("delete") });
+        }
+      }
+      for (const pointer of topPrunes) {
+        pointerEdits.push({ pointer, op: /** @type {"delete"} */ ("delete") });
+      }
+      bytes = applyJsoncEdits(docResult.raw ?? "", pointerEdits);
+      docForWrite = jsoncParse(bytes.toString("utf8"), undefined, { allowTrailingComma: true });
+    } else {
+      const { value: sourceValue } = parseRootConfigPreservingOrder(docResult.raw ?? "");
+      if (sourceValue && typeof sourceValue === "object") {
+        docForWrite = sourceValue;
+        for (const e of edits) {
+          if (e.kind === "restore") {
+            docForWrite = setPointer(docForWrite, e.pointer, e.value);
+          } else if (e.kind === "remove") {
+            docForWrite = removePointer(docForWrite, e.pointer);
+          }
+        }
+      }
+      docForWrite = collapseEmptyAncestors(docForWrite) ?? docForWrite;
+      bytes = Buffer.from(formatRootConfigPreserving(docForWrite), "utf8");
     }
-    // Collapse parents that became empty after the removals so the
-    // uninstall bytes do not carry `agent: { plan: {} }` or
-    // `agent: { build: { permission: { task: {} } } }` shells.
-    docForWrite = collapseEmptyAncestors(docForWrite);
-    bytes = Buffer.from(formatRootConfigPreserving(docForWrite), "utf8");
   } catch {
     bytes = Buffer.from(formatRootConfig(collapseEmptyAncestors(doc)), "utf8");
   }
@@ -557,7 +644,10 @@ function collapseEmptyAncestors(doc) {
   const out = {};
   for (const k of Object.keys(doc)) {
     if (k === "__sourceOrder__") continue;
-    out[k] = collapseEmptyAncestors(doc[k]);
+    const collapsed = collapseEmptyAncestors(doc[k]);
+    // Drop keys whose value collapsed to undefined (empty shells).
+    if (collapsed === undefined) continue;
+    out[k] = collapsed;
   }
   // Re-emit the source order for stable serialization.
   if (Array.isArray(doc.__sourceOrder__)) {
@@ -589,6 +679,11 @@ function seedPointerRecords(descriptors, previousRecords) {
 
 function mergePointerRecords(descriptors, previousRecords, result, beforeSnapshot) {
   const out = previousRecords.map((r) => ({ ...r }));
+  // Index tracks what is already in `out` (including prior records
+  // and any applied pointers we added). Used to prevent duplicate
+  // records when the desired list contains the same pointer twice
+  // (e.g. the matrix leaf and a legacy pointer entry both targeting
+  // `/agent/build/permission/delivery_inspect: allow`).
   const index = new Map(out.map((r, idx) => [r.pointer, idx]));
   for (const a of result.applied) {
     const previousEntry = beforeSnapshot?.[a.pointer];
@@ -621,6 +716,7 @@ function mergePointerRecords(descriptors, previousRecords, result, beforeSnapsho
       };
     } else {
       out.push(next);
+      index.set(a.pointer, out.length - 1);
     }
   }
   for (const s of result.skipped) {
@@ -641,6 +737,7 @@ function mergePointerRecords(descriptors, previousRecords, result, beforeSnapsho
       installedSha256: bytesHashString(stableStringify(existing ?? null)),
       previous,
     });
+    index.set(s.pointer, out.length - 1);
   }
   return out;
 }

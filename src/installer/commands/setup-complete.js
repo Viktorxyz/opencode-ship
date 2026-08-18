@@ -10,7 +10,19 @@
  *   - docs/agents/domain.md present
  *   - docs/agents/triage-labels.md present
  *   - AGENTS.md contains a "## Ship workflow" block
- *   - setup-pending marker absent (or removable)
+ *
+ * The setup-pending marker is a chat-time signal of "setup is in
+ * progress"; it is NOT an artifact. The setup-complete command
+ * does not consult it for the gate; it only clears it as part of
+ * the successful commit step. A user who manually deletes the
+ * marker is declaring setup complete out of band; their artifacts
+ * still have to pass this gate.
+ *
+ * Transactional ordering:
+ *   1. evaluate setup artifacts (no marker)
+ *   2. if invalid, return diagnostic; no writes
+ *   3. if valid, write the lock with setupComplete=true and clear
+ *      the marker as part of the same install transaction
  *
  * On success, the lock is rewritten with `setupComplete: true`
  * AND the setup-pending marker is removed. The explicit gate
@@ -24,7 +36,7 @@
 import { previewInstall, commitInstall, serializePlan } from "../executor.js";
 import { loadConfig } from "../config.js";
 import { setupComplete, SETUP_REQUIREMENTS } from "../setup-state.js";
-import { clearSetupPending } from "../setup-pending.js";
+import { isSetupPending, setupPendingPath, SETUP_PENDING_REL_PATH } from "../setup-pending.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -33,15 +45,9 @@ export async function runSetupComplete(options) {
   if (!existsSync(resolve(repoRoot, ".git"))) {
     return emitFailure(2, "not a git repository", options.json);
   }
-  // The setup-pending marker (when present) is a permissive
-  // indicator that setup is in progress. Clear it BEFORE the
-  // setup-state check so the absence-of-marker predicate does
-  // not block a legitimate completion. The marker-write is
-  // idempotent and safe to remove even if the user fixed the
-  // docs/AGENTS.md on a side path.
-  clearSetupPending(repoRoot);
   const config = await loadConfig(repoRoot);
   const configValue = config?.ok ? config.value : null;
+  // 1. Validate artifacts WITHOUT consulting the marker.
   const state = await setupComplete(repoRoot, configValue);
   const diagnostics = [];
   if (!state.config.ok) diagnostics.push("workflow.models incomplete");
@@ -52,11 +58,15 @@ export async function runSetupComplete(options) {
   if (!state.ok) {
     return emitFailure(6, `setup incomplete: ${diagnostics.join("; ")}`, options.json, { state });
   }
-  // Write the lock with setupComplete=true. The preview helper
-  // is the only path that computes the lock correctly; we run a
-  // no-op install to get a fresh lock, then patch the
-  // setupComplete flag. The fullSetupComplete flag passes
-  // through commitInstall to assembleLock.
+  // 2. Capture marker presence as a non-authoritative signal that
+  //    surfaces in the success envelope (helps audits distinguish
+  //    chat-driven completion from out-of-band completion).
+  const markerWasPresent = isSetupPending(repoRoot);
+  // 3. Write the lock with setupComplete=true. The preview helper
+  //    is the only path that computes the lock correctly; we run a
+  //    no-op install to get a fresh lock, then patch the
+  //    setupComplete flag. The fullSetupComplete flag passes
+  //    through commitInstall to assembleLock.
   const preview = await previewInstall({
     rootPath: repoRoot,
     profile: "engineering",
@@ -74,6 +84,13 @@ export async function runSetupComplete(options) {
     json: options.json,
     command: "setup-complete",
     fullSetupComplete: true,
+    transactionEntries: markerWasPresent ? [{
+      op: "file",
+      kind: "delete",
+      target: setupPendingPath(repoRoot),
+      relPath: SETUP_PENDING_REL_PATH,
+      reason: "clear setup-pending marker in the setup-complete transaction",
+    }] : [],
   });
   if (committed.extra?.exitCode !== 0) {
     return emitFailure(committed.extra?.exitCode ?? 1, "commit failed", options.json, { committed });
@@ -84,6 +101,7 @@ export async function runSetupComplete(options) {
       command: "setup-complete",
       status: "ok",
       setupComplete: true,
+      markerWasPresent,
       requirements: SETUP_REQUIREMENTS,
       plan: serializePlan(committed.plan ?? []),
       summary: committed.summary ?? {},

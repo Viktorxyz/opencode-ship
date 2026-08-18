@@ -17,13 +17,13 @@
  * step.
  */
 
-import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
+import { readdir, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
 import { withResourceLock } from "../state/durable-store.js";
 import { readPlanRevision, publishPlanRevision, hydratePlanRevisionFromMirror } from "./plan-store.js";
-import { readRunState } from "./run-controller.js";
+import { appendRunEvent, readRunState, RUN_EVENT_KINDS } from "./run-controller.js";
 import { canonicalize } from "./plan.js";
 
 const SHIP_TRAILERS = ["Opencode-Ship-Workflow", "Opencode-Ship-Plan", "Opencode-Ship-Task", "Opencode-Ship-Review", "Opencode-Ship-Round"];
@@ -129,31 +129,23 @@ export async function resumeRun(repoRoot, workflowId) {
  * @returns {Promise<{ reconciled: boolean, runPath: string }>}
  */
 export async function reconcileCrashAfterCommit(repoRoot, workflowId, expectedHead) {
-  return lockRun(repoRoot, workflowId, async () => {
-    const common = await resolveGitCommonDir(repoRoot);
-    const runPath = join(opencodeShipStateDir(common), "runs", workflowId, "run.json");
-    if (!existsSync(runPath)) {
-      return { reconciled: false, runPath };
-    }
-    const cp = await import("node:child_process");
-    const head = await new Promise((resolveExec) => {
-      cp.execFile("git", ["rev-parse", "HEAD"], { cwd: repoRoot }, (_err, stdout) => resolveExec(stdout.trim()));
-    });
-    if (head !== expectedHead) {
-      throw new Error(`reconcileCrashAfterCommit: HEAD drift (expected ${expectedHead.slice(0, 8)}, got ${head.slice(0, 8)})`);
-    }
-    const run = JSON.parse(await readFile(runPath, "utf8"));
-    if (run.state !== "commit-pending") {
-      return { reconciled: false, runPath };
-    }
-    run.state = "committed";
-    run.activeTask = null;
-    run.round = 0;
-    run.failures = 0;
-    run.lastEvent = { sequence: (run.lastEvent?.sequence ?? 0) + 1, kind: "crash-reconcile", at: new Date().toISOString(), data: { commitSha: expectedHead } };
-    await writeFile(runPath, JSON.stringify(run, null, 2), "utf8");
-    return { reconciled: true, runPath };
+  const common = await resolveGitCommonDir(repoRoot);
+  const runPath = join(opencodeShipStateDir(common), "runs", workflowId, "run.json");
+  if (!existsSync(runPath)) return { reconciled: false, runPath };
+  const cp = await import("node:child_process");
+  const head = await new Promise((resolveExec) => {
+    cp.execFile("git", ["rev-parse", "HEAD"], { cwd: repoRoot }, (_err, stdout) => resolveExec(stdout.trim()));
   });
+  if (head !== expectedHead) {
+    throw new Error(`reconcileCrashAfterCommit: HEAD drift (expected ${expectedHead.slice(0, 8)}, got ${head.slice(0, 8)})`);
+  }
+  const run = await readRunState(repoRoot, workflowId);
+  if (!run || run.state !== "commit-pending") return { reconciled: false, runPath };
+  await appendRunEvent(repoRoot, workflowId, run, {
+    kind: RUN_EVENT_KINDS.COMMIT,
+    data: { commitSha: expectedHead, recovered: true },
+  });
+  return { reconciled: true, runPath };
 }
 
 /**

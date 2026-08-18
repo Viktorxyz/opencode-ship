@@ -27,6 +27,7 @@ import { readFile, stat } from "node:fs/promises";
 import { CATALOG } from "./catalog.js";
 import { bytesHashString } from "./hash.js";
 import { loadConfig, renderDefaultConfig } from "./config.js";
+import { isSafeManagedPath } from "./lock.js";
 import {
   setPointer,
   getPointer,
@@ -184,6 +185,13 @@ export async function planUninstall({ repoRoot, lock }) {
   const plan = [];
   const activeProfile = lock?.manager?.profile ?? "core";
   for (const entry of lock.files ?? []) {
+    if (!isSafeManagedPath(entry?.path)) {
+      plan.push({
+        kind: "conflict", op: "file", target: repoRoot, relPath: entry?.path ?? null,
+        reason: "managed file path is unsafe; refusing filesystem access",
+      });
+      continue;
+    }
     const targetPath = `${repoRoot}/${entry.path}`;
     const current = await readBytes(targetPath);
     if (!current) continue;

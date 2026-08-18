@@ -2,28 +2,34 @@
  * ship_final_review tool.
  *
  * Records one final review axis (standards or spec) for the
- * active run. The reducer collects both axes in the run
- * snapshot. Bound to the same HEAD, merge-base SHA, and
- * package hash the reviewer is attesting against.
+ * active run. Authorization requires the ToolContext session id
+ * to match the recorded Standards or Spec final-reviewer child
+ * session for the same immutable package hash.
  *
- * The caller must be authorised against the configured
- * finalReviewer model. A caller-supplied `submittedBy` alone
- * is not sufficient; the tool checks the model prefix and
- * the latest run snapshot to ensure the model has actually
- * been dispatched.
+ * The Standards and Spec reviews must bind to the same HEAD,
+ * merge-base SHA, and package hash. A caller-supplied
+ * `submittedBy` alone is insufficient.
  */
+
 import { success, failure } from "./envelope.js";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
 import { publishImmutableJson } from "../state/durable-store.js";
 import { appendRunEvent, readRunState, RUN_EVENT_KINDS } from "../workflow/run-controller.js";
-import { resolveModelRoles } from "../installer/engineering-config.js";
-import { readLock, isSetupComplete } from "../installer/lock.js";
+import { isSetupComplete, readLock } from "../installer/lock.js";
+import { authorizeChildCall, ROLES } from "../runtime/opencode-dispatcher.js";
+import { hashAxisRecord, hashFinalReviewPackage } from "../workflow/final-review.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 const AXES = new Set(["standards", "spec"]);
 const VERDICTS = new Set(["pass", "fail", "blocked"]);
+
+const ROLE_FOR_AXIS = {
+  standards: ROLES.FINAL_STANDARDS,
+  spec: ROLES.FINAL_SPEC,
+};
 
 export function createFinalReviewTool(deps) {
   return async function finalReview(input) {
@@ -34,7 +40,6 @@ export function createFinalReviewTool(deps) {
     const headSha = String(input.headSha ?? "");
     const mergeBaseSha = String(input.mergeBaseSha ?? "");
     const packageHash = String(input.packageHash ?? "");
-    const submittedBy = String(input.submittedBy ?? "");
     const findings = Array.isArray(input.findings) ? input.findings : [];
     if (!workflowId || !SAFE_ID_RE.test(workflowId)) {
       return failure("final-review", "workflowId required (safe id)", { operationId: opId, retryable: false });
@@ -54,21 +59,20 @@ export function createFinalReviewTool(deps) {
     if (!/^[0-9a-f]{64}$/.test(packageHash)) {
       return failure("final-review", "packageHash required (sha256)", { operationId: opId, retryable: false });
     }
-    if (!submittedBy) {
-      return failure("final-review", "submittedBy required (must identify finalReviewer model)", { operationId: opId, retryable: false });
+    const ctx = input.ctx ?? deps.ctx ?? null;
+    const auth = await authorizeChildCall(
+      deps.repoRoot,
+      workflowId,
+      ROLE_FOR_AXIS[axis],
+      { packageHash },
+      ctx,
+    );
+    if (!auth.ok) {
+      return failure("final-review", `final reviewer authorization failed: ${auth.message}`, { operationId: opId, retryable: false });
     }
     const lock = await readLock(deps.repoRoot);
     if (!isSetupComplete(lock)) {
       return failure("final-review", "setup is not complete; run /setup-ship-workflow first", { operationId: opId, retryable: false });
-    }
-    let models;
-    try {
-      models = resolveModelRoles(deps.config?.workflow, { strict: true });
-    } catch (err) {
-      return failure("final-review", `final reviewer model unresolved: ${err?.message ?? err}`, { operationId: opId, retryable: false });
-    }
-    if (!submittedBy.startsWith(models.finalReviewer)) {
-      return failure("final-review", `submittedBy must be the configured finalReviewer model ${models.finalReviewer}`, { operationId: opId, retryable: false });
     }
     let runState;
     try {
@@ -84,21 +88,61 @@ export function createFinalReviewTool(deps) {
     }
     try {
       const commonDir = await resolveGitCommonDir(deps.repoRoot);
+      const packagePath = join(opencodeShipStateDir(commonDir), "runs", workflowId, "final-review", "package.json");
+      if (!existsSync(packagePath)) {
+        return failure("final-review", "canonical final review package is missing", { operationId: opId, retryable: false });
+      }
+      const finalPackage = JSON.parse(await readFile(packagePath, "utf8"));
+      if (hashFinalReviewPackage(finalPackage) !== finalPackage.packageHash) {
+        return failure("final-review", "canonical final review package hash is invalid", { operationId: opId, retryable: false });
+      }
+      if (finalPackage.packageHash !== packageHash || finalPackage.headSha !== headSha || finalPackage.mergeBaseSha !== mergeBaseSha) {
+        return failure("final-review", "review input does not match the canonical final review package", { operationId: opId, retryable: false });
+      }
       const reviewDir = join(opencodeShipStateDir(commonDir), "runs", workflowId, "final-review", axis);
       await mkdir(reviewDir, { recursive: true });
-      const record = {
+      let record = {
         workflowId,
         axis,
         verdict,
         headSha,
         mergeBaseSha,
         packageHash,
-        submittedBy,
-        reviewer: models.finalReviewer,
+        reviewerSessionID: auth.sessionID,
+        reviewerModel: String(deps.config?.workflow?.models?.finalReviewer ?? "unknown/unknown"),
         findings,
         reviewedAt: new Date().toISOString(),
       };
-      await publishImmutableJson(join(reviewDir, "review.json"), record);
+      const reviewPath = join(reviewDir, "review.json");
+      if (existsSync(reviewPath)) {
+        record = JSON.parse(await readFile(reviewPath, "utf8"));
+        if (
+          record.axis !== axis
+          || record.verdict !== verdict
+          || record.headSha !== headSha
+          || record.mergeBaseSha !== mergeBaseSha
+          || record.packageHash !== packageHash
+          || record.reviewerSessionID !== auth.sessionID
+          || hashAxisRecord(/** @type {any} */ (record)) !== record.reviewHash
+        ) {
+          return failure("final-review", "immutable final review record conflicts with retry", { operationId: opId, retryable: false });
+        }
+      } else {
+        record.reviewHash = hashAxisRecord(/** @type {any} */ (record));
+        await publishImmutableJson(reviewPath, record);
+      }
+      if (runState.finalReview?.[axis]?.reviewHash === record.reviewHash) {
+        return success("final-review", {
+          workflowId,
+          axis,
+          verdict,
+          headSha,
+          reviewerSessionID: auth.sessionID,
+          state: runState.state,
+          sequence: runState.events.at(-1)?.sequence ?? 0,
+          finalReview: runState.finalReview,
+        }, { operationId: opId, idempotent: true });
+      }
       const { state, event } = await appendRunEvent(
         deps.repoRoot,
         workflowId,
@@ -111,7 +155,8 @@ export function createFinalReviewTool(deps) {
             headSha,
             mergeBaseSha,
             packageHash,
-            review: { verdict, headSha, mergeBaseSha, packageHash },
+            sessionID: auth.sessionID,
+            review: { verdict, headSha, mergeBaseSha, packageHash, reviewHash: record.reviewHash },
           },
         },
       );
@@ -120,6 +165,7 @@ export function createFinalReviewTool(deps) {
         axis,
         verdict,
         headSha,
+        reviewerSessionID: auth.sessionID,
         state: state.state,
         sequence: event.sequence,
         finalReview: state.finalReview ?? null,

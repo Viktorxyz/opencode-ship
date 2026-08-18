@@ -4,7 +4,7 @@
  * Build a real tarball, extract it into a clean directory that has NO
  * link back to the source tree, remove the local node_modules, then
  * load the bundled plugin from the extracted path and assert exactly
- * nine tools are registered. This verifies the published artifact is
+ * 32 tools are registered. This verifies the published artifact is
  * truly self-contained.
  *
  * The second test runs the extracted CLI against a fresh Git
@@ -23,7 +23,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tar } from "./_test-tar.mjs";
 
-test("packed-artifact: bundled plugin loads with nine tools in an isolated consumer", async (t) => {
+test("packed-artifact: bundled plugin loads with 32 tools in an isolated consumer", async (t) => {
   const pkgRoot = process.cwd();
   const tmp = await mkdtemp(join(tmpdir(), "opencode-ship-isolated-"));
   const child = { cleanup: () => {} };
@@ -223,4 +223,23 @@ test("packed-artifact: npm pack includes every required file", async (t) => {
   assert.equal(version.status, 0);
   assert.match(version.stdout, /opencode-ship \d+\.\d+\.\d+/);
   await rm(tarballPath, { force: true }).catch(() => null);
+});
+
+test("packed-artifact: tarball installs with lifecycle scripts enabled", async (t) => {
+  const tmp = await mkdtemp(join(tmpdir(), "opencode-ship-install-"));
+  t.after(async () => rm(tmp, { recursive: true, force: true }));
+  const pack = spawnSync("npm", ["pack", "--pack-destination", tmp, "--json", "--silent"], {
+    cwd: process.cwd(), encoding: "utf8",
+  });
+  assert.equal(pack.status, 0, pack.stderr);
+  const meta = JSON.parse(pack.stdout);
+  const tarballPath = join(tmp, meta[0].filename);
+  const consumer = join(tmp, "consumer-install");
+  await mkdir(consumer, { recursive: true });
+  await writeFile(join(consumer, "package.json"), JSON.stringify({ private: true }, null, 2));
+  const install = spawnSync("npm", ["install", "--no-audit", "--no-fund", tarballPath], {
+    cwd: consumer, encoding: "utf8",
+  });
+  assert.equal(install.status, 0, install.stderr || install.stdout);
+  assert.ok(existsSync(join(consumer, "node_modules", "opencode-ship", "dist", "plugin.js")));
 });

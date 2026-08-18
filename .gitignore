@@ -8,6 +8,14 @@ coverage
 .opencode-ship/
 tsconfig.dts.json
 dist-pkg/
+dist-pkg.prev/
+vendor/upstreams/
 vendor/upstreams-clones/
 dist.prev/
 opencode-ship-dogfood/
+docs/release/
+archive/
+*.tgz
+*.tgz.sha256
+*.spdx.json
+*.qualification.json

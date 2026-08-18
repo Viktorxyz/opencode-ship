@@ -5,10 +5,10 @@
  * runtime types without booting OpenCode. It verifies:
  *   - the bundled plugin is the default-exported function
  *   - calling it returns an object with a `tool` key
- *   - the `tool` object exposes exactly the 24 named tool
- *     definitions (9 delivery + 7 control-plane + 8 workflow)
+ *   - the `tool` object exposes exactly the 32 named tool
+ *     definitions (16 delivery + 16 workflow)
  *
- * The canonical 24-tool set is imported from
+ * The canonical 32-tool set is imported from
  * `tests/plugin/expected-tools.mjs`, the single source of truth
  * shared with the opencode-discovery smoke test.
  */
@@ -27,6 +27,11 @@ test("plugin: default export is a function", async () => {
   const mod = await import(pluginPath);
   assert.equal(typeof mod.default, "function");
   assert.equal(typeof mod.ShipPlugin, "function");
+});
+
+test("plugin: bundle exports only plugin entry functions", async () => {
+  const mod = await import(pluginPath);
+  assert.deepEqual(Object.keys(mod).sort(), ["ShipPlugin", "default"]);
 });
 
 test("plugin: registers exactly 32 tools", async () => {

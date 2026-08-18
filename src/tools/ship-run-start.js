@@ -10,10 +10,12 @@
  */
 
 import { success, failure } from "./envelope.js";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
-import { publishImmutableJson } from "../state/durable-store.js";
+import { authorizeControllerCall } from "../runtime/opencode-dispatcher.js";
+import { appendRunEvent, createInitialState, RUN_EVENT_KINDS } from "../workflow/run-controller.js";
+import { execFile } from "node:child_process";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -39,6 +41,11 @@ export function createRunStartTool(deps) {
     const workflowId = String(input.workflowId ?? "");
     if (!workflowId || !SAFE_ID_RE.test(workflowId)) {
       return failure("run-start", "workflowId required (safe id)", { operationId: opId, retryable: false });
+    }
+    const ctx = input.ctx ?? deps.ctx ?? null;
+    const auth = await authorizeControllerCall(deps.repoRoot, workflowId, ctx);
+    if (!auth.ok) {
+      return failure("run-start", `controller authorization failed: ${auth.message}`, { operationId: opId, retryable: false });
     }
     // The plugin passes the full ship config under deps.configValue
     // (set by the wrapper); use that directly. Fall back to the
@@ -74,27 +81,29 @@ export function createRunStartTool(deps) {
         return failure("run-start", "approval models no longer match configured workflow.models", { operationId: opId, retryable: false });
       }
     }
+    const approvedBaseSha = String(records.approval.baseSha ?? records.plan.plan?.source?.baseSha ?? "");
+    const currentHead = await gitHead(deps.repoRoot).catch(() => null);
+    if (!/^[0-9a-f]{40}$/.test(approvedBaseSha) || currentHead !== approvedBaseSha) {
+      return failure("run-start", `approved base SHA is stale (approved ${approvedBaseSha.slice(0, 8)}, current ${String(currentHead).slice(0, 8)})`, { operationId: opId, retryable: false });
+    }
     try {
-      const commonDir = await resolveGitCommonDir(deps.repoRoot);
-      const runDir = join(opencodeShipStateDir(commonDir), "runs", workflowId);
-      await mkdir(join(runDir, "events"), { recursive: true });
-      const startedAt = new Date().toISOString();
-      const runRecord = {
-        workflowId,
-        revision,
-        sha256: expectedHash,
-        startedAt,
-        state: "running",
-        activeTask: null,
-        round: 0,
-        models: expectedModels,
-      };
-      await publishImmutableJson(join(runDir, "run.json"), runRecord);
-      const event = { sequence: 1, kind: "run-start", at: startedAt, data: { revision, sha256: expectedHash } };
-      await publishImmutableJson(join(runDir, "events", "00000001.json"), event);
+      const initial = createInitialState(workflowId, revision, expectedHash);
+      await appendRunEvent(deps.repoRoot, workflowId, initial, {
+        kind: RUN_EVENT_KINDS.RUN_START,
+        data: { revision, sha256: expectedHash },
+      });
       return success("run-start", { workflowId, revision, sha256: expectedHash }, { operationId: opId });
     } catch (err) {
       return failure("run-start", String(err?.message ?? err), { operationId: opId, retryable: true });
     }
   };
+}
+
+function gitHead(cwd) {
+  return new Promise((resolveP, rejectP) => {
+    execFile("git", ["-C", cwd, "rev-parse", "HEAD"], { cwd, shell: false }, (err, stdout, stderr) => {
+      if (err) return rejectP(new Error(stderr || err.message));
+      resolveP(String(stdout).trim());
+    });
+  });
 }

@@ -6,7 +6,7 @@
  * OpenCode runtime boundary by booting a real `opencode serve`
  * instance, polling `/global/health`, reading
  * `/experimental/tool/ids`, and comparing the result against the
- * canonical 24-tool set in `tests/plugin/expected-tools.mjs`.
+ * canonical 32-tool set in `tests/plugin/expected-tools.mjs`.
  *
  * The test is gated by the presence of the `opencode` CLI on
  * PATH (or the local user install under `$HOME/.opencode/bin`).
@@ -105,7 +105,10 @@ async function pollReady(port, { timeoutMs = 60000, intervalMs = 500 } = {}) {
   let lastErr = null;
   while (Date.now() - start < timeoutMs) {
     try {
-      const r = await fetch(`http://127.0.0.1:${port}/experimental/tool/ids`, { method: "GET" });
+      const r = await fetch(`http://127.0.0.1:${port}/experimental/tool/ids`, {
+        method: "GET",
+        signal: AbortSignal.timeout(30000),
+      });
       if (r.ok) {
         const body = await r.json();
         if (Array.isArray(body) && body.length > 0) {
@@ -124,7 +127,10 @@ async function pollReady(port, { timeoutMs = 60000, intervalMs = 500 } = {}) {
 }
 
 async function fetchToolIds(port) {
-  const r = await fetch(`http://127.0.0.1:${port}/experimental/tool/ids`, { method: "GET" });
+  const r = await fetch(`http://127.0.0.1:${port}/experimental/tool/ids`, {
+    method: "GET",
+    signal: AbortSignal.timeout(30000),
+  });
   assert.equal(r.ok, true, `/experimental/tool/ids must respond 2xx (got ${r.status})`);
   const body = await r.json();
   assert.ok(Array.isArray(body), "/experimental/tool/ids must return a JSON array");
@@ -197,7 +203,7 @@ test("opencode-discovery: CLI is discoverable when the test runs", { skip: !HAS_
 });
 
 for (const profile of ["core", "engineering"]) {
-  test(`opencode-discovery: ${profile} profile exposes exactly the 24 opencode-ship tools`, {
+  test(`opencode-discovery: ${profile} profile exposes exactly the 32 opencode-ship tools`, {
     skip: !HAS_OPENCODE || !existsSync(PLUGIN_PATH),
   }, async (t) => {
     assert.ok(existsSync(PLUGIN_PATH), `dist/plugin.js must be built (${PLUGIN_PATH})`);
@@ -237,14 +243,14 @@ for (const profile of ["core", "engineering"]) {
     t.after(async () => { if (server) await stopServer(server); });
 
     const tools = await fetchToolIds(port);
-    // The server returns built-in + plugin tools. The 24-tool set
+    // The server returns built-in + plugin tools. The 32-tool set
     // must be a subset of the exposed IDs and the count of plugin
     // tools must match exactly.
     const serverSet = new Set(tools);
     for (const id of EXPECTED_OPENCODE_SHIP_TOOL_IDS) {
       assert.ok(serverSet.has(id), `${profile}: missing plugin tool ${id}`);
     }
-    // The plugin registers exactly the 24 opencode-ship tools; the
+    // The plugin registers exactly the 32 opencode-ship tools; the
     // server may expose additional built-in tools, so we only check
     // that the opencode-ship count is present and correct.
     const pluginTools = tools.filter((id) => id.startsWith("delivery_") || id.startsWith("ship_"));

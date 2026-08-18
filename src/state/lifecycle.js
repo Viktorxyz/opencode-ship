@@ -85,7 +85,7 @@ export function transition(m, to, opts) {
 export function createManifest(input) {
   const now = (input.now ?? (() => new Date()))();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     taskId: input.taskId,
     repoIdentity: input.repoIdentity,
     issueNumber: input.issueNumber,
@@ -97,6 +97,7 @@ export function createManifest(input) {
     lastPrHeadSha: input.lastPrHeadSha ?? null,
     lastReviewerSha: input.lastReviewerSha ?? null,
     lastVerifierSha: input.lastVerifierSha ?? null,
+    workflowId: input.workflowId ?? null,
     owner: input.owner,
     state: "issue-linked",
     transitionLog: [],

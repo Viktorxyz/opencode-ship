@@ -64,6 +64,21 @@ test("transaction failure rolls back files written before the failure", async (t
   assert.deepEqual(leftovers, []);
 });
 
+test("transaction failure restores a deleted setup marker before lock promotion", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const marker = join(repoRoot, ".opencode", "ship.setup-pending.json");
+  await mkdir(join(repoRoot, ".opencode"), { recursive: true });
+  await writeFile(marker, "{\"pending\":true}\n");
+  const result = await executePlan({
+    repoRoot,
+    plan: [{ op: "file", kind: "delete", target: marker, relPath: ".opencode/ship.setup-pending.json" }],
+    newLockBuilder: async () => { throw new Error("lock promotion failed"); },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(await readFile(marker, "utf8"), "{\"pending\":true}\n");
+});
+
 test("transaction recovery treats the promoted lock as the commit marker", async (t) => {
   const { parent, repoRoot } = await makeProject();
   t.after(async () => cleanProject(parent));

@@ -4,6 +4,7 @@ mode: subagent
 temperature: 0.1
 steps: 8
 permission:
+  "*": deny
   edit: deny
   bash: deny
   external_directory: deny

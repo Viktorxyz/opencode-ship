@@ -25,6 +25,8 @@
  *     controller; the Build agent never sees them.
  */
 
+import { pointerPath } from "./json-pointer.js";
+
 const ASK = "ask";
 const ALLOW = "allow";
 const DENY = "deny";
@@ -40,8 +42,47 @@ const CONTROLLER_TASK_ALLOW = [
   "ship-final-spec-reviewer",
   "delivery-verifier",
 ];
-const BUILD_TOOL_ALLOW = [
+const PUBLIC_TOOL_IDS = [
+  "delivery_cleanup",
+  "delivery_github_read",
   "delivery_inspect",
+  "delivery_issue",
+  "delivery_issue_close",
+  "delivery_issue_comment",
+  "delivery_issue_labels",
+  "delivery_issue_link",
+  "delivery_merge",
+  "delivery_pr",
+  "delivery_publish",
+  "delivery_ready",
+  "delivery_review",
+  "delivery_sync",
+  "delivery_verify",
+  "delivery_worktree",
+  "ship_final_review",
+  "ship_plan_approve",
+  "ship_plan_start",
+  "ship_plan_submit",
+  "ship_resume",
+  "ship_run_start",
+  "ship_skill_audit",
+  "ship_skill_discover",
+  "ship_skill_install",
+  "ship_skill_uninstall",
+  "ship_status",
+  "ship_task_commit",
+  "ship_task_complete",
+  "ship_task_report",
+  "ship_task_review",
+  "ship_task_start",
+];
+const BUILD_TOOL_ALLOW = [
+  "delivery_cleanup",
+  "delivery_inspect",
+  "delivery_issue",
+  "delivery_pr",
+  "delivery_ready",
+  "delivery_worktree",
   "ship_status",
   "ship_resume",
 ];
@@ -53,23 +94,28 @@ const BUILD_TOOL_ASK = [
 ];
 const CONTROLLER_TOOL_ALLOW = [
   "delivery_inspect",
+  "delivery_cleanup",
+  "delivery_github_read",
   "delivery_issue",
+  "delivery_issue_comment",
+  "delivery_issue_labels",
+  "delivery_issue_link",
   "delivery_worktree",
   "delivery_pr",
   "delivery_ready",
   "delivery_publish",
+  "delivery_sync",
   "ship_plan_start",
-  "ship_plan_submit",
   "ship_run_start",
   "ship_task_start",
   "ship_task_commit",
   "ship_task_complete",
-  "ship_final_review",
   "ship_resume",
   "ship_status",
   "ship_skill_discover",
   "ship_skill_install",
   "ship_skill_audit",
+  "ship_skill_uninstall",
 ];
 const CONTROLLER_TOOL_ASK = [
   "ship_plan_approve",
@@ -107,6 +153,14 @@ function denyMap(globs) {
   return out;
 }
 
+function toolPermissionMap(allow, ask) {
+  const out = { "*": DENY };
+  for (const id of PUBLIC_TOOL_IDS) out[id] = DENY;
+  for (const id of allow) out[id] = ALLOW;
+  for (const id of ask) out[id] = ASK;
+  return out;
+}
+
 export function rootPermissionMatrix() {
   return {
     subagentDepth: SUBAGENT_DEPTH,
@@ -126,9 +180,7 @@ export function rootPermissionMatrix() {
         },
       },
       tools: {
-        "*": "deny",
-        ...Object.fromEntries(BUILD_TOOL_ALLOW.map((t) => [t, "allow"])),
-        ...Object.fromEntries(BUILD_TOOL_ASK.map((t) => [t, "ask"])),
+        ...toolPermissionMap(BUILD_TOOL_ALLOW, BUILD_TOOL_ASK),
       },
     },
     shipController: {
@@ -140,9 +192,7 @@ export function rootPermissionMatrix() {
         bash: denyMap(FORBIDDEN_BASH_GLOBS_CONTROLLER),
       },
       tools: {
-        "*": "deny",
-        ...Object.fromEntries(CONTROLLER_TOOL_ALLOW.map((t) => [t, "allow"])),
-        ...Object.fromEntries(CONTROLLER_TOOL_ASK.map((t) => [t, "ask"])),
+        ...toolPermissionMap(CONTROLLER_TOOL_ALLOW, CONTROLLER_TOOL_ASK),
       },
     },
   };
@@ -167,6 +217,59 @@ export const LEGACY_DELIVERY_POINTERS = [
   { pointer: "/agent/build/permission/task/delivery-verifier", value: "allow" },
 ];
 
-void ASK;
-void ALLOW;
-void DENY;
+/**
+ * Flatten the canonical matrix into leaf-level pointer entries
+ * suitable for the installer's POINTER_ENTRIES pipeline. The
+ * returned array uses JSON pointer paths (RFC 6901) under
+ * /agent/<name>/permission/<sub>/<key> and includes
+ * /subagent_depth. Every leaf is a scalar (string permission
+ * value), so the existing scalar-only reconciler pipeline can
+ * apply them without changes.
+ *
+ * The matrix is the single source of truth: every entry below is
+ * derived from `rootPermissionMatrix()` so a change to the
+ * matrix automatically propagates to the install/update/uninstall
+ * flows.
+ *
+ * @returns {Array<{ pointer: string, strategy: "value", value: string | number, scope: "engineering" }>}
+ */
+export function matrixLeafPointers() {
+  const matrix = rootPermissionMatrix();
+  /** @type {Array<{ pointer: string, strategy: "value", value: string | number, scope: "engineering" }>} */
+  const out = [];
+  out.push({ pointer: "/subagent_depth", strategy: "value", value: matrix.subagentDepth, scope: "engineering" });
+  const agents = [
+    { name: "build", block: matrix.build },
+    { name: "ship-controller", block: matrix.shipController },
+  ];
+  for (const agent of agents) {
+    const perm = agent.block.permission;
+    for (const category of Object.keys(perm)) {
+      const map = perm[category];
+      for (const key of Object.keys(map)) {
+        const v = map[key];
+        if (v === undefined || v === null) continue;
+        out.push({
+          pointer: pointerPath(["agent", agent.name, "permission", category, key]),
+          strategy: "value",
+          value: v,
+          scope: "engineering",
+        });
+      }
+    }
+    const tools = agent.block.tools;
+    if (tools && typeof tools === "object") {
+      for (const key of Object.keys(tools)) {
+        const v = tools[key];
+        if (v === undefined || v === null) continue;
+        out.push({
+          pointer: pointerPath(["agent", agent.name, "permission", key]),
+          strategy: "value",
+          value: v,
+          scope: "engineering",
+        });
+      }
+    }
+  }
+  return out;
+}

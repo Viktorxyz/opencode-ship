@@ -1,16 +1,25 @@
 /**
  * ship_plan_start tool.
  *
- * Creates a workflow record and dispatches the configured strong
- * planner model. The workflow id is generated deterministically
- * from the issue number so resume can locate it.
+ * Controller-only: creates a workflow record, issues the controller
+ * session lease, and dispatches the configured planner child session
+ * via the real OpenCode dispatcher. The workflow id is derived from
+ * the issue number so resume can locate it.
+ *
+ * Authorization: the ToolContext session id is recorded as the
+ * controller lease. Any later controller tool call must run from
+ * the same lease-holding session; a fresh ship-controller session
+ * takes over the lease atomically via `withControllerLease`.
  */
 
 import { success, failure } from "./envelope.js";
 import { resolveModelRoles } from "../installer/engineering-config.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { isSetupComplete, readLock } from "../installer/lock.js";
 import { join } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
+import { dispatchWorker, issueControllerLease, ROLES } from "../runtime/opencode-dispatcher.js";
+import { listManifests, writeManifest } from "../state/manifest-store.js";
 
 function normalizeWorkflowId(issueNumber) {
   return `wf-${issueNumber}`;
@@ -22,6 +31,14 @@ export function createPlanStartTool(deps) {
     const issueNumber = Number(input.issueNumber);
     if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
       return failure("plan-start", "issueNumber required", { operationId: opId, retryable: false });
+    }
+    const ctx = input.ctx ?? deps.ctx ?? null;
+    if (!ctx || typeof ctx.sessionID !== "string" || ctx.agent !== "ship-controller") {
+      return failure("plan-start", "ToolContext.sessionID required (controller session)", { operationId: opId, retryable: false });
+    }
+    const lock = await readLock(deps.repoRoot);
+    if (!isSetupComplete(lock)) {
+      return failure("plan-start", "setup is not complete; run /setup-ship-workflow first", { operationId: opId, retryable: false });
     }
     let models;
     try {
@@ -35,6 +52,34 @@ export function createPlanStartTool(deps) {
       const commonDir = await resolveGitCommonDir(repoRoot);
       const wfDir = join(opencodeShipStateDir(commonDir), "plans", workflowId);
       await mkdir(wfDir, { recursive: true });
+      await issueControllerLease(repoRoot, workflowId, ctx.sessionID);
+      const matchingManifests = (await listManifests(repoRoot)).filter((manifest) => manifest.issueNumber === issueNumber);
+      if (matchingManifests.length > 1) {
+        throw new Error(`multiple delivery manifests are linked to issue #${issueNumber}`);
+      }
+      if (matchingManifests.length === 1) {
+        const manifest = matchingManifests[0];
+        if (manifest.workflowId && manifest.workflowId !== workflowId) {
+          throw new Error(`delivery manifest ${manifest.taskId} is already linked to ${manifest.workflowId}`);
+        }
+        await writeManifest(repoRoot, { ...manifest, workflowId, updatedAt: new Date().toISOString() });
+      }
+      const client = deps.opencodeClient;
+      let dispatchResult = null;
+      if (client) {
+        dispatchResult = await dispatchWorker({
+          repoRoot,
+          workflowId,
+          role: ROLES.PLANNER,
+          keyInput: { revision: 1 },
+          payload: { promptText: `Plan issue #${issueNumber}` },
+          client,
+          parentSessionID: ctx.sessionID,
+          titleMarker: `ship-planner-${workflowId}`,
+          agent: "ship-planner",
+          model: models.planner,
+        });
+      }
       const indexRecord = {
         workflowId,
         issueNumber,
@@ -42,11 +87,25 @@ export function createPlanStartTool(deps) {
         planner: models.planner,
         builder: models.builder,
         finalReviewer: models.finalReviewer,
+        controllerSessionID: ctx.sessionID,
+        plannerSessionID: dispatchResult?.sessionID ?? null,
+        dispatchKey: dispatchResult?.dispatchKey ?? null,
         createdAt: new Date().toISOString(),
         state: "drafting",
       };
       await writeFile(join(wfDir, "index.json"), JSON.stringify(indexRecord, null, 2), "utf8");
-      return success("plan-start", { workflowId, issueNumber, models: { planner: models.planner, builder: models.builder, finalReviewer: models.finalReviewer } }, { operationId: opId });
+      return success("plan-start", {
+        workflowId,
+        issueNumber,
+        controllerSessionID: ctx.sessionID,
+        plannerSessionID: indexRecord.plannerSessionID,
+        dispatchKey: indexRecord.dispatchKey,
+        models: {
+          planner: models.planner,
+          builder: models.builder,
+          finalReviewer: models.finalReviewer,
+        },
+      }, { operationId: opId });
     } catch (err) {
       return failure("plan-start", String(err?.message ?? err), { operationId: opId, retryable: true });
     }

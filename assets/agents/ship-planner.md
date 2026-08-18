@@ -5,6 +5,7 @@ temperature: 0.3
 model: <model-from-config>
 steps: 10
 permission:
+  "*": deny
   edit: deny
   external_directory: deny
   webfetch: deny

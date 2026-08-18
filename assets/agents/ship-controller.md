@@ -5,6 +5,7 @@ temperature: 0.1
 model: <model-from-config>
 steps: 12
 permission:
+  "*": deny
   edit: deny
   external_directory: deny
   webfetch: deny
@@ -53,34 +54,46 @@ permission:
     "pnpm test *": allow
     "pnpm run verify *": allow
   task:
-    "*": allow
+    "*": deny
+    ship-planner: allow
+    ship-task-builder: allow
+    ship-task-reviewer: allow
+    ship-final-standards-reviewer: allow
+    ship-final-spec-reviewer: allow
+    delivery-verifier: allow
   delivery_inspect: allow
   delivery_issue: allow
   delivery_worktree: allow
-  delivery_verify: allow
+  delivery_verify: deny
   delivery_review: deny
   delivery_pr: allow
   delivery_ready: allow
-  delivery_merge: deny
+  delivery_merge: ask
   delivery_cleanup: allow
   delivery_github_read: allow
   delivery_issue_comment: allow
   delivery_issue_labels: allow
   delivery_issue_link: allow
-  delivery_issue_close: deny
+  delivery_issue_close: ask
   delivery_sync: allow
-  delivery_publish: deny
+  delivery_publish: allow
   ship_plan_start: allow
-  ship_plan_submit: allow
-  ship_plan_approve: deny
+  ship_plan_submit: deny
+  ship_plan_approve: ask
   ship_run_start: allow
+  ship_task_start: allow
+  ship_task_commit: allow
+  ship_task_complete: allow
   ship_task_report: deny
   ship_task_review: deny
+  ship_final_review: deny
   ship_resume: allow
   ship_status: allow
   ship_deliver: allow
   ship_skill_discover: allow
   ship_skill_install: allow
+  ship_skill_audit: allow
+  ship_skill_uninstall: allow
 ---
 
 # ship-controller

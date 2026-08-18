@@ -4,26 +4,33 @@
  * Two distinct predicates:
  *
  *   modelsComplete(cfg)        - all three model roles populated
- *   setupComplete(repo)        - setup dialog has been completed
+ *   setupArtifactsReady(repo)  - the installer's setup artifacts
+ *                                (docs + AGENTS.md block + valid lock)
+ *                                are present and current
  *
- * The shipped 1.1.x conflated these. The new contract is:
+ * The shipped 1.1.x conflated the setup-pending marker with setup
+ * readiness. The marker is a chat-time signal of "setup in
+ * progress"; it is not an artifact. A user who deletes the marker
+ * manually is declaring setup complete without the chat workflow;
+ * the artifacts are what matter for the gate.
  *
- *   setupComplete = modelsComplete
+ * Contract:
+ *
+ *   setupArtifactsReady = modelsComplete
  *     && installer-owned setup docs present
  *     && AGENTS.md contains a "Ship workflow" block
- *     && lock is current v4
- *     && setup-pending marker is absent
+ *     && lock is current supported schema (read validates v1..v4)
  *
  * The setup-ship-workflow skill drives the chat-only flow that
- * produces every one of these. The setup-complete CLI command
- * is the only writer.
+ * produces every one of these. The setup-complete CLI command is
+ * the only writer of `manager.setupComplete: true` AND the only
+ * routine that touches the marker on the success path.
  */
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
+import { resolve } from "node:path";
 import { hasCompletedModels } from "./config.js";
-import { readValidatedLock, isSetupComplete as lockSays } from "./lock.js";
-import { setupPendingPath } from "./setup-pending.js";
+import { readValidatedLock, isSetupComplete as lockSays, CURRENT_LOCK_SCHEMA } from "./lock.js";
 
 const REQUIRED_DOCS = [
   "docs/agents/issue-tracker.md",
@@ -37,10 +44,11 @@ export function modelsComplete(repoRoot, configValue) {
 }
 
 /**
- * True when the consumer has completed the chat-only GitHub
- * setup workflow. The check is deterministic from on-disk
- * artifacts so a follow-up resume does not depend on a flag
- * the user can edit.
+ * True when the consumer's setup artifacts are present and current.
+ * The check is deterministic from on-disk artifacts so a follow-up
+ * resume does not depend on a flag the user can edit. The
+ * setup-pending marker is intentionally excluded: the marker is a
+ * signal, not a requirement.
  *
  * @param {string} repoRoot
  * @param {object} [configValue]
@@ -67,15 +75,15 @@ export async function setupComplete(repoRoot, configValue) {
   }
   const lockResult = await readValidatedLock(repoRoot);
   const cfgOk = modelsComplete(repoRoot, configValue);
-  const markerPath = setupPendingPath(repoRoot);
-  if (existsSync(markerPath)) missing.push("setup-pending marker");
   // The lock check is satisfied when the lock parses cleanly
   // and is on a supported schema. We do NOT require
   // setupComplete=true here; that's the very thing the
   // setup-complete command is elevating. Re-using the lock
   // setupComplete bit as the gate would force the gate to hold
   // its own key.
-  const lockOk = lockResult.kind === "ok" || lockResult.kind === "missing";
+  const lockOk = lockResult.kind === "ok"
+    && lockResult.lock?.contractVersion === CURRENT_LOCK_SCHEMA
+    && lockResult.lock?.manager?.schemaVersion === CURRENT_LOCK_SCHEMA;
   const ok = cfgOk && lockOk && missing.length === 0;
   return {
     ok,

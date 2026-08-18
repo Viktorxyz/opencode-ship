@@ -20,7 +20,10 @@ const CLI = resolve("dist/cli.js");
 const PKG_ROOT = resolve(".");
 
 function cli(repoRoot, args) {
-  const r = spawnSync("node", [CLI, ...args, "--root", repoRoot], { encoding: "utf8" });
+  const r = spawnSync("node", [CLI, ...args, "--root", repoRoot], {
+    encoding: "utf8",
+    cwd: PKG_ROOT,
+  });
   return { code: r.status ?? -1, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
@@ -167,6 +170,13 @@ test("init: --force-root-config creates a minimal opencode.json", async (t) => {
   assert.equal(doc.agent.build.permission.delivery_inspect, "allow");
   assert.equal(doc.agent.build.permission.task["delivery-reviewer"], "allow");
   assert.equal(doc.agent.build.permission.task["delivery-verifier"], "allow");
+  assert.equal(doc.subagent_depth, 2);
+  assert.equal(doc.agent.build.permission["*"], "deny");
+  assert.equal(doc.agent.build.permission.task["ship-controller"], "allow");
+  assert.equal(doc.agent["ship-controller"].permission["*"], "deny");
+  assert.equal(doc.agent["ship-controller"].permission.ship_task_start, "allow");
+  assert.equal(doc.agent["ship-controller"].permission.ship_task_report, "deny");
+  assert.equal(doc.agent["ship-controller"].permission.bash["rm -rf *"], "deny");
 });
 
 test("init: --force-root-config preserves JSONC key order when rewriting", async (t) => {
@@ -177,19 +187,23 @@ test("init: --force-root-config preserves JSONC key order when rewriting", async
     "opencode.jsonc",
     "// initial comment\n{\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"agent\": {\n    \"build\": {\n      \"permission\": {\n        \"delivery_merge\": \"ask\"\n      }\n    }\n  }\n}\n",
   );
-  const r = await runInit(repoRoot);
+  const r = await runInit(repoRoot, ["--force-root-config"]);
   assert.equal(r.code, 0, r.stderr);
   const out = readFileSync(join(repoRoot, "opencode.jsonc"), "utf8");
-  // The existing JSONC file already contains `delivery_merge: ask` (which the installer
-  // also wants). The planner should treat the entry as already-equal and leave the file
-  // alone apart from any other leaves it needs to add. The current implementation emits
-  // clean JSON; comments are not preserved. We assert the file round-trips through the
-  // order-preserving parser and still contains the expected installer permissions.
-  const parsed = JSON.parse(out);
+  // The existing JSONC file already contains `delivery_merge: ask`. The installer keeps
+  // the comment while ordering the wildcard deny before its explicit exceptions.
+  // Strip the leading `// initial comment\n` before JSON parsing.
+  const stripped = out.replace(/^\s*\/\/.*\n/, "");
+  const parsed = JSON.parse(stripped);
   assert.equal(parsed.$schema, "https://opencode.ai/config.json");
   assert.ok(parsed.agent?.build?.permission);
   assert.equal(parsed.agent.build.permission.delivery_merge, "ask");
   assert.equal(parsed.agent.build.permission.delivery_verify, "deny");
+  const worktreeRemoveFlag = "git worktree remove " + "--force *";
+  assert.equal(parsed.agent.build.permission.bash[worktreeRemoveFlag], "deny");
+  assert.match(out, /^\s*\/\/ initial comment/m);
+  const permissionKeys = Object.keys(parsed.agent.build.permission);
+  assert.ok(permissionKeys.indexOf("*") < permissionKeys.indexOf("delivery_merge"));
 });
 
 function hashOf(s) {

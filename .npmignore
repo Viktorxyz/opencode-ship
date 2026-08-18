@@ -1,0 +1,13 @@
+# Exclude archived non-GitHub seed files from the npm tarball.
+# The 1.1.2 contract is GitHub-only; the historical GitLab/local
+# companion templates live under archive/ and are not shipped.
+archive/
+dist-pkg/
+dist-pkg.prev/
+*.tgz
+*.tgz.sha256
+*.spdx.json
+*.qualification.json
+.opencode-ship/tmp/
+.worktrees/
+docs/release/

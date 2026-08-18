@@ -307,7 +307,7 @@ async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profil
   };
 }
 
-export async function commitInstall(preview, { json, command, fullSetupComplete = false }) {
+export async function commitInstall(preview, { json, command, fullSetupComplete = false, transactionEntries = [] }) {
   if (!preview.ok) {
     return {
       ok: false, command, plan: [], conflicts: [], summary: summarise([]),
@@ -360,6 +360,7 @@ export async function commitInstall(preview, { json, command, fullSetupComplete 
       relPath: rootPlan.relPath,
     });
   }
+  txPlan.push(...transactionEntries);
 
   const tx = await executePlan({
     repoRoot,
