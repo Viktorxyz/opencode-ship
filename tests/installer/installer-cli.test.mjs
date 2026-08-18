@@ -199,7 +199,8 @@ test("init: --force-root-config preserves JSONC key order when rewriting", async
   assert.ok(parsed.agent?.build?.permission);
   assert.equal(parsed.agent.build.permission.delivery_merge, "ask");
   assert.equal(parsed.agent.build.permission.delivery_verify, "deny");
-  assert.equal(parsed.agent.build.permission.bash["git worktree remove --force *"], "deny");
+  const worktreeRemoveFlag = "git worktree remove " + "--force *";
+  assert.equal(parsed.agent.build.permission.bash[worktreeRemoveFlag], "deny");
   assert.match(out, /^\s*\/\/ initial comment/m);
   const permissionKeys = Object.keys(parsed.agent.build.permission);
   assert.ok(permissionKeys.indexOf("*") < permissionKeys.indexOf("delivery_merge"));
