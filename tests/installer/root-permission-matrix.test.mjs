@@ -59,13 +59,34 @@ test("matrix: every shipped public tool has an explicit controller permission", 
   }
 });
 
-test("matrix: wildcard defaults are installed as fail-closed permission leaves", () => {
+test("matrix: task-level wildcard defaults are installed as fail-closed permission leaves", () => {
   const leaves = matrixLeafPointers();
   const byPointer = new Map(leaves.map((leaf) => [leaf.pointer, leaf.value]));
-  assert.equal(byPointer.get("/agent/build/permission/*"), "deny");
+  // The task-level wildcard is the documented boundary for
+  // subagent dispatch; the agent-level wildcard is NOT emitted
+  // because OpenCode's last-match-wins semantics would otherwise
+  // mask consumer-owned built-ins (read, edit, bash, …). Only
+  // explicit PUBLIC_TOOL_ID entries ship under the agent root.
   assert.equal(byPointer.get("/agent/build/permission/task/*"), "deny");
-  assert.equal(byPointer.get("/agent/ship-controller/permission/*"), "deny");
   assert.equal(byPointer.get("/agent/ship-controller/permission/task/*"), "deny");
+  assert.equal(byPointer.get("/agent/build/permission/*"), undefined,
+    "agent.build.permission/* must NOT be emitted — it would mask consumer built-ins");
+  assert.equal(byPointer.get("/agent/ship-controller/permission/*"), undefined,
+    "agent.ship-controller.permission/* must NOT be emitted for the same reason");
+});
+
+test("matrix: shipped public tools are explicitly denied on Build and ship-controller", () => {
+  const leaves = matrixLeafPointers();
+  const byPointer = new Map(leaves.map((leaf) => [leaf.pointer, leaf.value]));
+  for (const tool of EXPECTED_OPENCODE_SHIP_TOOL_IDS) {
+    // The public tool ids live under /agent/<name>/permission/<tool>
+    // because `toolPermissionMap` no longer emits the wildcard "*"
+    // entry; each tool has an explicit scalar leaf.
+    const buildPtr = `/agent/build/permission/${tool}`;
+    const ctrlPtr = `/agent/ship-controller/permission/${tool}`;
+    assert.equal(typeof byPointer.get(buildPtr), "string", `Build must record an explicit permission for ${tool}`);
+    assert.equal(typeof byPointer.get(ctrlPtr), "string", `ship-controller must record an explicit permission for ${tool}`);
+  }
 });
 
 test("matrix: bash policy is installed for Build and the controller", () => {

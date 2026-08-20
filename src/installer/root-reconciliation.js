@@ -247,6 +247,16 @@ function reconcileRecordsAfterTransition(descriptors, previousRecords) {
   return out;
 }
 
+function staleRecordsToRemove(previousRecords, descriptors) {
+  // A record is stale when its pointer is no longer in the desired
+  // descriptor set and the active profile still owns it (so core-
+  // scoped records for legacy consumers stay untouched). The
+  // reconciler calls this on install and on update so a release
+  // that drops a matrix leaf leaves no orphan pointer on disk.
+  const desired = new Set(descriptors.map((d) => d.pointer));
+  return previousRecords.filter((r) => r.scope === "engineering" && !desired.has(r.pointer));
+}
+
 function planInstallRoot({ doc, target, relPath, descriptors, previousRecords }) {
   // Promote `agent.plan.permission.edit` from a scalar string to an
   // object before apply so we can write the new glob underneath it
@@ -267,12 +277,32 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
       document: doc.value,
     };
   }
-  const sourceDoc = promotion.doc;
+  // Drop lock entries whose pointer is no longer in the desired
+  // descriptor set. This path removes a matrix leaf on upgrade
+  // (for example `/agent/build/permission/*` after the wildcard
+  // is dropped from the matrix); the prior value (or a leaf
+  // removal when the pointer never existed) restores the byte state.
+  const stale = staleRecordsToRemove(previousRecords, descriptors);
+  let sourceDoc = promotion.doc;
+  const staleEdits = [];
+  for (const r of stale) {
+    if (r.previous && r.previous.existed) {
+      sourceDoc = setPointer(sourceDoc, r.pointer, r.previous.value);
+      staleEdits.push({ kind: "restore", pointer: r.pointer, value: r.previous.value });
+    } else {
+      sourceDoc = removePointer(sourceDoc, r.pointer);
+      staleEdits.push({ kind: "remove", pointer: r.pointer });
+    }
+  }
+  // Filter the lock records so the next write does not re-add the
+  // stale pointers. `mergePointerRecords` will re-emit only what is
+  // still in `descriptors` or what is being applied this run.
+  const livePreviousRecords = previousRecords.filter((r) => !stale.some((s) => s.pointer === r.pointer));
   const result = applyOwnedPointers(sourceDoc, {
     pointerEntries: descriptors.map((d) => ({ pointer: d.pointer, strategy: d.strategy, value: d.value })),
     allowEqualValues: true,
   });
-  const edits = [];
+  const edits = [...staleEdits];
   for (const a of result.applied) edits.push({ kind: "create", pointer: a.pointer, value: a.value });
   for (const s of result.skipped) {
     if (s.reason === "already equal") continue;
@@ -305,11 +335,31 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
         pointerEdits.push({ pointer: promotion.record.pointer, op: /** @type {"delete"} */ ("delete") });
         pointerEdits.push({ pointer: promotion.record.pointer, value: promotion.record.previous.value, op: /** @type {"set"} */ ("set") });
       }
+      // Surface stale-pointer removals (matrix leaf dropped in the
+      // current release) as explicit edits so the byte output drops
+      // the orphan keys.
+      for (const e of staleEdits) {
+        if (e.kind === "restore") {
+          pointerEdits.push({ pointer: e.pointer, op: /** @type {"set"} */ ("set"), value: e.value });
+        } else {
+          pointerEdits.push({ pointer: e.pointer, op: /** @type {"delete"} */ ("delete") });
+        }
+      }
       bytes = applyJsoncEdits(doc.raw ?? "", pointerEdits);
     } else {
       const { value: sourceValue } = parseRootConfigPreservingOrder(doc.raw ?? "");
       if (sourceValue && typeof sourceValue === "object") {
         docForWrite = sourceValue;
+        // Apply stale-pointer removals first so the subsequent
+        // setPointer calls for the new descriptors do not resurrect
+        // an orphan key that lives under a still-present parent.
+        for (const e of staleEdits) {
+          if (e.kind === "restore") {
+            docForWrite = setPointer(docForWrite, e.pointer, e.value);
+          } else {
+            docForWrite = removePointer(docForWrite, e.pointer);
+          }
+        }
         // Apply promotion first so the subsequent setPointer calls
         // for the glob can walk into the parent object.
         if (promotion.record) {
@@ -327,7 +377,7 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
     } catch {
       bytes = Buffer.from(formatRootConfig(result.doc), "utf8");
     }
-  const records = mergePointerRecords(descriptors, previousRecords, result, doc.before);
+  const records = mergePointerRecords(descriptors, livePreviousRecords, result, doc.before);
   if (promotion.record) {
     records.push({
       pointer: promotion.record.pointer,
