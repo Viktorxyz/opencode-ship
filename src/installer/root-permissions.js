@@ -254,7 +254,7 @@ export const LEGACY_DELIVERY_POINTERS = [
  */
 export function matrixLeafPointers() {
   const matrix = rootPermissionMatrix();
-  /** @type {Array<{ pointer: string, strategy: "value", value: string | number, scope: "engineering" }>} */
+  /** @type {Array<{ pointer: string, strategy: "value", value: any, scope: "engineering" }>} */
   const out = [];
   out.push({ pointer: "/subagent_depth", strategy: "value", value: matrix.subagentDepth, scope: "engineering" });
   const agents = [
