@@ -2,6 +2,14 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## 1.1.4 — `ship-plan` primary planning agent
+
+> Branch: `feat/1.1.4-ship-plan`.
+
+- **Write-capable `ship-plan` planning agent.** OpenCode's built-in lowercase `plan` Tab injects a read-only reminder (`packages/opencode/src/session/prompt/plan.txt`) that cannot be bypassed by `opencode.json` permissions. The native experimental Plan mode (`OPENCODE_EXPERIMENTAL_PLAN_MODE`) is environment-only, dotenv autoload is disabled in the production binary, and plugins initialise after `RuntimeFlags` is constructed — there is no supported repo-local path to turn on the native workflow. From 1.1.4 the installer installs a new primary agent `ship-plan` (under `.opencode/agents/ship-plan.md`) and sets `agent.plan.disable: true`. `ship-plan` is write-capable but only under `.opencode/plans/*.md` (`edit["*"]: "deny"` with `.opencode/plans/*.md: "allow"` ordered last). Tab cycles to Build / ship-plan; the old read-only Plan identity is disabled so the UX is no longer confusing.
+- **`/agent/plan/disable` pointer.** New matrix leaf with `value: true`. Install / update set it; uninstall restores the previous value. The pointer is the single declaration that the installer owns; consumers who explicitly set `plan.disable: false` are surfaced as a conflict and refused.
+- **No native `plan_exit` or `Session.plan()` filename.** The replacement is deliberately not the experimental Plan workflow. There is no `plan_exit` tool, no canonical plan filename supplied by OpenCode, and no synthetic build-handoff message. If OpenCode eventually ships the per-agent `plan: true` proposal (`anomalyco/opencode#31868`), this agent can migrate onto the native facility cleanly.
+
 ## 1.1.3 — Tool permission regression + setup-ship-workflow loader
 
 > Branch: `fix/1.1.3-tool-permissions`. Hotfix on top of `1.1.2`.

@@ -70,6 +70,7 @@ const SUPER_SKILLS = [
 
 const ENGINEERING_AGENTS = [
   "ship-controller",
+  "ship-plan",
   "ship-planner",
   "ship-task-builder",
   "ship-task-reviewer",

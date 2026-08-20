@@ -26,7 +26,7 @@
  */
 
 import { pointerPath } from "./json-pointer.js";
-import { PLAN_EDIT_GLOB_POINTER, PLAN_EDIT_PLANS_GLOB_POINTER } from "./plan-mode-permissions.js";
+import { PLAN_EDIT_GLOB_POINTER, PLAN_EDIT_PLANS_GLOB_POINTER, PLAN_DISABLE_POINTER } from "./plan-mode-permissions.js";
 
 const ASK = "ask";
 const ALLOW = "allow";
@@ -292,5 +292,10 @@ export function matrixLeafPointers() {
   }
   out.push({ pointer: PLAN_EDIT_GLOB_POINTER, strategy: "value", value: "allow", scope: "engineering" });
   out.push({ pointer: PLAN_EDIT_PLANS_GLOB_POINTER, strategy: "value", value: "allow", scope: "engineering" });
+  // The built-in lowercase `plan` primary agent is disabled so the
+  // consumer's Tab Plan does not land on the read-only native
+  // reminder; we install the `ship-plan` primary agent as the
+  // write-capable replacement.
+  out.push({ pointer: PLAN_DISABLE_POINTER, strategy: "value", value: true, scope: "engineering" });
   return out;
 }
