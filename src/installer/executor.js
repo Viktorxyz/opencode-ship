@@ -159,8 +159,8 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
     migrationReport,
     allowUnowned: Boolean(replaceManaged),
   });
-  // From 1.1.2 the installer owns two leaf pointers inside the
-  // consumer's `agent.plan.permission` block:
+  // The installer owns two leaf pointers inside the consumer's
+  // `agent.plan.permission` block:
   //   /agent/plan/permission/edit/docs~1superpowers~1** = "allow"
   //   /agent/plan/permission/edit/.git~1opencode-ship~1plans~1** = "allow"
   // The whole /agent/plan/permission block is still consumer-owned;
