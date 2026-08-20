@@ -2,7 +2,7 @@
 
 > npm-distributed OpenCode installer and delivery plugin: a single command materialises the lifecycle plugin, reviewer/verifier agents, and skills into any consumer repository, with a recoverable lock and never silently overwrites managed files.
 >
-> **Status:** `1.1.2` is on `npm dist-tag latest` and is the first fully self-hosting release. It is the accepted successor of `1.1.1` (now deprecated). The `1.1.2 stabilization` line carried three rejected RCs (`1.1.2-rc.1`, `1.1.2-rc.2`, `1.1.2-rc.3`) before the stable candidate `1.1.2-rc.4` was promoted; see `docs/release/1.1.2-correction-plan.md` for the authoritative plan and issue #56 for the bounded evidence ledger. The `1.1.0` tag is immutable. Consumers of `opencode-delivery@0.1.x` should run `pnpm dlx opencode-ship@latest init` from the same checkout; migration recognises the legacy artifacts and adopts them when their bytes match.
+> **Status:** `1.1.3` is on `npm dist-tag latest` and supersedes the `1.1.2 stabilization` line. `1.1.2` published a `permission: { "*": "deny" }` leaf that masked the consumer-owned built-ins and broke `/setup-ship-workflow`; `1.1.3` drops the wildcard, adds a stale-pointer removal path so `update` cleans the orphan key on the first run, and makes the `/setup-ship-workflow` command self-loading. The `1.1.0` tag is immutable. Consumers of `opencode-delivery@0.1.x` should run `pnpm dlx opencode-ship@latest init` from the same checkout; migration recognises the legacy artifacts and adopts them when their bytes match.
 >
 > Consumers should use `opencode-ship@1.1.0` (or `@latest`) until `1.1.1` ships. The previous `1.0.0` is on `next`; consumers who pinned to `1.0.x` will continue to receive updates on that channel.
 

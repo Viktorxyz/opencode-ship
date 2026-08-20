@@ -2,6 +2,38 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## 1.1.3 — Tool permission regression + setup-ship-workflow loader
+
+> Branch: `fix/1.1.3-tool-permissions`. Hotfix on top of `1.1.2`.
+
+- **Drop the `*` wildcard from the Build / ship-controller tool
+  permission map.** `1.1.2` emitted a `permission: { "*": "deny" }`
+  leaf at the agent root, and OpenCode's last-match-wins semantics
+  masked the consumer-owned built-ins (`read`, `edit`, `bash`,
+  `glob`, `grep`, `list`, `skill`, `webfetch`, …). Symptom: the
+  Build agent kept only the ship/delivery tool subset, the
+  `setup-ship-workflow` skill was never auto-loaded because the
+  agent could not read its own `SKILL.md`, and the user was
+  prompted with `Skill install blocked: … untrusted-owner` because
+  the model tried to reinstall the locally-installed skill via
+  `ship_skill_install`. The fix is to deny only the explicit
+  `PUBLIC_TOOL_ID` set (plus `allow` / `ask`) and let consumer
+  built-ins stay consumer-owned.
+- **Drop leftover matrix leaves on install / update.** The
+  reconciler now diffs `previousRecords` against the current
+  descriptor set and removes pointers that the matrix no longer
+  emits (for example the dropped `/agent/build/permission/*`),
+  restoring the preinstall `previous` value or the leaf when no
+  previous existed. The byte output is updated for both JSON and
+  JSONC paths so `opencode-ship update` from `1.1.2` to `1.1.3`
+  cleans the orphan pointer on the first run.
+- **`/setup-ship-workflow` command is self-loading.** The command
+  wrapper now spells out the procedure: read the skill body from
+  `.opencode/skills/setup-ship-workflow/SKILL.md` and follow it.
+  Do not call `ship_skill_install` for this skill — it is
+  installed by `init` and the install path requires a trusted
+  npm-owner allowlist that `opencode-ship` does not satisfy.
+
 ## 1.1.2 — Stable: Plan Mode write access
 
 > Branch: `release/1.1.2`. Promoted from `1.1.2-rc.4` after dogfood.

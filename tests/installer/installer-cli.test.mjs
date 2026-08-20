@@ -171,9 +171,13 @@ test("init: --force-root-config creates a minimal opencode.json", async (t) => {
   assert.equal(doc.agent.build.permission.task["delivery-reviewer"], "allow");
   assert.equal(doc.agent.build.permission.task["delivery-verifier"], "allow");
   assert.equal(doc.subagent_depth, 2);
-  assert.equal(doc.agent.build.permission["*"], "deny");
+  // From 1.1.3 the agent-root wildcard is NOT emitted; consumer
+  // built-ins (read, edit, bash, …) must stay consumer-owned.
+  assert.equal(doc.agent.build.permission["*"], undefined,
+    "agent.build.permission/* must not be installed — it would mask consumer built-ins");
   assert.equal(doc.agent.build.permission.task["ship-controller"], "allow");
-  assert.equal(doc.agent["ship-controller"].permission["*"], "deny");
+  assert.equal(doc.agent["ship-controller"].permission["*"], undefined,
+    "agent.ship-controller.permission/* must not be installed for the same reason");
   assert.equal(doc.agent["ship-controller"].permission.ship_task_start, "allow");
   assert.equal(doc.agent["ship-controller"].permission.ship_task_report, "deny");
   assert.equal(doc.agent["ship-controller"].permission.bash["rm -rf *"], "deny");

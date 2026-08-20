@@ -155,7 +155,17 @@ function denyMap(globs) {
 }
 
 function toolPermissionMap(allow, ask) {
-  const out = { "*": DENY };
+  // The tool permission map is deny-by-default for every
+  // PUBLIC_TOOL_ID and explicit allow/ask for the surface. There is
+  // no wildcard "*" entry: OpenCode's last-match-wins semantics
+  // would otherwise mask the consumer-owned built-ins (read, edit,
+  // bash, glob, grep, list, skill, etc.) and leave the Build agent
+  // with only the allow/ask subset, which breaks the setup
+  // workflow (the agent cannot read its own SKILL.md or invoke the
+  // `opencode-ship setup-complete` CLI). The task-level wildcard
+  // above (`task: { "*": "deny" }`) is preserved because that is
+  // the documented boundary for subagent dispatch.
+  const out = {};
   for (const id of PUBLIC_TOOL_IDS) out[id] = DENY;
   for (const id of allow) out[id] = ALLOW;
   for (const id of ask) out[id] = ASK;
