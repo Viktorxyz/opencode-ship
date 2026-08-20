@@ -28,7 +28,7 @@
  *
  * Installer ownership:
  *
- *   From 1.1.2 the installer owns TWO leaf pointers inside
+ *   The installer owns two leaf pointers inside
  *   `agent.plan.permission`:
  *
  *     - /agent/plan/permission/edit/docs~1superpowers~1** = "allow"

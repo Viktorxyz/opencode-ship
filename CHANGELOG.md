@@ -2,9 +2,9 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
-## 1.1.2-rc.4 — Plan Mode write access
+## 1.1.2 — Stable: Plan Mode write access
 
-> Branch: `release/1.1.2-rc.4`.
+> Branch: `release/1.1.2`. Promoted from `1.1.2-rc.4` after dogfood.
 
 - **Plan Mode write access for brainstorming / writing-plans products.**
   The installer now owns two leaf pointers under
@@ -22,6 +22,13 @@ All notable changes to `opencode-ship` are recorded here.
   scalar so uninstall can restore it byte-for-byte. A consumer
   that explicitly sets `docs/superpowers/**: "deny"` is a
   fail-closed conflict.
+
+- **Full self-hosting contract corrections** carried over from
+  `1.1.2-rc.3`: durable plan store, Plan Mode permission
+  consumer-ownership, workflow state machine coverage, parallel
+  Standards/Spec Ready gate, trusted-auto skill discovery, and the
+  `/setup-ship-workflow` single-skill contract. See the
+  `1.1.2-rc.*` entries below for the bounded evidence ledger.
 
 ## 1.1.2-rc.3 — Complete contract correction (round 2)
 
