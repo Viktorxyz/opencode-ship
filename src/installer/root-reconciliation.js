@@ -284,6 +284,7 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
   // removal when the pointer never existed) restores the byte state.
   const stale = staleRecordsToRemove(previousRecords, descriptors);
   let sourceDoc = promotion.doc;
+  /** @type {Array<{ kind: "restore", pointer: string, value: any } | { kind: "remove", pointer: string }>} */
   const staleEdits = [];
   for (const r of stale) {
     if (r.previous && r.previous.existed) {
@@ -302,6 +303,7 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
     pointerEntries: descriptors.map((d) => ({ pointer: d.pointer, strategy: d.strategy, value: d.value })),
     allowEqualValues: true,
   });
+  /** @type {Array<{ kind: "create", pointer: string, value: any } | { kind: "restore", pointer: string, value: any } | { kind: "remove", pointer: string } | { kind: "conflict", pointer: string, reason: string, existing?: any, desired?: any }>} */
   const edits = [...staleEdits];
   for (const a of result.applied) edits.push({ kind: "create", pointer: a.pointer, value: a.value });
   for (const s of result.skipped) {
