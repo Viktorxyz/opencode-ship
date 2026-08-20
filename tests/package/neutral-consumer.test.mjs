@@ -108,7 +108,7 @@ test("neutral: engineering init without explicit --profile defaults to engineeri
   assert.equal(lock.manager.profile, "engineering");
 });
 
-test("neutral: engineering init does not record the Plan Mode pointer (consumer-owned)", async (t) => {
+test("neutral: engineering init records the docs/superpowers Plan edit glob but NOT the parent block", async (t) => {
   const { tmp, consumer, packageDir } = await packAndExtract();
   t.after(async () => rm(tmp, { recursive: true, force: true }));
   const origin = await makeBareOrigin();
@@ -122,14 +122,22 @@ test("neutral: engineering init does not record the Plan Mode pointer (consumer-
     "--planner-model", "fake/strong-planner",
     "--builder-model", "fake/cheap-builder",
     "--final-reviewer-model", "fake/strong-reviewer",
-    "--force-config",
+    "--force-root-config",
   ], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
   const pointers = (lock.manager?.rootDocuments ?? []).flatMap((d) => d.pointers ?? []);
-  const planMode = pointers.find((p) => p.pointer === "/agent/plan/permission");
-  assert.equal(planMode, undefined,
-    "engineering init must NOT record a Plan Mode pointer; the consumer owns it");
+  const planBlock = pointers.find((p) => p.pointer === "/agent/plan/permission");
+  assert.equal(planBlock, undefined,
+    "engineering init must NOT take ownership of the whole /agent/plan/permission block");
+  const planGlob = pointers.find((p) => p.pointer === "/agent/plan/permission/edit/docs~1superpowers~1**");
+  assert.ok(planGlob, "docs/superpowers/** must be a managed leaf pointer");
+  assert.equal(planGlob.previous.existed, false, "fresh install: docs/superpowers/** was not present");
+  // --force-root-config created opencode.json with the two Plan globs.
+  const rootPath = join(repo, "opencode.json");
+  const root = JSON.parse(readFileSync(rootPath, "utf8"));
+  assert.equal(root.agent.plan.permission.edit["docs/superpowers/**"], "allow");
+  assert.equal(root.agent.plan.permission.edit[".git/opencode-ship/plans/**"], "allow");
 });
 
 test("neutral: uninstall removes the lock and the managed files", async (t) => {

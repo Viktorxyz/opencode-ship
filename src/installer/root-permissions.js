@@ -26,6 +26,7 @@
  */
 
 import { pointerPath } from "./json-pointer.js";
+import { PLAN_EDIT_GLOB_POINTER, PLAN_EDIT_PLANS_GLOB_POINTER } from "./plan-mode-permissions.js";
 
 const ASK = "ask";
 const ALLOW = "allow";
@@ -231,6 +232,14 @@ export const LEGACY_DELIVERY_POINTERS = [
  * matrix automatically propagates to the install/update/uninstall
  * flows.
  *
+ * The Plan Mode write globs (`docs/superpowers/**` and the
+ * internal `.git/opencode-ship/plans/**`) are appended to the
+ * matrix leaf list so the reconciler applies them through the
+ * same code path. The whole `/agent/plan/permission` block
+ * remains consumer-owned; promotion of `edit` from a scalar to
+ * an object happens in `promotePlanEditIfString` and is recorded
+ * as a separate "promotion" record by the reconciler.
+ *
  * @returns {Array<{ pointer: string, strategy: "value", value: string | number, scope: "engineering" }>}
  */
 export function matrixLeafPointers() {
@@ -271,5 +280,7 @@ export function matrixLeafPointers() {
       }
     }
   }
+  out.push({ pointer: PLAN_EDIT_GLOB_POINTER, strategy: "value", value: "allow", scope: "engineering" });
+  out.push({ pointer: PLAN_EDIT_PLANS_GLOB_POINTER, strategy: "value", value: "allow", scope: "engineering" });
   return out;
 }

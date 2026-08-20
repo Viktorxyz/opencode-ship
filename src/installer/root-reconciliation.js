@@ -39,7 +39,7 @@ import {
 } from "./root-config.js";
 import { getPointer, setPointer, removePointer, stableStringify } from "./json-pointer.js";
 import { bytesHashString } from "./hash.js";
-import { planModePermissions } from "./plan-mode-permissions.js";
+import { planModePermissions, promotePlanEditIfString, PLAN_EDIT_GLOB_POINTER, PLAN_EDIT_PARENT_POINTER } from "./plan-mode-permissions.js";
 import { matrixLeafPointers } from "./root-permissions.js";
 import { applyJsoncEdits, diffPointers } from "./jsonc-edit.js";
 import { parse as jsoncParse } from "jsonc-parser";
@@ -79,10 +79,20 @@ export function desiredPointersForProfile(profile) {
   // permission pointers are engineering-scoped. Legacy core
   // pointer records in existing locks are read-promoted too.
   //
-  // The Plan Mode pointer is consumer-owned from the current release: the
-  // installer no longer injects a permission block under
-  // `/agent/plan/permission`. The consumer keeps whatever value
-  // is already there (or none).
+  // From 1.1.2 the installer owns two leaf pointers inside the
+  // consumer's `agent.plan.permission` block:
+  //
+  //   /agent/plan/permission/edit/docs~1superpowers~1** = "allow"
+  //   /agent/plan/permission/edit/.git~1opencode-ship~1plans~1** = "allow"
+  //
+  // Both globs are required so the OpenCode Plan mode can write
+  // brainstorming / writing-plans / wayfinder output. The whole
+  // `/agent/plan/permission` block is still consumer-owned; the
+  // consumer may keep / replace / extend any other key. When the
+  // consumer previously declared `agent.plan.permission.edit` as a
+  // scalar string, the installer promotes it to an object on
+  // apply and records the previous value so uninstall can restore
+  // it.
   //
   // The canonical engineering pointers are the matrix-derived leaf
   // pointers; the legacy delivery_* pointers are folded in for
@@ -238,7 +248,27 @@ function reconcileRecordsAfterTransition(descriptors, previousRecords) {
 }
 
 function planInstallRoot({ doc, target, relPath, descriptors, previousRecords }) {
-  const result = applyOwnedPointers(doc.value, {
+  // Promote `agent.plan.permission.edit` from a scalar string to an
+  // object before apply so we can write the new glob underneath it
+  // without losing the consumer's original value. A conflict is
+  // surfaced when the consumer has explicitly set the glob to
+  // "deny" — the installer refuses to overwrite.
+  const promotion = promotePlanEditIfString(doc.value);
+  if (promotion.record && promotion.record.conflict) {
+    return {
+      kind: "conflict",
+      op: "root-config",
+      target,
+      relPath,
+      reason: `consumer-owned Plan edit glob is set to deny: ${promotion.record.pointer}`,
+      edits: [{ kind: "conflict", pointer: promotion.record.pointer, reason: "consumer-denied" }],
+      pointerRecords: previousRecords,
+      format: doc.format,
+      document: doc.value,
+    };
+  }
+  const sourceDoc = promotion.doc;
+  const result = applyOwnedPointers(sourceDoc, {
     pointerEntries: descriptors.map((d) => ({ pointer: d.pointer, strategy: d.strategy, value: d.value })),
     allowEqualValues: true,
   });
@@ -248,7 +278,7 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
     if (s.reason === "already equal") continue;
     edits.push({ kind: "conflict", pointer: s.pointer, reason: s.reason, existing: s.existing, desired: s.desired });
   }
-  const reorderPointers = equalExceptionsBeforeNewWildcard(doc.value, descriptors);
+  const reorderPointers = equalExceptionsBeforeNewWildcard(sourceDoc, descriptors);
   let docForWrite = result.doc;
   for (const descriptor of reorderPointers) {
     docForWrite = setPointer(removePointer(docForWrite, descriptor.pointer), descriptor.pointer, descriptor.value);
@@ -268,11 +298,23 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
         pointerEdits.push({ pointer: descriptor.pointer, op: "delete" });
         pointerEdits.push({ pointer: descriptor.pointer, value: descriptor.value, op: "set" });
       }
+      // Replay the promotion as an explicit edit so the consumer's
+      // scalar edit is replaced with the object shape that carries
+      // the new globs.
+      if (promotion.record) {
+        pointerEdits.push({ pointer: promotion.record.pointer, op: /** @type {"delete"} */ ("delete") });
+        pointerEdits.push({ pointer: promotion.record.pointer, value: promotion.record.previous.value, op: /** @type {"set"} */ ("set") });
+      }
       bytes = applyJsoncEdits(doc.raw ?? "", pointerEdits);
     } else {
       const { value: sourceValue } = parseRootConfigPreservingOrder(doc.raw ?? "");
       if (sourceValue && typeof sourceValue === "object") {
         docForWrite = sourceValue;
+        // Apply promotion first so the subsequent setPointer calls
+        // for the glob can walk into the parent object.
+        if (promotion.record) {
+          docForWrite = setPointer(docForWrite, promotion.record.pointer, { "*": promotion.record.previous.value });
+        }
         for (const a of result.applied) {
           docForWrite = setPointer(docForWrite, a.pointer, a.value);
         }
@@ -286,6 +328,16 @@ function planInstallRoot({ doc, target, relPath, descriptors, previousRecords })
       bytes = Buffer.from(formatRootConfig(result.doc), "utf8");
     }
   const records = mergePointerRecords(descriptors, previousRecords, result, doc.before);
+  if (promotion.record) {
+    records.push({
+      pointer: promotion.record.pointer,
+      strategy: "value",
+      scope: "engineering",
+      installedSha256: null,
+      previous: promotion.record.previous,
+      promotion: true,
+    });
+  }
   return {
     kind: edits.some((e) => e.kind === "conflict") ? "conflict" : (edits.length ? "update" : "noop"),
     op: "root-config",
@@ -328,6 +380,22 @@ function planProfileTransitionRoot({ doc, target, relPath, descriptors, previous
   //                         the pointer entirely if it never existed).
   const desired = descriptors;
 
+  // Promote Plan edit scalar -> object before apply.
+  const promotion = promotePlanEditIfString(doc.value);
+  if (promotion.record && promotion.record.conflict) {
+    return {
+      kind: "conflict",
+      op: "root-config",
+      target,
+      relPath,
+      reason: `consumer-owned Plan edit glob is set to deny: ${promotion.record.pointer}`,
+      edits: [{ kind: "conflict", pointer: promotion.record.pointer, reason: "consumer-denied" }],
+      pointerRecords: previousRecords,
+      format: doc.format,
+      document: doc.value,
+    };
+  }
+
   // Fail-closed drift check: every pointer we are about to remove
   // must still match the `installedSha256` recorded at install time.
   // If the consumer has modified a managed pointer since the last
@@ -361,7 +429,7 @@ function planProfileTransitionRoot({ doc, target, relPath, descriptors, previous
     };
   }
 
-  let next = JSON.parse(JSON.stringify(doc.value));
+  let next = JSON.parse(JSON.stringify(promotion.doc));
   const edits = [];
   const mergedRecords = previousRecords.map((r) => ({ ...r }));
   const recordIndex = new Map(mergedRecords.map((r, idx) => [r.pointer, idx]));
@@ -464,6 +532,10 @@ function planProfileTransitionRoot({ doc, target, relPath, descriptors, previous
           pointerEdits.push({ pointer: e.pointer, op: /** @type {"delete"} */ ("delete") });
         }
       }
+      if (promotion.record) {
+        pointerEdits.push({ pointer: promotion.record.pointer, op: /** @type {"delete"} */ ("delete") });
+        pointerEdits.push({ pointer: promotion.record.pointer, value: promotion.record.previous.value, op: /** @type {"set"} */ ("set") });
+      }
       bytes = applyJsoncEdits(doc.raw ?? "", pointerEdits);
       const reparsed = jsoncParse(bytes.toString("utf8"), undefined, { allowTrailingComma: true });
       docForWrite = collapseEmptyAncestors(reparsed) ?? reparsed;
@@ -471,6 +543,9 @@ function planProfileTransitionRoot({ doc, target, relPath, descriptors, previous
       const { value: sourceValue } = parseRootConfigPreservingOrder(doc.raw ?? "");
       if (sourceValue && typeof sourceValue === "object") {
         docForWrite = sourceValue;
+        if (promotion.record) {
+          docForWrite = setPointer(docForWrite, promotion.record.pointer, { "*": promotion.record.previous.value });
+        }
         for (const e of edits) {
           if (e.kind === "create" || e.kind === "restore") {
             docForWrite = setPointer(docForWrite, e.pointer, e.value);
@@ -484,6 +559,18 @@ function planProfileTransitionRoot({ doc, target, relPath, descriptors, previous
     }
   } catch {
     bytes = Buffer.from(formatRootConfig(collapseEmptyAncestors(next) ?? next), "utf8");
+  }
+  if (promotion.record) {
+    if (!recordIndex.has(promotion.record.pointer)) {
+      mergedRecords.push({
+        pointer: promotion.record.pointer,
+        strategy: "value",
+        scope: "engineering",
+        installedSha256: null,
+        previous: promotion.record.previous,
+        promotion: true,
+      });
+    }
   }
   return {
     kind: edits.some((e) => e.kind === "conflict") ? "conflict" : (edits.some((e) => e.kind === "create" || e.kind === "remove" || e.kind === "restore") ? "update" : "noop"),
@@ -559,7 +646,14 @@ function planUninstallRoot({ target, relPath, previousRecords, previousDocument 
 
   let doc = docResult.value;
   const edits = [];
-  for (const rec of previousRecords) {
+  // Sort records by depth descending so deeply-nested leaves are
+  // removed before their intermediate parents are restored. The
+  // pointer layer would otherwise crash / silently corrupt a
+  // restored scalar parent over the still-present child keys.
+  const sortedRecords = [...previousRecords].sort((a, b) => {
+    return b.pointer.split("/").length - a.pointer.split("/").length;
+  });
+  for (const rec of sortedRecords) {
     if (rec.previous && rec.previous.existed) {
       doc = setPointer(doc, rec.pointer, rec.previous.value);
       edits.push({ kind: "restore", pointer: rec.pointer, value: rec.previous.value });

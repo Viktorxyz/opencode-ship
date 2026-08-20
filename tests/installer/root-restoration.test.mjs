@@ -118,7 +118,7 @@ test("lock v4: root pointer records carry a scope and previous value", async (t)
   assert.deepEqual(deliveryVerify.previous, { existed: true, value: "deny" });
 });
 
-test("engineering install preserves the consumer's Plan Mode permission", async (t) => {
+test("engineering install preserves the consumer's Plan Mode permission and adds the docs/superpowers glob", async (t) => {
   const { parent, repoRoot } = await makeProject();
   t.after(async () => cleanProject(parent));
   const rootPath = resolve(repoRoot, "opencode.json");
@@ -138,9 +138,16 @@ test("engineering install preserves the consumer's Plan Mode permission", async 
   });
   assert.equal(eng.exitCode, 0, `engineering init: ${JSON.stringify(eng)}`);
   const afterEng = JSON.parse(readFileSync(rootPath, "utf8"));
-  // The installer must NOT touch the Plan Mode permission block.
-  assert.deepEqual(afterEng.agent.plan.permission, original.agent.plan.permission,
-    "consumer-owned Plan Mode permission must survive install");
+  // The installer must NOT touch the other Plan Mode keys.
+  assert.equal(afterEng.agent.plan.permission.bash, original.agent.plan.permission.bash,
+    "consumer bash setting must survive install");
+  assert.equal(afterEng.agent.plan.permission.edit["docs/plans/**"], original.agent.plan.permission.edit["docs/plans/**"],
+    "consumer edit glob must survive install");
+  // The installer adds the docs/superpowers/** and .git/opencode-ship/plans/** globs.
+  assert.equal(afterEng.agent.plan.permission.edit["docs/superpowers/**"], "allow",
+    "installer must add the docs/superpowers/** allow glob");
+  assert.equal(afterEng.agent.plan.permission.edit[".git/opencode-ship/plans/**"], "allow",
+    "installer must add the .git/opencode-ship/plans/** allow glob");
   // The original delivery_verify value must be preserved.
   assert.equal(afterEng.agent.build.permission.delivery_verify, "deny");
 });
@@ -409,4 +416,93 @@ test("uninstall with --purge-config transactionally removes ship.config.json", a
   assert.equal(unin.exitCode, 0, JSON.stringify(unin));
   assert.equal(e(cfgPath), false, "--purge-config must transactionally remove ship.config.json");
   assert.equal(e(lockPath(repoRoot)), false, "uninstall must also remove the lock");
+});
+
+test("engineering install promotes scalar agent.plan.permission.edit to an object", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const rootPath = resolve(repoRoot, "opencode.json");
+  const original = { agent: { plan: { permission: { edit: "deny" } } } };
+  await writeFile(rootPath, JSON.stringify(original, null, 2) + "\n");
+  const { runInit } = await import("../../src/installer/commands/init.js");
+  const eng = await runInit({
+    json: true,
+    rootPath: repoRoot,
+    profile: "engineering",
+    forceConfig: true,
+    models: {
+      planner: "fake/strong-planner",
+      builder: "fake/cheap-builder",
+      finalReviewer: "fake/strong-reviewer",
+    },
+  });
+  assert.equal(eng.exitCode, 0, `engineering init: ${JSON.stringify(eng)}`);
+  const afterEng = JSON.parse(readFileSync(rootPath, "utf8"));
+  // The scalar must have been promoted to an object with the
+  // wildcard preserved and the new allow glob added under it.
+  assert.equal(typeof afterEng.agent.plan.permission.edit, "object", "scalar must be promoted to object");
+  assert.equal(afterEng.agent.plan.permission.edit["*"], "deny", "wildcard retains the original scalar");
+  assert.equal(afterEng.agent.plan.permission.edit["docs/superpowers/**"], "allow", "new glob is added");
+  assert.equal(afterEng.agent.plan.permission.edit[".git/opencode-ship/plans/**"], "allow", "new glob is added");
+});
+
+test("engineering install refuses when the consumer explicitly denies the docs/superpowers glob", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const rootPath = resolve(repoRoot, "opencode.json");
+  const original = { agent: { plan: { permission: { edit: { "docs/superpowers/**": "deny" } } } } };
+  await writeFile(rootPath, JSON.stringify(original, null, 2) + "\n");
+  const { runInit } = await import("../../src/installer/commands/init.js");
+  const eng = await runInit({
+    json: true,
+    rootPath: repoRoot,
+    profile: "engineering",
+    forceConfig: true,
+    models: {
+      planner: "fake/strong-planner",
+      builder: "fake/cheap-builder",
+      finalReviewer: "fake/strong-reviewer",
+    },
+  });
+  assert.notEqual(eng.exitCode, 0, `engineering init must fail when the consumer denies the glob: ${JSON.stringify(eng)}`);
+  const bytes = readFileSync(rootPath, "utf8");
+  // The consumer's denial must survive the refused install.
+  assert.equal(bytes, JSON.stringify(original, null, 2) + "\n",
+    "consumer file must be byte-identical after a refused install");
+});
+
+test("uninstall restores the original scalar agent.plan.permission.edit byte-by-byte", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const rootPath = resolve(repoRoot, "opencode.json");
+  const original = {
+    agent: {
+      plan: { permission: { edit: "deny" } },
+      build: { permission: { delivery_verify: "deny" } },
+    },
+  };
+  const originalBytes = JSON.stringify(original, null, 2) + "\n";
+  await writeFile(rootPath, originalBytes);
+  const { runInit } = await import("../../src/installer/commands/init.js");
+  const { runUninstall } = await import("../../src/installer/commands/uninstall.js");
+  const init = await runInit({
+    json: true,
+    rootPath: repoRoot,
+    profile: "engineering",
+    forceConfig: true,
+    models: {
+      planner: "fake/strong-planner",
+      builder: "fake/cheap-builder",
+      finalReviewer: "fake/strong-reviewer",
+    },
+  });
+  assert.equal(init.exitCode, 0, JSON.stringify(init));
+  const afterBytes = readFileSync(rootPath, "utf8");
+  assert.notEqual(afterBytes, originalBytes, "install must have modified the file");
+  const unin = await runUninstall({ json: true, rootPath: repoRoot });
+  assert.equal(unin.exitCode, 0, JSON.stringify(unin));
+  const restoredBytes = readFileSync(rootPath, "utf8");
+  assert.equal(restoredBytes, originalBytes,
+    "uninstall must restore the original scalar edit byte-for-byte");
+  assert.equal(existsSync(lockPath(repoRoot)), false, "uninstall must remove the lock");
 });

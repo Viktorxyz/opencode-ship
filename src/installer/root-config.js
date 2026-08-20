@@ -23,7 +23,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { setPointer, getPointer, stableStringify } from "./json-pointer.js";
 import { bytesHashString } from "./hash.js";
-import { planModePermissions } from "./plan-mode-permissions.js";
+import { planModePermissions, PLAN_EDIT_GLOB, PLAN_EDIT_PLANS_GLOB } from "./plan-mode-permissions.js";
 
 export const POINTER_ENTRIES = [
   {
@@ -262,10 +262,24 @@ export function planModeBlock() {
  * Synthesise the consumer-owned root shell. The reconciler applies
  * every installer-owned permission descriptor in canonical order so
  * wildcard deny rules precede their explicit exceptions.
+ *
+ * The two Plan `edit` globs are seeded eagerly so the very first
+ * install does not need a separate promotion step; the reconciler
+ * treats them as already-applied and skips them during install.
  */
 export function synthesizeDefaultRootConfig() {
   return {
     $schema: "https://opencode.ai/config.json",
+    agent: {
+      plan: {
+        permission: {
+          edit: {
+            [PLAN_EDIT_GLOB]: "allow",
+            [PLAN_EDIT_PLANS_GLOB]: "allow",
+          },
+        },
+      },
+    },
   };
 }
 
