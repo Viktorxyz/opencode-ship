@@ -2,6 +2,15 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## 1.1.5 — `ship-plan` is product-only
+
+> Branch: `feat/1.1.5-ship-plan-prompt`.
+
+- **`ship-plan` prompt is product-only.** `1.1.4` shipped the `ship-plan` primary agent with a generic "ask clarifying questions when tradeoffs need the user's call" prompt and a "tell the user the file path and ask for confirmation before any edits" step. Both leaked workflow concerns into the chat: the model asked "open GitHub issues 0–6 or first Task 0 (commit /final)", "use this Tab (Build is for implementation)", and surfaced permission-glob internals ("`docs/superpowers/plans/` is deny; allowlist is `.opencode/plans/*.md`"). The Plan tab is the **product** half of the workflow; the user is there to talk about the product, not be taught the workflow. The rewrite replaces those lines with a strict contract: the prompt is allowed to ask only product questions (scope, UX, who it is for, what done looks like) and one final product question ("does the plan match the product you want?") before stopping. The prompt never asks how to run the work (issues vs Task N, subagent vs inline, Tab / Build, `ship-deliver`, "what next"), never mentions permission globs / deny lists / allowlists, never creates GitHub issues, never claims OpenCode's native `plan_exit`, and never offers to implement.
+- **Handoff is a file, not a chat menu.** The Plan tab writes `.opencode/plans/<​filename>.md` and stops. A later Build session is told `implement this plan <path>` (or `implement issue N` for the Issue path). The Plan tab does not offer "which approach?" or "subagent vs inline" — those are upstream Superpowers choices that ship does not copy. If a PR needs `Closes #N`, that issue is created by Build (`delivery_issue`), not by Plan.
+- **Subagent dispatch is internal.** `ship-plan` keeps its `task: explore` / `general` allowlist so it can dispatch read-only investigators and write scratch notes, but the prompt no longer asks the user whether to use subagents. The decision is made by the planning agent itself from the size of the request.
+- **`tests/package/neutral-consumer.test.mjs` regression.** The post-init probe now asserts the new prompt lines are present and the old workflow-leaking lines are absent. The 1.1.3 stale-record removal path is unchanged, so `opencode-ship update` from prior 1.1.x installs still cleans the leftover `*` wildcards the same way it did before this release.
+
 ## 1.1.4 — `ship-plan` primary planning agent
 
 > Branch: `feat/1.1.4-ship-plan`.

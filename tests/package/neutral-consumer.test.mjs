@@ -155,6 +155,32 @@ test("neutral: engineering init records the docs/superpowers Plan edit glob but 
   assert.match(shipPlan, /mode:\s*primary/, "ship-plan must be a primary agent");
   assert.match(shipPlan, /\.opencode\/plans\/\*\.md/, "ship-plan must allow .opencode/plans/*.md");
   assert.match(shipPlan, /^\s*edit:\s*$/m, "ship-plan must scope edit permission");
+  // From 1.1.5 the ship-plan prompt is product-only: it talks about
+  // the product, never about the workflow. The prompt must not
+  // ask the user how to run the work (issues vs Task N, subagent vs
+  // inline, "what next", Tab/Build), must not mention permission
+  // globs or deny lists, must not offer to implement, and must
+  // never claim OpenCode's native `plan_exit`.
+  assert.match(shipPlan, /talk about the product/i,
+    "ship-plan prompt must declare it talks about the product only");
+  assert.match(shipPlan, /whether the plan matches the product/i,
+    "ship-plan prompt must end with a product question, not a workflow one");
+  assert.match(shipPlan, /Never ask how to run the work/i,
+    "ship-plan prompt must forbid workflow questions");
+  assert.match(shipPlan, /Never mention permission globs/i,
+    "ship-plan prompt must not surface permission internals");
+  assert.match(shipPlan, /Never create GitHub issues/i,
+    "ship-plan prompt must not create GitHub issues");
+  assert.match(shipPlan, /Never offer to implement/i,
+    "ship-plan prompt must not offer to implement");
+  assert.match(shipPlan, /Never claim OpenCode's native `plan_exit`/,
+    "ship-plan prompt must not claim plan_exit");
+  assert.doesNotMatch(shipPlan, /Which approach/,
+    "ship-plan prompt must not copy the Superpowers Which approach question");
+  assert.doesNotMatch(shipPlan, /Build is for implementation/,
+    "ship-plan prompt must not tell the user to switch to Build");
+  assert.doesNotMatch(shipPlan, /What you do[\s\S]*?use this Tab/i,
+    "ship-plan prompt must not tell the user which tab to use");
 });
 
 test("neutral: uninstall removes the lock and the managed files", async (t) => {
