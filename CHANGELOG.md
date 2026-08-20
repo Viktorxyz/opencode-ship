@@ -2,7 +2,9 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
-## Unreleased
+## 1.1.2-rc.4 — Plan Mode write access
+
+> Branch: `release/1.1.2-rc.4`.
 
 - **Plan Mode write access for brainstorming / writing-plans products.**
   The installer now owns two leaf pointers under

@@ -2,7 +2,7 @@
 
 > npm-distributed OpenCode installer and delivery plugin: a single command materialises the lifecycle plugin, reviewer/verifier agents, and skills into any consumer repository, with a recoverable lock and never silently overwrites managed files.
 >
-> **Status:** `1.1.1` is on `npm dist-tag latest`. The `1.1.2` stabilization line is in progress on the `fix/1.1.2-rc.3-contract` branch. `1.1.2-rc.1` and `1.1.2-rc.2` are published on `next` but are rejected, incomplete candidates; the next candidate is `1.1.2-rc.3`. Once `1.1.2` ships it becomes the first fully self-hosting release and `1.1.1` is deprecated. The `1.1.0` tag is immutable. See `docs/release/1.1.2-correction-plan.md` for the authoritative plan and issue #56 for the bounded evidence ledger.
+> **Status:** `1.1.1` is on `npm dist-tag latest`. The `1.1.2` stabilization line is in progress on the `release/1.1.2-rc.4` branch of the `1.1.2 stabilization`. `1.1.2-rc.1`, `1.1.2-rc.2`, and `1.1.2-rc.3` are published on `next` but are rejected, incomplete candidates; the next candidate is `1.1.2-rc.4`, adding the Plan Mode write access required by the brainstorming / writing-plans / wayfinder skills. Once `1.1.2` ships it becomes the first fully self-hosting release and `1.1.1` is deprecated. The `1.1.0` tag is immutable. See `docs/release/1.1.2-correction-plan.md` for the authoritative plan and issue #56 for the bounded evidence ledger.
 >
 > Consumers should use `opencode-ship@1.1.0` (or `@latest`) until `1.1.1` ships. The previous `1.0.0` is on `next`; consumers who pinned to `1.0.x` will continue to receive updates on that channel.
 
