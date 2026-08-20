@@ -58,6 +58,7 @@ export const PLAN_EDIT_PLANS_GLOB = PLANS_GLOB;
 export const PLAN_EDIT_GLOB_POINTER = "/agent/plan/permission/edit/docs~1superpowers~1**";
 export const PLAN_EDIT_PLANS_GLOB_POINTER = "/agent/plan/permission/edit/.git~1opencode-ship~1plans~1**";
 export const PLAN_EDIT_PARENT_POINTER = "/agent/plan/permission/edit";
+export const PLAN_DISABLE_POINTER = "/agent/plan/disable";
 
 /**
  * Build the Plan Mode permission object. Returned as a plain

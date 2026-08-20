@@ -127,6 +127,10 @@ test("neutral: engineering init records the docs/superpowers Plan edit glob but 
   assert.equal(r.status, 0, r.stderr);
   const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
   const pointers = (lock.manager?.rootDocuments ?? []).flatMap((d) => d.pointers ?? []);
+  const planDisable = pointers.find((p) => p.pointer === "/agent/plan/disable");
+  assert.ok(planDisable, "/agent/plan/disable must be a managed leaf pointer");
+  assert.equal(planDisable.previous.existed, false,
+    "fresh install: /agent/plan/disable was not present");
   const planBlock = pointers.find((p) => p.pointer === "/agent/plan/permission");
   assert.equal(planBlock, undefined,
     "engineering init must NOT take ownership of the whole /agent/plan/permission block");
@@ -138,6 +142,19 @@ test("neutral: engineering init records the docs/superpowers Plan edit glob but 
   const root = JSON.parse(readFileSync(rootPath, "utf8"));
   assert.equal(root.agent.plan.permission.edit["docs/superpowers/**"], "allow");
   assert.equal(root.agent.plan.permission.edit[".git/opencode-ship/plans/**"], "allow");
+  // From 1.1.4 the built-in lowercase `plan` agent is disabled
+  // and the installer-owned `ship-plan` primary agent lands on
+  // disk. --force-root-config emits `plan.disable` but does not
+  // synthesize a ship-plan entry; the .md agent file is the
+  // discovery surface and OpenCode picks it up automatically.
+  assert.equal(root.agent.plan.disable, true,
+    "engineering init must disable the built-in lowercase `plan` primary agent");
+  assert.ok(existsSync(join(repo, ".opencode/agents/ship-plan.md")),
+    "engineering init must install the ship-plan agent file");
+  const shipPlan = readFileSync(join(repo, ".opencode/agents/ship-plan.md"), "utf8");
+  assert.match(shipPlan, /mode:\s*primary/, "ship-plan must be a primary agent");
+  assert.match(shipPlan, /\.opencode\/plans\/\*\.md/, "ship-plan must allow .opencode/plans/*.md");
+  assert.match(shipPlan, /^\s*edit:\s*$/m, "ship-plan must scope edit permission");
 });
 
 test("neutral: uninstall removes the lock and the managed files", async (t) => {
