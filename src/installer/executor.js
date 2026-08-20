@@ -159,11 +159,16 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
     migrationReport,
     allowUnowned: Boolean(replaceManaged),
   });
-  // The Plan Mode permission block is consumer-owned from the current release
-  // on. The installer only owns Build-agent delivery pointers and
-  // does NOT inject /agent/plan/permission. The active-profile
-  // gate stays the same precedence chain for the file install.
+  // From 1.1.2 the installer owns two leaf pointers inside the
+  // consumer's `agent.plan.permission` block:
+  //   /agent/plan/permission/edit/docs~1superpowers~1** = "allow"
+  //   /agent/plan/permission/edit/.git~1opencode-ship~1plans~1** = "allow"
+  // The whole /agent/plan/permission block is still consumer-owned;
+  // the reconciler handles scalar->object promotion of `edit` and
+  // records the previous value so uninstall can restore it. The
+  // installer does NOT inject a deny-first block.
   const planMode = null;
+  // gate stays the same precedence chain for the file install.
   const rootPlan = await planRootConfigApply({ repoRoot, lock, forceRepair: Boolean(forceRootConfig), planMode });
 
   // When the engineering profile is being applied without models

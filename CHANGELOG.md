@@ -2,6 +2,25 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## Unreleased
+
+- **Plan Mode write access for brainstorming / writing-plans products.**
+  The installer now owns two leaf pointers under
+  `agent.plan.permission` so OpenCode's Plan mode can write its
+  brainstorming / writing-plans / wayfinder output:
+
+  - `/agent/plan/permission/edit/docs/superpowers/**` = `allow`
+  - `/agent/plan/permission/edit/.git/opencode-ship/plans/**` = `allow`
+
+  The whole `/agent/plan/permission` block is still consumer-owned;
+  the installer only owns these two glob leaves. When the consumer
+  previously declared `agent.plan.permission.edit` as a scalar
+  string (e.g. `"deny"`), the installer promotes it to
+  `{ "*": <scalar>, ... }` on install and records the previous
+  scalar so uninstall can restore it byte-for-byte. A consumer
+  that explicitly sets `docs/superpowers/**: "deny"` is a
+  fail-closed conflict.
+
 ## 1.1.2-rc.3 — Complete contract correction (round 2)
 
 > Branch: `fix/1.1.2-rc.3-contract`.
