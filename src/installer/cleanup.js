@@ -81,15 +81,12 @@ async function saveCleanupPending(repoRoot, entries) {
 }
 
 function dedupePending(entries) {
-  const seen = new Set();
-  const out = [];
+  const byTask = new Map();
   for (const e of entries) {
     if (!e || !e.taskId) continue;
-    if (seen.has(e.taskId)) continue;
-    seen.add(e.taskId);
-    out.push(e);
+    byTask.set(e.taskId, e);
   }
-  return out;
+  return [...byTask.values()];
 }
 
 async function appendCleanupPending(repoRoot, entry) {
@@ -97,6 +94,11 @@ async function appendCleanupPending(repoRoot, entry) {
   const next = [...current, entry];
   await saveCleanupPending(repoRoot, next);
   return next;
+}
+
+async function clearCleanupPending(repoRoot, taskId) {
+  const current = await loadCleanupPending(repoRoot);
+  await saveCleanupPending(repoRoot, current.filter((entry) => entry.taskId !== taskId));
 }
 
 function reject(reason, extra = {}) {
@@ -119,34 +121,55 @@ export async function tryImmediateCleanup({ repoRoot, taskId, adapter }) {
     return reject("worktree-out-of-root", { expected: rootAbs, got: wtPath });
   }
 
-  const status = spawn(wtPath, ["status", "--porcelain"]);
-  if (status.status === 0 && status.stdout.trim().length > 0) return reject("dirty-worktree");
-  const rebase = spawn(wtPath, ["rev-parse", "--verify", "--quiet", "REBASE_HEAD"]);
-  if (rebase.status === 0) return reject("rebase-in-progress");
+  const pending = (await loadCleanupPending(repoRoot)).find((entry) => entry.taskId === taskId);
+  const stage = pending?.stage ?? "worktree-remove";
+  if (!["worktree-remove", "branch-delete", "manifest-seal"].includes(stage)) {
+    return reject("cleanup-stage", { stage });
+  }
+  let headSha = m.lastPrHeadSha ?? "";
 
-  const head = spawn(wtPath, ["rev-parse", "HEAD"]);
-  if (head.status !== 0) return reject("no-head");
-  const headSha = head.stdout.trim();
-  if (m.lastPrHeadSha && headSha !== m.lastPrHeadSha) {
-    return reject("head-mismatch", { expected: m.lastPrHeadSha, actual: headSha });
+  if (stage === "worktree-remove") {
+    const status = spawn(wtPath, ["status", "--porcelain"]);
+    if (status.status === 0) {
+      if (status.stdout.trim().length > 0) return reject("dirty-worktree");
+      const rebase = spawn(wtPath, ["rev-parse", "--verify", "--quiet", "REBASE_HEAD"]);
+      if (rebase.status === 0) return reject("rebase-in-progress");
+      const head = spawn(wtPath, ["rev-parse", "HEAD"]);
+      if (head.status !== 0) return reject("no-head");
+      headSha = head.stdout.trim();
+      if (m.lastPrHeadSha && headSha !== m.lastPrHeadSha) {
+        return reject("head-mismatch", { expected: m.lastPrHeadSha, actual: headSha });
+      }
+      const removed = safeRemoveWorktree(repoRoot, wtPath);
+      if (removed.status !== 0) {
+        await appendCleanupPending(repoRoot, {
+          taskId, failedAt: new Date().toISOString(),
+          stage: "worktree-remove", reason: removed.stderr ?? "non-zero exit",
+        });
+        return reject("remove-failed", { detail: removed.stderr });
+      }
+    } else if (!headSha) {
+      return reject("no-head");
+    }
+    await appendCleanupPending(repoRoot, {
+      taskId, failedAt: new Date().toISOString(), stage: "branch-delete", reason: "resume cleanup",
+    });
   }
 
-  const removed = safeRemoveWorktree(repoRoot, wtPath);
-  if (removed.status !== 0) {
+  if (stage !== "manifest-seal") {
+    const branchDelete = casDeleteBranch(repoRoot, m.branch, headSha);
+    const branchStillThere = spawn(repoRoot, ["show-ref", "--verify", "--quiet", `refs/heads/${m.branch}`]);
+    if (branchDelete !== 0 && branchStillThere.status === 0) {
+      await appendCleanupPending(repoRoot, {
+        taskId, failedAt: new Date().toISOString(),
+        stage: "branch-delete", reason: "git update-ref failed",
+      });
+      return reject("branch-delete-failed");
+    }
     await appendCleanupPending(repoRoot, {
       taskId, failedAt: new Date().toISOString(),
-      stage: "worktree-remove", reason: removed.stderr ?? "non-zero exit",
+      stage: "manifest-seal", reason: "resume cleanup",
     });
-    return reject("remove-failed", { detail: removed.stderr });
-  }
-  const branchDelete = casDeleteBranch(repoRoot, m.branch, headSha);
-  const branchStillThere = spawn(repoRoot, ["show-ref", "--verify", "--quiet", `refs/heads/${m.branch}`]);
-  if (branchDelete !== 0 && branchStillThere.status === 0) {
-    await appendCleanupPending(repoRoot, {
-      taskId, failedAt: new Date().toISOString(),
-      stage: "branch-delete", reason: "git update-ref failed",
-    });
-    return reject("branch-delete-failed");
   }
 
   const next = {
@@ -160,10 +183,17 @@ export async function tryImmediateCleanup({ repoRoot, taskId, adapter }) {
   };
   await writeManifest(repoRoot, next).catch(() => null);
   await deleteManifest(repoRoot, taskId);
+  await clearCleanupPending(repoRoot, taskId);
   return { ok: true, removedPath: wtPath, sealed: true };
 }
 
 export async function listPending(repoRoot) {
   const all = await listManifests(repoRoot).catch(() => []);
-  return all.filter((m) => m.state === "merged" || m.state === "cleanup-pending");
+  const manifests = all.filter((m) => m.state === "merged" || m.state === "cleanup-pending");
+  const queued = await loadCleanupPending(repoRoot);
+  const byTask = new Map(manifests.map((manifest) => [manifest.taskId, manifest]));
+  for (const entry of queued) {
+    if (!byTask.has(entry.taskId)) byTask.set(entry.taskId, entry);
+  }
+  return [...byTask.values()];
 }

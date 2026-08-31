@@ -29,6 +29,7 @@ export { PACKAGE_VERSION };
 export const TEMPLATE_SET_ID = TEMPLATE_SET;
 
 const packageRoot = resolvePackageRoot(import.meta.url);
+export const PACKAGE_ROOT = packageRoot;
 
 /**
  * The full asset catalog. Every entry declares which profile(s)

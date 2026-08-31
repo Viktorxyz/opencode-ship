@@ -54,4 +54,4 @@ export { createReadyTool } from "./tools/delivery-ready.js";
 export { createMergeTool } from "./tools/delivery-merge.js";
 export { createCleanupTool } from "./tools/delivery-cleanup.js";
 
-export const PACKAGE_VERSION = "0.1.3";
+export { PACKAGE_VERSION } from "./version.js";

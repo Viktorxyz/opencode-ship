@@ -95,6 +95,8 @@ test("matrix: bash policy is installed for Build and the controller", () => {
   const controllerBash = leaves.filter((leaf) => leaf.pointer.startsWith("/agent/ship-controller/permission/bash/"));
   assert.ok(buildBash.some((leaf) => leaf.value === "deny"));
   assert.ok(buildBash.some((leaf) => leaf.value === "ask"));
+  assert.equal(buildBash.some((leaf) => leaf.pointer.endsWith("/bash/*") && leaf.value === "allow"), false,
+    "Build must inherit consumer bash defaults instead of installing bash/*=allow");
   assert.ok(controllerBash.some((leaf) => leaf.value === "deny"));
 });
 

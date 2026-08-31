@@ -1,6 +1,6 @@
 // Build the opencode-ship plugin and CLI bundles.
 import { build } from "esbuild";
-import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -45,6 +45,7 @@ async function bundleCore(pkg) {
     sourcemap: false,
     logLevel: "info",
     banner: { js: `// opencode-ship/core v${pkg.version}` },
+    define: { "process.env.OPENCODE_SHIP_VERSION": JSON.stringify(pkg.version) },
     external: ["node:*", "bun:*"],
     alias: {
       "jsonc-parser": "jsonc-parser/lib/esm/main.js",
@@ -117,6 +118,7 @@ async function emitDeclarations() {
   if (r.status !== 0) {
     throw new Error(`tsc --emitDeclarationOnly failed with exit ${r.status}`);
   }
+  await copyFile(resolve(root, "src/types.d.ts"), resolve(root, "dist/core.d.ts"));
 }
 
 async function main() {

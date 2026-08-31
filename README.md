@@ -115,7 +115,7 @@ Existing consumers of `opencode-delivery@0.1.x` (commit-pinned shim) can run `pn
 
 ## Lifecycle
 
-1. Begin a Build task: the delivery plugin immediately runs any queued post-merge cleanups. Failed cleanups are recorded in `ship.lock.json#cleanupPending` and retried at the next delivery task or plugin startup.
+1. Begin a Build task: the delivery plugin immediately runs any queued post-merge cleanups. Failed cleanups are recorded under `<git-common-dir>/opencode-ship/cleanup-pending.json` and retried at the next delivery task or plugin startup.
 2. Optional Deep Research checkpoint for non-trivial plans.
 3. Find or create exactly one issue per PR.
 4. Discover the default branch and fetch it.
@@ -130,7 +130,7 @@ Existing consumers of `opencode-delivery@0.1.x` (commit-pinned shim) can run `pn
 13. Push and wait for required remote CI checks.
 14. Mark the PR Ready and stop.
 15. Explicit "merge it" re-runs the freshness checks and performs the squash merge.
-16. The plugin immediately invokes `delivery_cleanup`; failures leave `cleanupPending` for the next session.
+16. The plugin immediately invokes `delivery_cleanup`; failures persist their next cleanup stage in the Git common dir for the next session.
 
 ## Exit codes
 

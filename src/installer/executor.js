@@ -14,8 +14,8 @@
 
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { CATALOG, filterCatalogByProfile, TEMPLATE_SET_ID } from "./catalog.js";
+import { dirname, relative, resolve, sep } from "node:path";
+import { CATALOG, filterCatalogByProfile, PACKAGE_ROOT, TEMPLATE_SET_ID } from "./catalog.js";
 import { PACKAGE_VERSION } from "../version.js";
 import {
   planFileInstall,
@@ -426,9 +426,7 @@ export function serializePlan(plan) {
 
 function relativeTemplate(source) {
   if (typeof source !== "string") return source;
-  const prefix = `${process.cwd()}/`;
-  if (source.startsWith(prefix)) return source.slice(prefix.length);
-  return source;
+  return relative(PACKAGE_ROOT, source).split(sep).join("/");
 }
 
 function emit(command, plan, conflicts, { summary, json, exitCode, diagnostics, extra }) {
