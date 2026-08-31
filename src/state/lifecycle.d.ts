@@ -33,12 +33,13 @@ export interface ManifestInput {
   lastPrHeadSha?: string | null;
   lastReviewerSha?: string | null;
   lastVerifierSha?: string | null;
+  workflowId?: string | null;
   worktreePath?: string | null;
   now?: () => Date;
 }
 
 export interface Manifest {
-  schemaVersion: number;
+  schemaVersion: 2;
   taskId: string;
   repoIdentity: string;
   issueNumber: number;
@@ -50,6 +51,7 @@ export interface Manifest {
   lastPrHeadSha: string | null;
   lastReviewerSha: string | null;
   lastVerifierSha: string | null;
+  workflowId: string | null;
   owner: string;
   state: LifecycleState;
   transitionLog: Array<{
