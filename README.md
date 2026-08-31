@@ -2,9 +2,9 @@
 
 > npm-distributed OpenCode installer and delivery plugin: a single command materialises the lifecycle plugin, reviewer/verifier agents, and skills into any consumer repository, with a recoverable lock and never silently overwrites managed files.
 >
-> **Status:** `1.1.5` is on `npm dist-tag latest` and tightens the `ship-plan` primary planning agent so the Plan tab is product-only: it asks about the product, writes `.opencode/plans/*.md`, and stops. It never asks the user how to run the work (issues vs Task N, subagent vs inline, Tab / Build, `ship-deliver`), never mentions permission globs, and never offers to implement. From 1.1.4 `ship-plan` is the write-capable planning agent; OpenCode's built-in lowercase `plan` Tab is disabled. `1.1.3` supersedes the `1.1.2 stabilization` line by dropping the broken `permission: { "*": "deny" }` wildcard and adding a stale-pointer removal path so `update` cleans the orphan key on the first run. The `1.1.0` tag is immutable. Consumers of `opencode-delivery@0.1.x` should run `pnpm dlx opencode-ship@latest init` from the same checkout; migration recognises the legacy artifacts and adopts them when their bytes match.
+> **Status:** `1.1.5` is the current `npm dist-tag latest`. It makes the `ship-plan` primary planning agent product-only: the agent asks about the product, writes `.opencode/plans/*.md`, and stops without leaking delivery-workflow choices into the planning conversation. The package is not yet self-hosted from `main`, and the `1.1.5` npm publish succeeded while its GitHub Release job failed before checkout. The bounded `1.1.6` correction is tracked in [`docs/release/1.1.6-correction-plan.md`](docs/release/1.1.6-correction-plan.md).
 >
-> Consumers should use `opencode-ship@1.1.0` (or `@latest`) until `1.1.1` ships. The previous `1.0.0` is on `next`; consumers who pinned to `1.0.x` will continue to receive updates on that channel.
+> Use an exact package version for reproducible installs and all self-hosting work. Until `1.1.6` is published and qualified, the verified stable pin is `opencode-ship@1.1.5`; never resolve `@latest` inside an automated release or self-host update.
 
 ---
 
@@ -12,7 +12,7 @@
 
 ```sh
 # 1. Install managed files. No flags required.
-pnpm dlx opencode-ship@latest init
+pnpm dlx opencode-ship@1.1.5 init
 
 # 2. Restart OpenCode in this repo.
 
@@ -70,11 +70,11 @@ The only source tree that ships in the npm tarball is `assets/`. Anything copied
 Once `opencode-ship` is published, consumers install with `pnpm dlx` (or `npx`) and never edit the file by hand:
 
 ```
-pnpm dlx opencode-ship@latest init      # install managed files
-pnpm dlx opencode-ship@latest update    # apply a packaged upgrade
-pnpm dlx opencode-ship@latest diff      # preview what would change
-pnpm dlx opencode-ship@latest doctor    # environment and lock audit
-pnpm dlx opencode-ship@latest uninstall # remove only the files still matching the lock
+pnpm dlx opencode-ship@1.1.5 init      # install managed files
+pnpm dlx opencode-ship@1.1.5 update    # apply a packaged upgrade
+pnpm dlx opencode-ship@1.1.5 diff      # preview what would change
+pnpm dlx opencode-ship@1.1.5 doctor    # environment and lock audit
+pnpm dlx opencode-ship@1.1.5 uninstall # remove only the files still matching the lock
 ```
 
 If you want to try a pre-release tarball locally without publishing to npm:
@@ -109,7 +109,7 @@ These JSON Schemas are published and discoverable through the `exports` map:
 
 ### Legacy migration
 
-Existing consumers of `opencode-delivery@0.1.x` (commit-pinned shim) can run `pnpm dlx opencode-ship@latest init` from the same checkout. Migration recognises `.opencode/delivery.json`, `.opencode/delivery.lock.json`, the two canonical agents, and the generic plugin `.opencode/plugin/delivery.ts`, and adopts them when their bytes match. Legacy artifacts are preserved on disk so a downgrade remains possible; the installer does NOT modify Leo or any other consumer.
+Existing consumers of `opencode-delivery@0.1.x` (commit-pinned shim) can run `pnpm dlx opencode-ship@1.1.5 init` from the same checkout. Migration recognises `.opencode/delivery.json`, `.opencode/delivery.lock.json`, the two canonical agents, and the generic plugin `.opencode/plugin/delivery.ts`, and adopts them when their bytes match. Legacy artifacts are preserved on disk so a downgrade remains possible; the installer does NOT modify Leo or any other consumer.
 
 `diff` is now strictly read-only; it reports every change but never writes to disk, even when the migration phase has a candidate seed-config to plant.
 
@@ -158,7 +158,7 @@ The shipped artifact is built by esbuild (`scripts/build.mjs`); self-contained `
 ## Status and licensing
 
 - **License:** MIT. See `LICENSE`.
-- **Versioning:** SemVer. v0.2.0 is the first npm-distributed release. v0.3.0 is the installer foundation. v0.4.0 adds the profile-aware installer foundation (`--profile` flag, lock schema v2, profile precedence) that issue #18 requires. v0.5.0 ships the engineering profile content (triage + grill-with-docs SKILL.md placeholders) required by issue #20. v0.6.0 ships the durable plan artifact + Plan Mode permission integration required by issue #21. v0.7.0 ships the M3 task loop contract (run store, task brief, Spec/Quality verdicts, 3-round breaker, commit binding, compaction context) required by issue #22. v0.8.0 ships the Ready gate contract (parallel Standards/Spec + verifier + CI on one HEAD) required by issue #23. v0.9.0 ships the transition matrix smoke (engineering installs all assets, lock tracks the active profile) required by issue #24. v1.0.0 promotes the dogfooded 0.10.0 to stable. v1.1.0 removes the legacy core profile and ships the one-liner init + setup-ship-workflow skill. v1.1.1 is the first fully self-hosting release (see `docs/release/1.1.1-stabilization-plan.md`).
+- **Versioning:** SemVer. v0.2.0 is the first npm-distributed release. v0.3.0 is the installer foundation. v0.4.0 adds the profile-aware installer foundation (`--profile` flag, lock schema v2, profile precedence) that issue #18 requires. v0.5.0 ships the engineering profile content (triage + grill-with-docs SKILL.md placeholders) required by issue #20. v0.6.0 ships the durable plan artifact + Plan Mode permission integration required by issue #21. v0.7.0 ships the M3 task loop contract (run store, task brief, Spec/Quality verdicts, 3-round breaker, commit binding, compaction context) required by issue #22. v0.8.0 ships the Ready gate contract (parallel Standards/Spec + verifier + CI on one HEAD) required by issue #23. v0.9.0 ships the transition matrix smoke (engineering installs all assets, lock tracks the active profile) required by issue #24. v1.0.0 promotes the dogfooded 0.10.0 to stable. v1.1.0 removes the legacy core profile and ships the one-liner init + setup-ship-workflow skill. v1.1.1 began the self-hosting correction line; `1.1.6` is the planned release that must complete and prove the contract before `main` bootstraps itself (see `docs/release/1.1.6-correction-plan.md`).
 - **Compatibility:** the bundled plugin targets `@opencode-ai/plugin >= 1.15.5 < 2` and OpenCode `>= 1.15.5`.
 
 ## FAQ
