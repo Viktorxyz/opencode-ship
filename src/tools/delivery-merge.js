@@ -41,6 +41,48 @@ export function createMergeTool(deps) {
     } else if (m.schemaVersion >= 2) {
       return { kind: "missing-workflow-link", taskId: m.taskId };
     }
+
+    if (pr.headSha !== (m.lastPrHeadSha ?? pr.headSha)) {
+      return {
+        kind: "head-changed",
+        headSha: pr.headSha,
+        manifestSha: m.lastPrHeadSha ?? "",
+      };
+    }
+
+    async function recordMerged(merged, reason) {
+      const t = transition(
+        { ...m, lastPrHeadSha: merged.headSha },
+        "merged",
+        { reason },
+      );
+      if (!t.ok) return { kind: "lifecycle", reason: t.reason };
+      const next = {
+        ...m,
+        lastPrHeadSha: merged.headSha,
+        state: t.to,
+        transitionLog: [
+          ...m.transitionLog,
+          { from: t.from, to: t.to, at: t.at, reason: t.reason },
+        ],
+        updatedAt: new Date().toISOString(),
+      };
+      const path = await writeManifest(deps.repoRoot, next);
+      if (finalEvidence && m.workflowId) {
+        await appendRunEvent(deps.repoRoot, m.workflowId, finalEvidence.runState, {
+          kind: RUN_EVENT_KINDS.MERGE,
+          data: { mergeSha: merged.mergeSha ?? merged.mergeCommitSha ?? merged.headSha },
+        });
+      }
+      return { kind: "merge", contractVersion: 1, manifestPath: path, pr: m.prNumber, taskId: m.taskId };
+    }
+
+    // A maintainer may merge through GitHub after every gate passed. Reconcile
+    // that terminal remote fact instead of trying to merge the PR a second time.
+    if (pr.merged) {
+      return recordMerged(pr, `reconciled external merge as ${input.subject}`);
+    }
+
     if (freshGates) {
       const required = deps.adapter?.ready?.requires ?? [
         "review",
@@ -70,13 +112,6 @@ export function createMergeTool(deps) {
       if (!result.ok) return gateFailureEnvelope(result);
     }
 
-    if (pr.headSha !== (m.lastPrHeadSha ?? pr.headSha)) {
-      return {
-        kind: "head-changed",
-        headSha: pr.headSha,
-        manifestSha: m.lastPrHeadSha ?? "",
-      };
-    }
     if (pr.draft) return { kind: "not-mergeable", reason: "PR is still draft" };
     if (pr.mergeable !== "MERGEABLE") {
       return { kind: "not-mergeable", reason: `mergeable=${pr.mergeable}` };
@@ -87,29 +122,6 @@ export function createMergeTool(deps) {
       number: m.prNumber,
       subject: input.subject,
     });
-    const t = transition(
-      { ...m, lastPrHeadSha: merged.headSha },
-      "merged",
-      { reason: `squash merged as ${input.subject}` },
-    );
-    if (!t.ok) return { kind: "lifecycle", reason: t.reason };
-    const next = {
-      ...m,
-      lastPrHeadSha: merged.headSha,
-      state: t.to,
-      transitionLog: [
-        ...m.transitionLog,
-        { from: t.from, to: t.to, at: t.at, reason: t.reason },
-      ],
-      updatedAt: new Date().toISOString(),
-    };
-    const path = await writeManifest(deps.repoRoot, next);
-    if (finalEvidence && m.workflowId) {
-      await appendRunEvent(deps.repoRoot, m.workflowId, finalEvidence.runState, {
-        kind: RUN_EVENT_KINDS.MERGE,
-        data: { mergeSha: merged.mergeSha ?? merged.mergeCommitSha ?? merged.headSha },
-      });
-    }
-    return { kind: "merge", contractVersion: 1, manifestPath: path, pr: m.prNumber, taskId: m.taskId };
+    return recordMerged(merged, `squash merged as ${input.subject}`);
   };
 }

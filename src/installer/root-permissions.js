@@ -148,8 +148,8 @@ const FORBIDDEN_BASH_GLOBS_CONTROLLER = [
   "rm -rf /*",
 ];
 
-function denyMap(globs) {
-  const out = { "*": "allow" };
+function denyMap(globs, allowByDefault = true) {
+  const out = allowByDefault ? { "*": "allow" } : {};
   for (const g of globs) out[g] = "deny";
   return out;
 }
@@ -186,7 +186,7 @@ export function rootPermissionMatrix() {
           "delivery-verifier": "allow",
         },
         bash: {
-          ...denyMap(FORBIDDEN_BASH_GLOBS),
+          ...denyMap(FORBIDDEN_BASH_GLOBS, false),
           "rm *": "ask",
         },
       },

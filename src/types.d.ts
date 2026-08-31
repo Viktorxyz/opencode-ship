@@ -50,7 +50,7 @@ export interface LifecycleTransition {
 }
 
 export interface Manifest {
-  schemaVersion: 1;
+  schemaVersion: 2;
   taskId: string;
   repoIdentity: RepoSlug;
   issueNumber: IssueNumber | null;
@@ -62,6 +62,7 @@ export interface Manifest {
   lastPrHeadSha: Sha | null;
   lastReviewerSha: Sha | null;
   lastVerifierSha: Sha | null;
+  workflowId: string | null;
   owner: string;
   state: LifecycleState;
   transitionLog: LifecycleTransition[];
@@ -80,6 +81,7 @@ export interface CreateManifestInput {
   owner: string;
   prNumber?: PullRequestNumber | null;
   lastPrHeadSha?: Sha | null;
+  workflowId?: string | null;
 }
 
 export interface IssueSummary {

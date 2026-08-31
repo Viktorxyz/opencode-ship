@@ -154,6 +154,12 @@ test("source tree: no source file hard-codes the current version", async () => {
   assert.deepEqual(offenders, [], `source files with hard-coded versions: ${offenders.join(", ")}`);
 });
 
+test("source tree: PACKAGE_VERSION is resolved from version.js", () => {
+  const index = readText("src/index.js");
+  assert.match(index, /export\s*\{\s*PACKAGE_VERSION\s*\}\s*from\s*["']\.\/version\.js["']/);
+  assert.doesNotMatch(index, /export\s+const\s+PACKAGE_VERSION\s*=/);
+});
+
 test("release.yml: prerelease flag is driven by the resolve-prerelease step", () => {
   const yaml = readText(".github/workflows/release.yml");
   // The publish job must compute the prerelease flag from a
@@ -207,6 +213,17 @@ test("release.yml: npm OIDC and GitHub release write privileges are isolated", (
   assert.match(githubRelease, /contents:\s*write/);
   assert.doesNotMatch(githubRelease, /id-token:/);
   assert.doesNotMatch(yaml, /softprops\/action-gh-release/);
+});
+
+test("release.yml: GitHub Release checks out the resolved release ref", () => {
+  const yaml = readText(".github/workflows/release.yml");
+  const githubRelease = yaml.slice(yaml.indexOf("  github-release:"));
+  const checkoutAt = githubRelease.indexOf("uses: actions/checkout@v4");
+  const publishAt = githubRelease.indexOf("name: publish release");
+  assert.ok(checkoutAt >= 0, "github-release must check out the repository");
+  assert.ok(checkoutAt < publishAt, "github-release checkout must precede publishing");
+  assert.match(githubRelease, /repository:\s*Viktorxyz\/opencode-ship/);
+  assert.match(githubRelease, /ref:\s*\$\{\{\s*needs\.pack\.outputs\.release_ref\s*\}\}/);
 });
 
 test("is-prerelease: RC versions resolve to true", async () => {

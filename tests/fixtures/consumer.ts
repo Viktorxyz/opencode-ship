@@ -154,8 +154,11 @@ const manifest = createManifest({
   baseBranch: "main",
   baseSha: BASE_SHA,
   branch: "feature/seed",
+  workflowId: "workflow-seed",
   owner: "tester",
 });
+const manifestSchemaVersion: 2 = manifest.schemaVersion;
+const manifestWorkflowId: string | null = manifest.workflowId;
 
 const canSelf = canTransition(manifest.state, "issue-linked");
 const moved = transition(manifest, "worktree-created", { reason: "fixture" });
@@ -166,6 +169,8 @@ void canSelf;
 void terminal;
 void needsReview;
 void needsVerify;
+void manifestSchemaVersion;
+void manifestWorkflowId;
 
 const snapshot = gateSnapshot({
   manifest: { ...manifest, adapter: mockAdapter },

@@ -917,6 +917,12 @@ jobs:
       RELEASE_REF: ${{ needs.pack.outputs.release_ref }}
       PRERELEASE: ${{ needs.publish.outputs.prerelease }}
     steps:
+      - name: checkout release ref
+        uses: actions/checkout@v4
+        with:
+          repository: Viktorxyz/opencode-ship
+          ref: ${{ needs.pack.outputs.release_ref }}
+          fetch-depth: 0
       - name: download pack
         uses: actions/download-artifact@v4
         with:

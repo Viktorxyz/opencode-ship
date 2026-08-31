@@ -19,7 +19,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, rm, copyFile, readFile, writeFile } from "node:fs/promises";
 import { existsSync, writeFileSync, readFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tar } from "./_test-tar.mjs";
 
@@ -55,6 +55,10 @@ test("packed-artifact: bundled plugin loads with 32 tools in an isolated consume
   // extracted `dist/plugin.js` only.
   const pluginPath = join(consumerPackage, "dist/plugin.js");
   assert.ok(existsSync(pluginPath), "extracted plugin.js must exist");
+  const packedPackage = JSON.parse(readFileSync(join(consumerPackage, "package.json"), "utf8"));
+  assert.equal(packedPackage.exports["./core"].types, "./dist/core.d.ts");
+  assert.ok(existsSync(join(consumerPackage, "dist/core.d.ts")), "extracted core.d.ts must exist");
+  assert.match(readFileSync(join(consumerPackage, "dist/core.d.ts"), "utf8"), /export declare const PACKAGE_VERSION/);
 
   // Sanity check: tarball should not bundle @opencode-ai/plugin as a
   // separate package; it must be inlined.
@@ -113,6 +117,14 @@ test("packed-artifact: bundled plugin loads with 32 tools in an isolated consume
     "ship_task_review",
     "ship_task_start",
   ]);
+  const coreProc = spawnSync("node", [
+    "--input-type=module", "--no-warnings",
+    "-e",
+    `import(${JSON.stringify(pathToFileURL(join(consumerPackage, "dist/core.js")).href)})`
+      + `.then((mod) => process.stdout.write(String(mod.PACKAGE_VERSION)));`,
+  ], { encoding: "utf8" });
+  assert.equal(coreProc.status, 0, coreProc.stderr);
+  assert.equal(coreProc.stdout, packedPackage.version);
   // Cleanup tarball
   await rm(tarballPath, { force: true }).catch(() => null);
   void writeFileSync;
@@ -166,6 +178,12 @@ test("packed-artifact: extracted CLI init writes a fresh repository with all man
   const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
   const plugin = lock.files.find((f) => f.path === ".opencode/plugins/opencode-ship.js");
   assert.ok(plugin?.sha256, "plugin entry must carry a sha256");
+  assert.equal(plugin.template, "dist/plugin.js");
+  for (const file of lock.files) {
+    assert.equal(isAbsolute(file.template), false, `${file.path} template must be package-relative: ${file.template}`);
+    assert.equal(file.template.includes(tmp), false, `${file.path} template leaked the extraction root`);
+    assert.equal(file.template.includes("\\"), false, `${file.path} template must use portable separators`);
+  }
   const rootDocuments = lock.manager?.rootDocuments ?? [];
   const records = rootDocuments.flatMap((d) => d.pointers ?? []);
   assert.ok(records.length > 0, "fresh install must record at least one root pointer");
@@ -199,6 +217,7 @@ test("packed-artifact: npm pack includes every required file", async (t) => {
     "package/dist/cli.js",
     "package/dist/plugin.js",
     "package/dist/core.js",
+    "package/dist/core.d.ts",
     "package/assets/agents/delivery-reviewer.md",
     "package/assets/agents/delivery-verifier.md",
     "package/assets/skills/delivery-workflow/SKILL.md",

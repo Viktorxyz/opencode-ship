@@ -4,7 +4,8 @@ All notable changes to `opencode-ship` are recorded here.
 
 ## 1.1.6 — Stabilization and self-hosting (unreleased)
 
-> Tracker: https://github.com/Viktorxyz/opencode-ship/issues/70.
+> Baseline: https://github.com/Viktorxyz/opencode-ship/issues/70.
+> Corrective package: https://github.com/Viktorxyz/opencode-ship/issues/72.
 > Authoritative plan: `docs/release/1.1.6-correction-plan.md`.
 
 - **Truthful baseline before implementation.** `1.1.5` remains the current
@@ -16,6 +17,19 @@ All notable changes to `opencode-ship` are recorded here.
   self-host bootstrap, and automated exact-version update proposals will ship
   as separate issue/worktree/PR lifecycles. Every automated install or update
   pins `opencode-ship@<X.Y.Z>` and never resolves `@latest`.
+- **Convergent merge and cleanup recovery.** A Ready manifest now reconciles a
+  PR that a maintainer already merged in GitHub instead of attempting a second
+  merge. Cleanup retries resume from their persisted stage, tolerate an
+  already-removed worktree, delete the branch with the existing CAS guard,
+  seal the manifest, and clear the Git-common-dir pending record.
+- **Portable locks and bounded permissions.** Managed lock templates are
+  package-relative rather than npm-cache absolute paths. Build no longer
+  installs a broad `bash/* = allow` rule; destructive command denies remain
+  explicit while ordinary built-ins stay consumer-owned.
+- **Release and package hardening.** The GitHub Release job checks out the
+  resolved release ref, `prepack` fails without installing missing tools,
+  `opencode-ship/core` publishes real declarations and the canonical package
+  version, and the stale `0.1.3` source literal is removed.
 - **Release claims stay evidence-bound.** This entry becomes a released
   changelog only after local verification, npm provenance, the GitHub Release,
   qualification hashes, and a real self-host lifecycle all agree.

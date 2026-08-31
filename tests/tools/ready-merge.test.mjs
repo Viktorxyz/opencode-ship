@@ -340,4 +340,39 @@ suite("delivery_merge", { concurrency: false }, () => {
       cleanupFixture(fixture);
     }
   });
+
+  test("reconciles an externally merged PR without re-running merge", { serial: true }, async () => {
+    const fixture = makeFixtureRepo();
+    try {
+      const adapter = await loadAdapter(fixture.dir);
+      await writeManifest(fixture.dir, manifest(fixture.dir, "t1", { state: "ready" }));
+      let checksRead = 0;
+      let mergeCalls = 0;
+      const driver = driverWith({ merged: true, mergeable: "UNKNOWN" });
+      driver.readChecks = async () => {
+        checksRead += 1;
+        return [];
+      };
+      driver.mergePullRequest = async () => {
+        mergeCalls += 1;
+        throw new Error("already merged PR must not be merged again");
+      };
+      const tool = createMergeTool({
+        repoRoot: fixture.dir,
+        driver,
+        repoSlug: "a/b",
+        owner: "test",
+        adapter: adapter.adapter,
+      });
+
+      const result = await tool({ taskId: "t1", subject: "user merged PR #7" });
+
+      assert.equal(result.kind, "merge", JSON.stringify(result));
+      assert.equal(checksRead, 0);
+      assert.equal(mergeCalls, 0);
+      assert.equal((await readManifest(fixture.dir, "t1")).state, "merged");
+    } finally {
+      cleanupFixture(fixture);
+    }
+  });
 });
