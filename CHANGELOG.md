@@ -2,6 +2,24 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## 1.1.6 — Stabilization and self-hosting (unreleased)
+
+> Tracker: https://github.com/Viktorxyz/opencode-ship/issues/70.
+> Authoritative plan: `docs/release/1.1.6-correction-plan.md`.
+
+- **Truthful baseline before implementation.** `1.1.5` remains the current
+  npm `latest`; this entry does not claim the `1.1.6` fixes have shipped.
+  The `1.1.5` package publish succeeded, but the GitHub Release job failed
+  before repository checkout, and `main` does not yet contain its own
+  installed `.opencode` control layer.
+- **Bounded follow-up slices.** Runtime and release corrections, exact-version
+  self-host bootstrap, and automated exact-version update proposals will ship
+  as separate issue/worktree/PR lifecycles. Every automated install or update
+  pins `opencode-ship@<X.Y.Z>` and never resolves `@latest`.
+- **Release claims stay evidence-bound.** This entry becomes a released
+  changelog only after local verification, npm provenance, the GitHub Release,
+  qualification hashes, and a real self-host lifecycle all agree.
+
 ## 1.1.5 — `ship-plan` is product-only
 
 > Branch: `feat/1.1.5-ship-plan-prompt`.

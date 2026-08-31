@@ -69,14 +69,14 @@ test("release.yml: validates tag against package.json and publishes to npm", () 
   assert.doesNotMatch(yaml, /opencode-ship-\$\{ver\}\.tarball/);
 });
 
-test("docs: shipping docs reference the approved engineering-workflow plan", () => {
+test("docs: shipping docs reference the approved 1.1.6 correction plan", () => {
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
   // The authoritative stabilization plan lives under
   // `docs/release/`. Live docs must point at that path rather than
   // a historical plan SHA so a refactor of the execution plan
   // can move it without breaking the release contract.
-  const planPath = "docs/release/1.1.1-stabilization-plan.md";
+  const planPath = "docs/release/1.1.6-correction-plan.md";
   for (const [name, text] of [["CHANGELOG.md", changelog], ["README.md", readme]]) {
     assert.ok(text.includes(planPath), `${name} must reference the authoritative execution plan path`);
     assert.ok(text.includes("engineering"), `${name} must keep the documented engineering profile`);
@@ -84,16 +84,15 @@ test("docs: shipping docs reference the approved engineering-workflow plan", () 
   }
 });
 
-test("docs: live README/CHANGELOG declare fix/1.1.2-rc.3-contract as the active stabilization branch", () => {
-  // From 1.1.2 onward the active stabilization branch carries
-  // the 1.1.2 contract repair work. The older `fix/1.1.1-stabilization`
-  // branch is the historical 1.1.1 record.
+test("docs: live README/CHANGELOG declare 1.1.6 as the active correction line", () => {
+  // The correction remains explicitly unreleased until its evidence gates
+  // pass; historical 1.1.1 and 1.1.2 records are not the live status.
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
   for (const [name, text] of [["CHANGELOG.md", changelog], ["README.md", readme]]) {
     assert.ok(
-      /fix\/1\.1\.2-rc\.3-contract/.test(text) || /1\.1\.2 stabilization/i.test(text),
-      `${name} must reference the active 1.1.2 stabilization line`,
+      /1\.1\.6/.test(text) && /correction|stabilization/i.test(text),
+      `${name} must reference the active 1.1.6 correction line`,
     );
   }
 });
