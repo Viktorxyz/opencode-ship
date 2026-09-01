@@ -133,6 +133,11 @@ test("docs: live README/CHANGELOG declare 1.1.7 as the active correction line", 
       `${name} must record that 1.1.6 failed before publication`,
     );
   }
+  assert.doesNotMatch(
+    readme,
+    /`1\.1\.6`\s+(?:is|remains)\s+(?:the\s+)?(?:planned|active)\s+release/i,
+    "README must not describe 1.1.6 as the planned or active release",
+  );
 });
 
 test("docs: live README/CHANGELOG describe RCs as published under npm dist-tag next", () => {

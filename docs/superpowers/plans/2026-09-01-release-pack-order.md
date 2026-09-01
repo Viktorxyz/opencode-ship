@@ -233,7 +233,7 @@ Use `delivery_ready` only after all gates pass. Stop at Ready and request explic
 - Operational release only; no source edits.
 
 **Interfaces:**
-- Consumes: explicitly merged PR `#74` and its merged `origin/main` SHA.
+- Consumes: the implementation PR for issue `#74` and its merged `origin/main` SHA.
 - Produces: npm/GitHub/qualification evidence for exact `opencode-ship@1.1.7`.
 
 - [ ] **Step 1: Create the immutable tag**
