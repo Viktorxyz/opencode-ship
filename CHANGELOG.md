@@ -2,17 +2,17 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
-## 1.1.6 — Stabilization and self-hosting (unreleased)
+## 1.1.7 — Stabilization and self-hosting (unreleased)
 
 > Baseline: https://github.com/Viktorxyz/opencode-ship/issues/70.
 > Corrective package: https://github.com/Viktorxyz/opencode-ship/issues/72.
 > Authoritative plan: `docs/release/1.1.6-correction-plan.md`.
 
 - **Truthful baseline before implementation.** `1.1.5` remains the current
-  npm `latest`; this entry does not claim the `1.1.6` fixes have shipped.
-  The `1.1.5` package publish succeeded, but the GitHub Release job failed
-  before repository checkout, and `main` does not yet contain its own
-  installed `.opencode` control layer.
+  npm `latest`, and `1.1.7` is the active unpublished correction. The immutable
+  tag `1.1.6` failed in `pack` before npm publish or GitHub Release. This entry
+  does not claim the `1.1.7` fixes have shipped or qualified, and `main` does
+  not yet contain its own installed `.opencode` control layer.
 - **Bounded follow-up slices.** Runtime and release corrections, exact-version
   self-host bootstrap, and automated exact-version update proposals will ship
   as separate issue/worktree/PR lifecycles. Every automated install or update
@@ -33,6 +33,13 @@ All notable changes to `opencode-ship` are recorded here.
 - **Release claims stay evidence-bound.** This entry becomes a released
   changelog only after local verification, npm provenance, the GitHub Release,
   qualification hashes, and a real self-host lifecycle all agree.
+
+## 1.1.6 — Qualification failed before publication
+
+> Release workflow run: https://github.com/Viktorxyz/opencode-ship/actions/runs/33495352417.
+
+- The immutable `1.1.6` tag failed in `pack` before npm publish or GitHub
+  Release. No npm package or GitHub Release was created.
 
 ## 1.1.5 — `ship-plan` is product-only
 

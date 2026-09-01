@@ -96,15 +96,17 @@ test("docs: shipping docs reference the approved 1.1.6 correction plan", () => {
   }
 });
 
-test("docs: live README/CHANGELOG declare 1.1.6 as the active correction line", () => {
-  // The correction remains explicitly unreleased until its evidence gates
-  // pass; historical 1.1.1 and 1.1.2 records are not the live status.
+test("docs: live README/CHANGELOG declare 1.1.7 as the active correction line", () => {
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
   for (const [name, text] of [["CHANGELOG.md", changelog], ["README.md", readme]]) {
     assert.ok(
-      /1\.1\.6/.test(text) && /correction|stabilization/i.test(text),
-      `${name} must reference the active 1.1.6 correction line`,
+      /1\.1\.7/.test(text) && /correction|stabilization/i.test(text),
+      `${name} must reference the active 1.1.7 correction line`,
+    );
+    assert.ok(
+      /1\.1\.6/.test(text) && /failed|unpublished|not published/i.test(text),
+      `${name} must record that 1.1.6 failed before publication`,
     );
   }
 });

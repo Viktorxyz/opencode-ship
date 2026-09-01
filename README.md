@@ -2,9 +2,9 @@
 
 > npm-distributed OpenCode installer and delivery plugin: a single command materialises the lifecycle plugin, reviewer/verifier agents, and skills into any consumer repository, with a recoverable lock and never silently overwrites managed files.
 >
-> **Status:** `1.1.5` is the current `npm dist-tag latest`. It makes the `ship-plan` primary planning agent product-only: the agent asks about the product, writes `.opencode/plans/*.md`, and stops without leaking delivery-workflow choices into the planning conversation. The package is not yet self-hosted from `main`, and the `1.1.5` npm publish succeeded while its GitHub Release job failed before checkout. The bounded `1.1.6` correction is tracked in [`docs/release/1.1.6-correction-plan.md`](docs/release/1.1.6-correction-plan.md).
+> **Status:** `1.1.5` is the current `npm dist-tag latest`. It makes the `ship-plan` primary planning agent product-only: the agent asks about the product, writes `.opencode/plans/*.md`, and stops without leaking delivery-workflow choices into the planning conversation. The immutable tag `1.1.6` failed in `pack` before npm publish or GitHub Release; no npm package or GitHub Release was created. `1.1.7` is the active unpublished correction, tracked by the authoritative [`docs/release/1.1.6-correction-plan.md`](docs/release/1.1.6-correction-plan.md).
 >
-> Use an exact package version for reproducible installs and all self-hosting work. Until `1.1.6` is published and qualified, the verified stable pin is `opencode-ship@1.1.5`; never resolve `@latest` inside an automated release or self-host update.
+> Use an exact package version for reproducible installs and all self-hosting work. Until `1.1.7` is published and qualified, the verified stable pin is `opencode-ship@1.1.5`; never resolve `@latest` inside an automated release or self-host update.
 
 ---
 
