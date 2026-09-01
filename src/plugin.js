@@ -8,7 +8,7 @@
  * project's own `.opencode/ship.config.json` (falling back to
  * autodetection when the file is missing).
  *
- * The plugin exposes the canonical 32 typed tools and
+ * The plugin exposes the canonical 33 typed tools and
  * relays every execute call to the existing core factories. Plugin
  * startup performs no writes other than a best-effort retry of the
  * `cleanupPending` queue tracked in `.opencode/ship.lock.json`.
@@ -36,6 +36,7 @@ import {
   createIssueCloseTool,
   createSyncTool,
   createPublishTool,
+  createDeliverTool,
   createPlanStartTool,
   createPlanSubmitTool,
   createPlanApproveTool,
@@ -79,6 +80,7 @@ const toolDefs = [
   ["delivery_issue_close", "Close an issue with a recorded user permission subject.", "issueClose"],
   ["delivery_sync", "Fetch and merge base into the feature branch.", "sync"],
   ["delivery_publish", "Push the manifest branch to origin with HEAD verification.", "publish"],
+  ["ship_deliver", "Dispatch durable delivery for an issue to the controller.", "deliver"],
   ["ship_plan_start", "Create a workflow and dispatch the configured planner.", "planStart"],
   ["ship_plan_submit", "Planner-only immutable PlanV2 submission.", "planSubmit"],
   ["ship_plan_approve", "Interactive approval + immutable local seal.", "planApprove"],
@@ -435,6 +437,17 @@ const factories = {
       repoRoot: rt.repoRoot,
       repoSlug: rt.repoSlug,
       owner: rt.owner,
+    }),
+  },
+  deliver: {
+    args: {
+      issueNumber: tool.schema.number(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt, ctx) => createDeliverTool({
+      repoRoot: rt.repoRoot,
+      opencodeClient: rt.opencodeClient,
+      ctx,
     }),
   },
   planStart: {

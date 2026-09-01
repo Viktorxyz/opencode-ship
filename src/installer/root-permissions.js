@@ -13,8 +13,8 @@
  *
  *   - `subagent_depth` is bumped to 2 so Build -> ship-controller ->
  *     worker agents can dispatch without depth errors.
- *   - Build can dispatch ship-controller, delivery-reviewer, and
- *     delivery-verifier (legacy compatibility).
+ *   - Build can call ship_deliver and dispatch ship-controller,
+ *     delivery-reviewer, and delivery-verifier (legacy compatibility).
  *   - Build cannot impersonate planner/builder/final-reviewers
  *     directly; the controller owns those dispatches.
  *   - ship-controller can dispatch every workflow worker plus
@@ -60,6 +60,7 @@ const PUBLIC_TOOL_IDS = [
   "delivery_sync",
   "delivery_verify",
   "delivery_worktree",
+  "ship_deliver",
   "ship_final_review",
   "ship_plan_approve",
   "ship_plan_start",
@@ -84,6 +85,7 @@ const BUILD_TOOL_ALLOW = [
   "delivery_pr",
   "delivery_ready",
   "delivery_worktree",
+  "ship_deliver",
   "ship_status",
   "ship_resume",
 ];

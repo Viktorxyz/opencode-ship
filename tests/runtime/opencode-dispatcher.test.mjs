@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 
 import {
+  dispatchController,
   dispatchWorker,
   authorizeChildCall,
   authorizeControllerCall,
@@ -62,6 +63,85 @@ function fakeClient(sessionID, { failCreate = false, failPrompt = false } = {}) 
     },
   };
 }
+
+test("dispatchController: creates and prompts one controller session per issue", async () => {
+  const root = makeRepo();
+  try {
+    const client = fakeClient("controller-session");
+    const input = {
+      repoRoot: root,
+      issueNumber: 80,
+      client,
+      parentSessionID: "build-session",
+    };
+
+    const first = await dispatchController(input);
+    const second = await dispatchController(input);
+
+    assert.deepEqual(first, {
+      sessionID: "controller-session",
+      dispatchKey: "controller:issue-80",
+    });
+    assert.deepEqual(second, first);
+    assert.equal(client.calls.create.length, 1);
+    assert.equal(client.calls.promptAsync.length, 1);
+    assert.deepEqual(client.calls.create[0].query, { directory: root });
+    assert.deepEqual(client.calls.promptAsync[0], {
+      path: { id: "controller-session" },
+      body: {
+        parts: [{
+          type: "text",
+          text: "Start or resume durable delivery for issue #80. Call ship_plan_start before implementation mutation.",
+        }],
+        agent: "ship-controller",
+      },
+      query: { directory: root },
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dispatchController: different issues use different dispatch keys", async () => {
+  const root = makeRepo();
+  try {
+    let nextSession = 0;
+    const client = {
+      calls: { create: [], promptAsync: [] },
+      session: {
+        create: async (options) => {
+          client.calls.create.push(options);
+          nextSession += 1;
+          return { data: { id: `controller-session-${nextSession}` } };
+        },
+        promptAsync: async (options) => {
+          client.calls.promptAsync.push(options);
+          return { data: undefined, error: undefined };
+        },
+      },
+    };
+
+    const issue80 = await dispatchController({
+      repoRoot: root,
+      issueNumber: 80,
+      client,
+      parentSessionID: "build-session",
+    });
+    const issue81 = await dispatchController({
+      repoRoot: root,
+      issueNumber: 81,
+      client,
+      parentSessionID: "build-session",
+    });
+
+    assert.equal(issue80.dispatchKey, "controller:issue-80");
+    assert.equal(issue81.dispatchKey, "controller:issue-81");
+    assert.equal(client.calls.create.length, 2);
+    assert.equal(client.calls.promptAsync.length, 2);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("dispatchWorker: prepared -> created -> prompted on success", async () => {
   const root = makeRepo();
