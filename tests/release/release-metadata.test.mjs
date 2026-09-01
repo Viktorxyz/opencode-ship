@@ -69,6 +69,18 @@ test("release.yml: validates tag against package.json and publishes to npm", () 
   assert.doesNotMatch(yaml, /opencode-ship-\$\{ver\}\.tarball/);
 });
 
+test("release.yml: pack installs dependencies after the final release-ref checkout", () => {
+  const yaml = readText(".github/workflows/release.yml");
+  const packJob = yaml.slice(yaml.indexOf("  pack:"), yaml.indexOf("  consumer-install:"));
+  const checkoutAt = packJob.indexOf("name: checkout release ref");
+  const installAt = packJob.indexOf("name: install dependencies");
+  const packAt = packJob.indexOf("name: pack");
+
+  assert.ok(checkoutAt >= 0, "pack job must check out the resolved release ref");
+  assert.ok(installAt > checkoutAt, "pack job must install dependencies after the final checkout");
+  assert.ok(packAt > installAt, "pack job must install dependencies before npm pack");
+});
+
 test("docs: shipping docs reference the approved 1.1.6 correction plan", () => {
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
@@ -84,17 +96,48 @@ test("docs: shipping docs reference the approved 1.1.6 correction plan", () => {
   }
 });
 
-test("docs: live README/CHANGELOG declare 1.1.6 as the active correction line", () => {
-  // The correction remains explicitly unreleased until its evidence gates
-  // pass; historical 1.1.1 and 1.1.2 records are not the live status.
+test("docs: authoritative correction plan directs forward operations to 1.1.7", () => {
+  const plan = readText("docs/release/1.1.6-correction-plan.md");
+  assert.match(
+    plan,
+    /self-host bootstrap[\s\S]*?exactly `opencode-ship@1\.1\.7`/i,
+    "authoritative plan must bootstrap from exact opencode-ship@1.1.7",
+  );
+  assert.match(
+    plan,
+    /`\.opencode\/ship\.lock\.json#manager\.version` to equal `1\.1\.7`/,
+    "authoritative plan must pin the self-host lock to 1.1.7",
+  );
+  assert.match(
+    plan,
+    /npm `latest` points to `1\.1\.7`/,
+    "authoritative plan must define completion against npm latest 1.1.7",
+  );
+  assert.doesNotMatch(
+    plan,
+    /opencode-ship@1\.1\.6/,
+    "authoritative plan must not contain a forward install token for 1.1.6",
+  );
+});
+
+test("docs: live README/CHANGELOG declare 1.1.7 as the active correction line", () => {
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
   for (const [name, text] of [["CHANGELOG.md", changelog], ["README.md", readme]]) {
     assert.ok(
-      /1\.1\.6/.test(text) && /correction|stabilization/i.test(text),
-      `${name} must reference the active 1.1.6 correction line`,
+      /1\.1\.7/.test(text) && /correction|stabilization/i.test(text),
+      `${name} must reference the active 1.1.7 correction line`,
+    );
+    assert.ok(
+      /1\.1\.6/.test(text) && /failed|unpublished|not published/i.test(text),
+      `${name} must record that 1.1.6 failed before publication`,
     );
   }
+  assert.doesNotMatch(
+    readme,
+    /`1\.1\.6`\s+(?:is|remains)\s+(?:the\s+)?(?:planned|active)\s+release/i,
+    "README must not describe 1.1.6 as the planned or active release",
+  );
 });
 
 test("docs: live README/CHANGELOG describe RCs as published under npm dist-tag next", () => {

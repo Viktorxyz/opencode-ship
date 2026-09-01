@@ -62,7 +62,7 @@ jobs:
           fi
 
   pack:
-    name: pack
+    name: "pack"
     runs-on: ubuntu-latest
     needs: source-verify
     timeout-minutes: 30
@@ -82,17 +82,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.14.0"
-      - name: install dependencies
-        env:
-          NPM_CONFIG_PRODUCTION: "false"
-          NODE_ENV: development
-        run: |
-          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ] || [ -f yarn.lock ]; then
-            npm ci --no-audit --no-fund --include=dev
-          else
-            echo "::error::No dependency lockfile. Commit package-lock.json."
-            exit 1
-          fi
       - name: resolve ref
         id: refs
         env:
@@ -119,6 +108,17 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           ref: ${{ steps.refs.outputs.ref }}
+      - name: install dependencies
+        env:
+          NPM_CONFIG_PRODUCTION: "false"
+          NODE_ENV: development
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ] || [ -f yarn.lock ]; then
+            npm ci --no-audit --no-fund --include=dev
+          else
+            echo "::error::No dependency lockfile. Commit package-lock.json."
+            exit 1
+          fi
       - name: compute version and tag
         id: meta
         run: |
