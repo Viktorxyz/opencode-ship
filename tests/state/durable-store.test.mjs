@@ -113,44 +113,48 @@ suite("durable-store: withResourceLock", { concurrency: false }, () => {
     });
 
     await entered.promise;
-    await assert.rejects(
-      () => withResourceLock(dir, "alpha", {
-        callback: async () => {
-          contenderRan = true;
-        },
-        options: { acquire: "try" },
-      }),
-      /resource is busy: alpha/,
-    );
-    assert.equal(contenderRan, false);
-
-    release.resolve();
-    assert.equal(await holder, "A");
-    await rm(dir, { recursive: true, force: true });
+    try {
+      await assert.rejects(
+        () => withResourceLock(dir, "alpha", {
+          callback: async () => {
+            contenderRan = true;
+          },
+          options: { acquire: "try" },
+        }),
+        /resource is busy: alpha/,
+      );
+      assert.equal(contenderRan, false);
+    } finally {
+      release.resolve();
+      assert.equal(await holder, "A");
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test("different keys do not block each other", { serial: true }, async () => {
     const dir = await mkdtemp(resolve(tmpdir(), "ocd-lock-"));
     const alphaEntered = deferred();
-    const betaEntered = deferred();
     const releaseAlpha = deferred();
-    const releaseBeta = deferred();
+    let betaRan = false;
     const a = withResourceLock(dir, "alpha", async () => {
       alphaEntered.resolve();
       await releaseAlpha.promise;
     });
 
     await alphaEntered.promise;
-    const b = withResourceLock(dir, "beta", async () => {
-      betaEntered.resolve();
-      await releaseBeta.promise;
-    });
-
-    await betaEntered.promise;
-    releaseBeta.resolve();
-    releaseAlpha.resolve();
-    await Promise.all([a, b]);
-    await rm(dir, { recursive: true, force: true });
+    try {
+      await withResourceLock(dir, "beta", {
+        callback: async () => {
+          betaRan = true;
+        },
+        options: { acquire: "try" },
+      });
+      assert.equal(betaRan, true);
+    } finally {
+      releaseAlpha.resolve();
+      await a;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test("quarantines a stale same-host dead-PID lock after 120s", { serial: true }, async () => {
