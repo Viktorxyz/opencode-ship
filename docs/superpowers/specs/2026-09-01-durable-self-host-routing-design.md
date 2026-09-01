@@ -115,10 +115,12 @@ user-approved subject and only accepts an attempt when all of these are true:
 - no unpublished commits exist;
 - no durable run is Ready or merged.
 
-On success it writes an immutable tombstone containing task id, issue, PR,
-branch, head SHA, subject, and timestamp. It then removes the worktree, deletes
-the branch with a compare-and-swap ref update, and deletes the active manifest.
-Retries return the existing tombstone and do not repeat destructive work.
+Before cleanup it writes an immutable abandon intent containing task id, issue,
+PR, branch, head SHA, subject, and timestamp. It then removes the worktree,
+deletes the branch with a compare-and-swap ref update, deletes the active
+manifest, and writes an immutable completion record linked to the intent hash.
+Retries that find an intent without completion resume only the missing
+idempotent cleanup steps; retries after completion return the recorded result.
 
 The operation never closes a PR itself. Closing #79 remains an explicit user
 action before abandonment.
@@ -150,8 +152,8 @@ Regression tests must prove:
 - commit and final-review HEAD checks read the feature worktree, not base HEAD;
 - abandon refuses open, merged, dirty, diverged, unpublished, Ready, or merged
   attempts;
-- successful abandon writes its tombstone before CAS-safe cleanup and is
-  idempotent;
+- successful abandon writes immutable intent and completion records around
+  CAS-safe cleanup and resumes safely after a partial failure;
 - the package tarball contains the corrected tools, command, skill, agent
   permissions, and type declarations.
 
