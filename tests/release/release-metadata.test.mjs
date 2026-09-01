@@ -69,6 +69,18 @@ test("release.yml: validates tag against package.json and publishes to npm", () 
   assert.doesNotMatch(yaml, /opencode-ship-\$\{ver\}\.tarball/);
 });
 
+test("release.yml: pack installs dependencies after the final release-ref checkout", () => {
+  const yaml = readText(".github/workflows/release.yml");
+  const packJob = yaml.slice(yaml.indexOf("  pack:"), yaml.indexOf("  consumer-install:"));
+  const checkoutAt = packJob.indexOf("name: checkout release ref");
+  const installAt = packJob.indexOf("name: install dependencies");
+  const packAt = packJob.indexOf("name: pack");
+
+  assert.ok(checkoutAt >= 0, "pack job must check out the resolved release ref");
+  assert.ok(installAt > checkoutAt, "pack job must install dependencies after the final checkout");
+  assert.ok(packAt > installAt, "pack job must install dependencies before npm pack");
+});
+
 test("docs: shipping docs reference the approved 1.1.6 correction plan", () => {
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
