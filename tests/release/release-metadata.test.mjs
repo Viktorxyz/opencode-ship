@@ -96,6 +96,30 @@ test("docs: shipping docs reference the approved 1.1.6 correction plan", () => {
   }
 });
 
+test("docs: authoritative correction plan directs forward operations to 1.1.7", () => {
+  const plan = readText("docs/release/1.1.6-correction-plan.md");
+  assert.match(
+    plan,
+    /self-host bootstrap[\s\S]*?exactly `opencode-ship@1\.1\.7`/i,
+    "authoritative plan must bootstrap from exact opencode-ship@1.1.7",
+  );
+  assert.match(
+    plan,
+    /`\.opencode\/ship\.lock\.json#manager\.version` to equal `1\.1\.7`/,
+    "authoritative plan must pin the self-host lock to 1.1.7",
+  );
+  assert.match(
+    plan,
+    /npm `latest` points to `1\.1\.7`/,
+    "authoritative plan must define completion against npm latest 1.1.7",
+  );
+  assert.doesNotMatch(
+    plan,
+    /opencode-ship@1\.1\.6/,
+    "authoritative plan must not contain a forward install token for 1.1.6",
+  );
+});
+
 test("docs: live README/CHANGELOG declare 1.1.7 as the active correction line", () => {
   const changelog = readText("CHANGELOG.md");
   const readme = readText("README.md");
