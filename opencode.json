@@ -1,0 +1,126 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "plan": {
+      "permission": {
+        "edit": {
+          "docs/superpowers/**": "allow",
+          ".git/opencode-ship/plans/**": "allow"
+        }
+      },
+      "disable": true
+    },
+    "build": {
+      "permission": {
+        "task": {
+          "*": "deny",
+          "ship-controller": "allow",
+          "general": "allow",
+          "plan": "deny",
+          "delivery-reviewer": "allow",
+          "delivery-verifier": "allow"
+        },
+        "bash": {
+          "git --hard *": "deny",
+          "git --force *": "deny",
+          "git -f *": "deny",
+          "git clean -fd *": "deny",
+          "git stash *": "deny",
+          "git worktree remove --force *": "deny",
+          "git branch -D *": "deny",
+          "rm *": "ask"
+        },
+        "delivery_cleanup": "allow",
+        "delivery_github_read": "deny",
+        "delivery_inspect": "allow",
+        "delivery_issue": "allow",
+        "delivery_issue_close": "ask",
+        "delivery_issue_comment": "deny",
+        "delivery_issue_labels": "deny",
+        "delivery_issue_link": "deny",
+        "delivery_merge": "ask",
+        "delivery_pr": "allow",
+        "delivery_publish": "deny",
+        "delivery_ready": "allow",
+        "delivery_review": "deny",
+        "delivery_sync": "deny",
+        "delivery_verify": "deny",
+        "delivery_worktree": "allow",
+        "ship_final_review": "deny",
+        "ship_plan_approve": "ask",
+        "ship_plan_start": "deny",
+        "ship_plan_submit": "deny",
+        "ship_resume": "allow",
+        "ship_run_start": "deny",
+        "ship_skill_audit": "deny",
+        "ship_skill_discover": "deny",
+        "ship_skill_install": "ask",
+        "ship_skill_uninstall": "deny",
+        "ship_status": "allow",
+        "ship_task_commit": "deny",
+        "ship_task_complete": "deny",
+        "ship_task_report": "deny",
+        "ship_task_review": "deny",
+        "ship_task_start": "deny"
+      }
+    },
+    "ship-controller": {
+      "permission": {
+        "task": {
+          "*": "deny",
+          "ship-planner": "allow",
+          "ship-task-builder": "allow",
+          "ship-task-reviewer": "allow",
+          "ship-final-standards-reviewer": "allow",
+          "ship-final-spec-reviewer": "allow",
+          "delivery-verifier": "allow"
+        },
+        "bash": {
+          "*": "allow",
+          "git --hard *": "deny",
+          "git --force *": "deny",
+          "git -f *": "deny",
+          "git clean -fd *": "deny",
+          "git stash *": "deny",
+          "git worktree remove --force *": "deny",
+          "git branch -D *": "deny",
+          "rm -rf *": "deny",
+          "rm -rf /*": "deny"
+        },
+        "delivery_cleanup": "allow",
+        "delivery_github_read": "allow",
+        "delivery_inspect": "allow",
+        "delivery_issue": "allow",
+        "delivery_issue_close": "ask",
+        "delivery_issue_comment": "allow",
+        "delivery_issue_labels": "allow",
+        "delivery_issue_link": "allow",
+        "delivery_merge": "ask",
+        "delivery_pr": "allow",
+        "delivery_publish": "allow",
+        "delivery_ready": "allow",
+        "delivery_review": "deny",
+        "delivery_sync": "allow",
+        "delivery_verify": "deny",
+        "delivery_worktree": "allow",
+        "ship_final_review": "deny",
+        "ship_plan_approve": "ask",
+        "ship_plan_start": "allow",
+        "ship_plan_submit": "deny",
+        "ship_resume": "allow",
+        "ship_run_start": "allow",
+        "ship_skill_audit": "allow",
+        "ship_skill_discover": "allow",
+        "ship_skill_install": "allow",
+        "ship_skill_uninstall": "allow",
+        "ship_status": "allow",
+        "ship_task_commit": "allow",
+        "ship_task_complete": "allow",
+        "ship_task_report": "deny",
+        "ship_task_review": "deny",
+        "ship_task_start": "allow"
+      }
+    }
+  },
+  "subagent_depth": 2
+}

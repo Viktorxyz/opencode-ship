@@ -1,0 +1,1208 @@
+{
+  "contractVersion": 4,
+  "manager": {
+    "schemaVersion": 4,
+    "name": "opencode-ship",
+    "version": "1.1.7",
+    "templateSet": "v1.1.7",
+    "profile": "engineering",
+    "appliedAt": "2026-09-01T16:10:13.919Z",
+    "setupComplete": true,
+    "config": {
+      "path": ".opencode/ship.config.json",
+      "sha256": "c996207843bd609682da804b7b5b7ad0014b69d9b2142f3ae04d4c7089ef472a",
+      "existed": false
+    },
+    "rootDocuments": [
+      {
+        "path": "opencode.json",
+        "format": "json",
+        "pointers": [
+          {
+            "pointer": "/subagent_depth",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/task/*",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/task/ship-controller",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/task/general",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/task/plan",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/task/delivery-reviewer",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/task/delivery-verifier",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/bash/git --hard *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/bash/git --force *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/bash/git -f *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/bash/git clean -fd *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/bash/git stash *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/bash/git worktree remove --force *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/bash/git branch -D *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/bash/rm *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "e43a5493c180fde1ca0c3b266b7781876016f68d2caaa937e049f3c050b87a66",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_cleanup",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_github_read",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_inspect",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_issue",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_issue_close",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "e43a5493c180fde1ca0c3b266b7781876016f68d2caaa937e049f3c050b87a66",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_issue_comment",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_issue_labels",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_issue_link",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_merge",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "e43a5493c180fde1ca0c3b266b7781876016f68d2caaa937e049f3c050b87a66",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_pr",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_publish",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_ready",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_review",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_sync",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_verify",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/delivery_worktree",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_final_review",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_plan_approve",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "e43a5493c180fde1ca0c3b266b7781876016f68d2caaa937e049f3c050b87a66",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_plan_start",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_plan_submit",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_resume",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_run_start",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_skill_audit",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_skill_discover",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_skill_install",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "e43a5493c180fde1ca0c3b266b7781876016f68d2caaa937e049f3c050b87a66",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_skill_uninstall",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_status",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_task_commit",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_task_complete",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_task_report",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_task_review",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/build/permission/ship_task_start",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/task/*",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/task/ship-planner",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/task/ship-task-builder",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/task/ship-task-reviewer",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/task/ship-final-standards-reviewer",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/task/ship-final-spec-reviewer",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/task/delivery-verifier",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/*",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/git --hard *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/git --force *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/git -f *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/git clean -fd *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/git stash *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/git worktree remove --force *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/git branch -D *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/rm -rf *",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/bash/rm -rf ~1*",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_cleanup",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_github_read",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_inspect",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_issue",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_issue_close",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "e43a5493c180fde1ca0c3b266b7781876016f68d2caaa937e049f3c050b87a66",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_issue_comment",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_issue_labels",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_issue_link",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_merge",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "e43a5493c180fde1ca0c3b266b7781876016f68d2caaa937e049f3c050b87a66",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_pr",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_publish",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_ready",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_review",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_sync",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_verify",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/delivery_worktree",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_final_review",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_plan_approve",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "e43a5493c180fde1ca0c3b266b7781876016f68d2caaa937e049f3c050b87a66",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_plan_start",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_plan_submit",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_resume",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_run_start",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_skill_audit",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_skill_discover",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_skill_install",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_skill_uninstall",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_status",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_task_commit",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_task_complete",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_task_report",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_task_review",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "d2a00b488ac374247aa72cf83ed3a7637985deb3f6f282a4c420af0cc45c5277",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/ship-controller/permission/ship_task_start",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/plan/permission/edit/docs~1superpowers~1**",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/plan/permission/edit/.git~1opencode-ship~1plans~1**",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "58d46b625a55ee18af5cfc1b8f4c237f3523a9ac5184cfe64460c6e17810828a",
+            "previous": {
+              "existed": false
+            }
+          },
+          {
+            "pointer": "/agent/plan/disable",
+            "strategy": "value",
+            "scope": "engineering",
+            "installedSha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+            "previous": {
+              "existed": false
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": ".opencode/plugins/opencode-ship.js",
+      "sha256": "e5bd1472142469a081ff8b4a01b21459b2f6a8f554013e8a05f3d6f3938fb6d2",
+      "mode": 420,
+      "template": "dist/plugin.js",
+      "kind": "plugin"
+    },
+    {
+      "path": ".opencode/agents/delivery-reviewer.md",
+      "sha256": "f6195d13742443fc5267ff87762475c9968f3eda767fa47e34504dcbecf5a7b6",
+      "mode": 420,
+      "template": "assets/agents/delivery-reviewer.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/agents/delivery-verifier.md",
+      "sha256": "7d8f468b10bc635f85835534ed67beab2a11a90628fdf5d3cb0acc5321bf0f31",
+      "mode": 420,
+      "template": "assets/agents/delivery-verifier.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/agents/ship-controller.md",
+      "sha256": "b6a69915a36793657745929c55298649e450e1a223382862a78afafcab3b4a72",
+      "mode": 420,
+      "template": "assets/agents/ship-controller.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/agents/ship-plan.md",
+      "sha256": "e6f29674f538d66b4e1fd8f40f123ffa0f3d61020123e5e642fdeedc8078935f",
+      "mode": 420,
+      "template": "assets/agents/ship-plan.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/agents/ship-planner.md",
+      "sha256": "b8e4673bd2dfea27830debed7326c594c531aff71209eb38fece2530c79019f0",
+      "mode": 420,
+      "template": "assets/agents/ship-planner.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/agents/ship-task-builder.md",
+      "sha256": "64708d630718a906d0d155c9abc7892d63170d52a2073c975919881f6090ade4",
+      "mode": 420,
+      "template": "assets/agents/ship-task-builder.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/agents/ship-task-reviewer.md",
+      "sha256": "bb4549ad0080a1d3d6d9d6d99564728385d75392a78adf6d94a7292d1e835be9",
+      "mode": 420,
+      "template": "assets/agents/ship-task-reviewer.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/agents/ship-final-standards-reviewer.md",
+      "sha256": "7b62082a50a7ca3513006f7903bd36b8cb115145c73e97e9efb11b210351de1e",
+      "mode": 420,
+      "template": "assets/agents/ship-final-standards-reviewer.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/agents/ship-final-spec-reviewer.md",
+      "sha256": "bb65018c08f6d29fa6a7e979f9555ada5e50976fd977bfeae443093f23ffd97d",
+      "mode": 420,
+      "template": "assets/agents/ship-final-spec-reviewer.md",
+      "kind": "agent"
+    },
+    {
+      "path": ".opencode/commands/ship-deliver.md",
+      "sha256": "ca980ca87b74cf5298013d6f2725f9c5a87d16668a1548ad21d02a904106e493",
+      "mode": 420,
+      "template": "assets/commands/ship-deliver.md",
+      "kind": "support"
+    },
+    {
+      "path": ".opencode/commands/ship-resume.md",
+      "sha256": "af1f1989486105e40b0558fe01917b67dc0220fb3ac86546dba99cb6c62c6138",
+      "mode": 420,
+      "template": "assets/commands/ship-resume.md",
+      "kind": "support"
+    },
+    {
+      "path": ".opencode/commands/ship-status.md",
+      "sha256": "5bc1259f360bd60f517feaab666bcb136f92c8debd1c40a9f7a63b64907f95bf",
+      "mode": 420,
+      "template": "assets/commands/ship-status.md",
+      "kind": "support"
+    },
+    {
+      "path": ".opencode/skills/delivery-workflow/SKILL.md",
+      "sha256": "afe7de484c0eda168902b0a2a85d2791240cbc59c49494496eadd99ac0271e54",
+      "mode": 420,
+      "template": "assets/skills/delivery-workflow/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/planning-research-checkpoint/SKILL.md",
+      "sha256": "189ae894f3b5f163bbe9e387d68a3acb7b0d7c0c198aacfcc72482bcc881de7b",
+      "mode": 420,
+      "template": "assets/skills/planning-research-checkpoint/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/engineering-workflow/SKILL.md",
+      "sha256": "82c60532a92877c169d142867ed331c92e8d8b5bccf80a5e5fa74a331615c959",
+      "mode": 420,
+      "template": "assets/skills/engineering-workflow/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/grilling/SKILL.md",
+      "sha256": "58a6efb2e5ca1987619dfa51cd6d861e10cc8d73df9f37bbf8dbf063d8bab9fb",
+      "mode": 420,
+      "template": "assets/skills/grilling/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/domain-modeling/SKILL.md",
+      "sha256": "105692d392258ed1c7cde1f1e66c379705882c62701b50c1844289942bb3283c",
+      "mode": 420,
+      "template": "assets/skills/domain-modeling/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/grill-with-docs/SKILL.md",
+      "sha256": "a8a3dc152c7d2a223f18d33ce5582a69117d903184375da3e21bee7c13812484",
+      "mode": 420,
+      "template": "assets/skills/grill-with-docs/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/triage/SKILL.md",
+      "sha256": "7c4b7d19de85cea4e146987d487d995712ae607c862016dcb047a0eda6841902",
+      "mode": 420,
+      "template": "assets/skills/triage/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/to-spec/SKILL.md",
+      "sha256": "ec3825dc5a5e96a047a47eb3dd913b343936a5e8d539ce85c9d8eadaab304a47",
+      "mode": 420,
+      "template": "assets/skills/to-spec/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/to-tickets/SKILL.md",
+      "sha256": "25dc8158fd8c93630f9b0df7df8469e37785641177c73f15fd667fe120bb3987",
+      "mode": 420,
+      "template": "assets/skills/to-tickets/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/wayfinder/SKILL.md",
+      "sha256": "1dc2fa0a585464104ca983a00fba5c6a78ee716bdb2f8d7ac0893f63ca5215bc",
+      "mode": 420,
+      "template": "assets/skills/wayfinder/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/handoff/SKILL.md",
+      "sha256": "59cc7899221b8991fd08f4eb1344b3ec6002acaf58cedba0fb50b51874cf6744",
+      "mode": 420,
+      "template": "assets/skills/handoff/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/research/SKILL.md",
+      "sha256": "8b014bbfbfc142f1ec330052c53bb199f93f023ab217ddc10cee07723028b5a7",
+      "mode": 420,
+      "template": "assets/skills/research/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/prototype/SKILL.md",
+      "sha256": "db8ed8d467f346e91b9822a28e9d5451dedde887352d97e52ef37272925593a0",
+      "mode": 420,
+      "template": "assets/skills/prototype/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/codebase-design/SKILL.md",
+      "sha256": "8a1b3aa52c0b18333e1eef2da8fc5b055e4b45b47454d41d46f7f09dd96443bf",
+      "mode": 420,
+      "template": "assets/skills/codebase-design/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/code-review/SKILL.md",
+      "sha256": "c0da1c2dbf8cfceaa021c73ed44add013bf58d3829f9721ef5d261ce034be4ba",
+      "mode": 420,
+      "template": "assets/skills/code-review/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/brainstorming/SKILL.md",
+      "sha256": "5cbb6cd5794b43713fd4343de16312d6a08ba3182a579767547b89fa0f00cfe9",
+      "mode": 420,
+      "template": "assets/skills/brainstorming/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/writing-plans/SKILL.md",
+      "sha256": "14c2184bdc6ee538614011ee247f2d51cae6e8770c2d2e961d44620aa0d739c6",
+      "mode": 420,
+      "template": "assets/skills/writing-plans/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/executing-plans/SKILL.md",
+      "sha256": "de7d1e38991d184f4affbe2d97342c39041689ac14d657f2b2542f45de0681e6",
+      "mode": 420,
+      "template": "assets/skills/executing-plans/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/subagent-driven-development/SKILL.md",
+      "sha256": "46d7ace03198558e30671f22e00979235bdd5dcea2e5de5e0ed1cca4bb9ad0a4",
+      "mode": 420,
+      "template": "assets/skills/subagent-driven-development/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/dispatching-parallel-agents/SKILL.md",
+      "sha256": "560e4e37b0bd84777d284a3b39604bc81a4d9274515f9deb688b155d55e1f8fc",
+      "mode": 420,
+      "template": "assets/skills/dispatching-parallel-agents/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/test-driven-development/SKILL.md",
+      "sha256": "5fb9136eabbc16c74d52383570be0c9f0259f92593b17a975ff04252499dad03",
+      "mode": 420,
+      "template": "assets/skills/test-driven-development/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/systematic-debugging/SKILL.md",
+      "sha256": "7180b97e2875b42590bb2f118e78676e08e9188c8d5f11f16a0669918c503f38",
+      "mode": 420,
+      "template": "assets/skills/systematic-debugging/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/verification-before-completion/SKILL.md",
+      "sha256": "f4c7528eb5be07b6e5df25ec00795ac2e377def7445463034bcdda6b1921b6d2",
+      "mode": 420,
+      "template": "assets/skills/verification-before-completion/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/requesting-code-review/SKILL.md",
+      "sha256": "6094619d2a9a07b4701438467c1ad46a74056239b5b6997c1b9b51d940d40e4d",
+      "mode": 420,
+      "template": "assets/skills/requesting-code-review/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/receiving-code-review/SKILL.md",
+      "sha256": "47b3afda623ea0d6dbe7cf4110bc499560a04d2b69f6409f6c2e25fc1eb68c0f",
+      "mode": 420,
+      "template": "assets/skills/receiving-code-review/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/setup-ship-workflow/SKILL.md",
+      "sha256": "a887a83cf1711994cb83942cb3684dfa97161c9462d6b4b1b5354f3f17f3934b",
+      "mode": 420,
+      "template": "assets/skills/setup-ship-workflow/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/skills/skill-discovery/SKILL.md",
+      "sha256": "0d450e019dbf6e033487dc2d8180546b1899a728119ba5bf66ea3614a6d80ce4",
+      "mode": 420,
+      "template": "assets/skills/skill-discovery/SKILL.md",
+      "kind": "skill"
+    },
+    {
+      "path": ".opencode/commands/setup-ship-workflow.md",
+      "sha256": "f1c7e0e29be35f5a740fec166cbc30b2d13436dec81c972521281227e2d8ae92",
+      "mode": 420,
+      "template": "assets/commands/setup-ship-workflow.md",
+      "kind": "support"
+    }
+  ],
+  "integrity": {
+    "lockSha256": "47f7aad0ad63f02b6c4aea5796680f787b136f58c4bd7392f394f90b88ab28a4"
+  }
+}

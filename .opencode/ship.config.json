@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 2,
+  "profile": "engineering",
+  "project": {
+    "remote": "origin",
+    "repository": "Viktorxyz/opencode-ship",
+    "defaultBranch": "main",
+    "packageManager": "npm",
+    "detectOverrides": false
+  },
+  "delivery": {
+    "worktree": {
+      "root": ".worktrees",
+      "branchTemplate": "{actor}/{slug}",
+      "bootstrap": [
+        [
+          "npm",
+          "ci"
+        ]
+      ]
+    },
+    "verification": {
+      "commands": [
+        {
+          "id": "canonical",
+          "argv": [
+            "npm",
+            "run",
+            "verify"
+          ]
+        }
+      ],
+      "requireCleanDiffAfter": true,
+      "invalidateOnHeadChange": true
+    },
+    "review": {
+      "agent": "delivery-reviewer",
+      "required": true,
+      "invalidateOnHeadChange": true
+    },
+    "ci": {
+      "driver": "github-status-checks",
+      "requiredChecks": [
+        "opencode-ship-verify"
+      ],
+      "wait": true,
+      "flakyRetry": 1
+    },
+    "ready": {
+      "requires": [
+        "review",
+        "local-verification",
+        "remote-ci"
+      ],
+      "stopAfterReady": true
+    },
+    "merge": {
+      "strategy": "squash",
+      "policy": "explicit-user-request-only",
+      "requireFreshGates": true
+    },
+    "cleanup": {
+      "when": "next-task",
+      "requireUnpublishedGuard": true
+    }
+  },
+  "workflow": {
+    "models": {
+      "planner": "openai/gpt-5.6-sol",
+      "builder": "minimax-coding-plan/MiniMax-M3",
+      "finalReviewer": "openai/gpt-5.6-sol"
+    },
+    "approval": {
+      "mirrorToIssue": true,
+      "maxFailedRounds": 3
+    }
+  }
+}
