@@ -71,7 +71,10 @@ resolveWorkflowWorktree(repoRoot, workflowId)
 The resolver reads the approved workflow source, finds exactly one schema-v2
 manifest for its issue, requires the manifest's `workflowId` to match, and
 validates that `worktreePath` is a registered linked worktree for the same Git
-common directory. Ambiguous, missing, dirty, or mismatched state fails closed.
+common directory. Ambiguous, missing, unregistered, or mismatched identity
+fails closed. Individual operations enforce clean/dirty state only when their
+own transition requires it; task review must be able to inspect builder edits
+before they are committed.
 
 Planning, approval, and `ship_run_start` remain based on the base checkout and
 approved base SHA. After worktree creation, these operations use the resolved
@@ -141,8 +144,8 @@ Regression tests must prove:
   and do not instruct Build to execute the legacy lifecycle;
 - schema-v2 worktree creation without a workflow link fails before mutation;
 - `ship_plan_start` links the one matching manifest;
-- workflow resolution rejects absent, duplicate, cross-repository, dirty, and
-  workflow-mismatched worktrees;
+- workflow resolution rejects absent, duplicate, cross-repository,
+  unregistered, and workflow-mismatched worktrees;
 - builder/reviewer dispatch receives the linked worktree directory;
 - commit and final-review HEAD checks read the feature worktree, not base HEAD;
 - abandon refuses open, merged, dirty, diverged, unpublished, Ready, or merged
