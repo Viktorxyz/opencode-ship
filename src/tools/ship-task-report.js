@@ -22,6 +22,7 @@ import { isSetupComplete, readLock } from "../installer/lock.js";
 import { authorizeChildCall, dispatchWorker, ROLES, readControllerLease } from "../runtime/opencode-dispatcher.js";
 import { resolveModelRoles } from "../installer/engineering-config.js";
 import { readPlanRevision } from "../workflow/plan-store.js";
+import { resolveWorkflowWorktree } from "../workflow/worktree-resolver.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -70,6 +71,14 @@ export function createTaskReportTool(deps) {
       return failure("task-report", `another task is already active (${runState.activeTask})`, { operationId: opId, retryable: false });
     }
     try {
+      const resolved = await resolveWorkflowWorktree(deps.repoRoot, workflowId);
+      if (!resolved.ok) {
+        return failure("task-report", `workflow worktree resolution failed: ${resolved.kind}`, {
+          operationId: opId,
+          retryable: false,
+          details: resolved,
+        });
+      }
       const commonDir = await resolveGitCommonDir(deps.repoRoot);
       const reportDir = join(opencodeShipStateDir(commonDir), "runs", workflowId, "tasks", taskId, "rounds", `${String(round).padStart(4, "0")}`);
       await mkdir(reportDir, { recursive: true });
@@ -127,7 +136,7 @@ export function createTaskReportTool(deps) {
       if (deps.opencodeClient) {
         try {
           reviewerDispatch = await dispatchWorker({
-            repoRoot: deps.repoRoot,
+            repoRoot: resolved.worktreePath,
             workflowId,
             role: ROLES.TASK_REVIEWER,
             keyInput: { taskId, round },

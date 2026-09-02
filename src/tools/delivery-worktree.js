@@ -92,6 +92,9 @@ export function createWorktreeTool(deps) {
         expectedRoot: resolve(deps.repoRoot, worktreeRoot),
       };
     }
+    if (m.schemaVersion >= 2 && !m.workflowId) {
+      return { kind: "missing-workflow-link", taskId: m.taskId };
+    }
 
     const remote = deps.remote ?? "origin";
     const hasRemote = git.remoteExists(remote, deps.repoRoot);

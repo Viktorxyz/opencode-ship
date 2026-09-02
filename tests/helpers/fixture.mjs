@@ -11,6 +11,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { readManifest, writeManifest } from "../../src/state/manifest-store.js";
 
 export function git(cwd, args, env = {}) {
   return spawnSync("git", args, {
@@ -64,6 +65,12 @@ export function makeFixtureRepo(adapterOverrides = {}) {
   };
   writeFileSync(join(dir, ".opencode", "delivery.json"), JSON.stringify(adapter, null, 2));
   return { dir, adapter };
+}
+
+export async function linkWorkflow(repoRoot, taskId, workflowId = "wf-1") {
+  const manifest = await readManifest(repoRoot, taskId);
+  if (!manifest) throw new Error(`linkWorkflow: missing manifest ${taskId}`);
+  await writeManifest(repoRoot, { ...manifest, workflowId });
 }
 
 export function cleanupFixture(repo) {

@@ -2,7 +2,7 @@ import { test, suite } from "node:test";
 import assert from "node:assert/strict";
 import { loadAdapter } from "../../src/adapter.js";
 import { createReviewTool, createCleanupTool, createIssueTool, createWorktreeTool } from "../../src/index.js";
-import { makeFixtureRepo, cleanupFixture, git } from "../helpers/fixture.mjs";
+import { makeFixtureRepo, cleanupFixture, git, linkWorkflow } from "../helpers/fixture.mjs";
 import { writeManifest } from "../../src/state/manifest-store.js";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 
@@ -50,6 +50,7 @@ async function bootstrapWorktree(fixture, adapter, taskId, branch) {
     branch,
     labels: [],
   });
+  await linkWorkflow(fixture.dir, "t1");
   const worktree = createWorktreeTool({
     repoRoot: fixture.dir,
     remote: "origin",

@@ -2,7 +2,7 @@ import { test, suite } from "node:test";
 import assert from "node:assert/strict";
 import { loadAdapter } from "../../src/adapter.js";
 import { createIssueTool, createWorktreeTool, createVerifyTool } from "../../src/index.js";
-import { makeFixtureRepo, cleanupFixture, git } from "../helpers/fixture.mjs";
+import { makeFixtureRepo, cleanupFixture, git, linkWorkflow } from "../helpers/fixture.mjs";
 
 function stubDriver() {
   return {
@@ -29,6 +29,7 @@ async function bootstrapIssueWorktree(fixture, adapter) {
     branch: "backend/t1",
     labels: [],
   });
+  await linkWorkflow(fixture.dir, "t1");
   const worktree = createWorktreeTool({
     repoRoot: fixture.dir,
     remote: "origin",

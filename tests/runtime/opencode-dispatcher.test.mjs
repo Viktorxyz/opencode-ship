@@ -20,12 +20,14 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 
 import {
+  dispatchController,
   dispatchWorker,
   authorizeChildCall,
   authorizeControllerCall,
   issueControllerLease,
   readControllerLease,
   readLatestDispatch,
+  transitionDispatch,
   dispatchKeyFor,
   withControllerLease,
   ROLES,
@@ -63,6 +65,165 @@ function fakeClient(sessionID, { failCreate = false, failPrompt = false } = {}) 
   };
 }
 
+test("dispatchController: creates and prompts one controller session per issue", async () => {
+  const root = makeRepo();
+  try {
+    const client = fakeClient("controller-session");
+    const input = {
+      repoRoot: root,
+      issueNumber: 80,
+      client,
+      parentSessionID: "build-session",
+    };
+
+    const first = await dispatchController(input);
+    const second = await dispatchController(input);
+
+    assert.deepEqual(first, {
+      sessionID: "controller-session",
+      dispatchKey: "controller:issue-80",
+    });
+    assert.deepEqual(second, first);
+    assert.equal(client.calls.create.length, 1);
+    assert.equal(client.calls.promptAsync.length, 1);
+    assert.deepEqual(client.calls.create[0].query, { directory: root });
+    assert.deepEqual(client.calls.promptAsync[0], {
+      path: { id: "controller-session" },
+      body: {
+        parts: [{
+          type: "text",
+          text: "Start or resume durable delivery for issue #80. Call ship_plan_start before implementation mutation.",
+        }],
+        agent: "ship-controller",
+      },
+      query: { directory: root },
+    });
+    const latest = await readLatestDispatch(root, "wf-80", "controller:issue-80");
+    assert.equal(latest.parentSessionID, "build-session");
+    assert.equal(latest.controllerSessionID, undefined);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dispatchController: retries a failed prompt without creating another session", async () => {
+  const root = makeRepo();
+  try {
+    const client = fakeClient("controller-session");
+    let promptAttempts = 0;
+    client.session.promptAsync = async (options) => {
+      client.calls.promptAsync.push(options);
+      promptAttempts += 1;
+      if (promptAttempts === 1) throw new Error("prompt failed");
+      return { data: undefined, error: undefined };
+    };
+    const input = {
+      repoRoot: root,
+      issueNumber: 80,
+      client,
+      parentSessionID: "build-session",
+    };
+
+    await assert.rejects(dispatchController(input), /prompt failed/);
+    const retried = await dispatchController(input);
+
+    assert.equal(retried.sessionID, "controller-session");
+    assert.equal(client.calls.create.length, 1);
+    assert.equal(client.calls.promptAsync.length, 2);
+    assert.deepEqual(
+      client.calls.promptAsync.map((call) => call.path),
+      [{ id: "controller-session" }, { id: "controller-session" }],
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dispatchController: creates a fresh session after the previous session is orphaned", async () => {
+  const root = makeRepo();
+  try {
+    const calls = { create: [], promptAsync: [] };
+    const client = {
+      session: {
+        create: async (options) => {
+          calls.create.push(options);
+          return { data: { id: `controller-session-${calls.create.length}` }, error: undefined };
+        },
+        promptAsync: async (options) => {
+          calls.promptAsync.push(options);
+          return { data: undefined, error: undefined };
+        },
+      },
+    };
+    const input = {
+      repoRoot: root,
+      issueNumber: 80,
+      client,
+      parentSessionID: "build-session",
+    };
+
+    const first = await dispatchController(input);
+    const latest = await readLatestDispatch(root, "wf-80", "controller:issue-80");
+    await transitionDispatch(root, "wf-80", "controller:issue-80", "orphaned", {
+      sequence: latest.sequence + 1,
+      sessionID: first.sessionID,
+      parentSessionID: "build-session",
+    });
+    const retried = await dispatchController(input);
+
+    assert.equal(first.sessionID, "controller-session-1");
+    assert.equal(retried.sessionID, "controller-session-2");
+    assert.equal(calls.create.length, 2);
+    assert.deepEqual(
+      calls.promptAsync.map((call) => call.path),
+      [{ id: "controller-session-1" }, { id: "controller-session-2" }],
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dispatchController: different issues use different dispatch keys", async () => {
+  const root = makeRepo();
+  try {
+    let nextSession = 0;
+    const client = {
+      calls: { create: [], promptAsync: [] },
+      session: {
+        create: async (options) => {
+          client.calls.create.push(options);
+          nextSession += 1;
+          return { data: { id: `controller-session-${nextSession}` } };
+        },
+        promptAsync: async (options) => {
+          client.calls.promptAsync.push(options);
+          return { data: undefined, error: undefined };
+        },
+      },
+    };
+
+    const issue80 = await dispatchController({
+      repoRoot: root,
+      issueNumber: 80,
+      client,
+      parentSessionID: "build-session",
+    });
+    const issue81 = await dispatchController({
+      repoRoot: root,
+      issueNumber: 81,
+      client,
+      parentSessionID: "build-session",
+    });
+
+    assert.equal(issue80.dispatchKey, "controller:issue-80");
+    assert.equal(issue81.dispatchKey, "controller:issue-81");
+    assert.equal(client.calls.create.length, 2);
+    assert.equal(client.calls.promptAsync.length, 2);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("dispatchWorker: prepared -> created -> prompted on success", async () => {
   const root = makeRepo();
   try {
@@ -84,6 +245,8 @@ test("dispatchWorker: prepared -> created -> prompted on success", async () => {
     const latest = await readLatestDispatch(root, "wf-1", "planner:1");
     assert.equal(latest.state, "prompted");
     assert.equal(latest.sessionID, "planner-session-1");
+    assert.equal(latest.controllerSessionID, "ctrl-session-A");
+    assert.equal(latest.parentSessionID, undefined);
     assert.deepEqual(client.calls.create, [{
       body: { parentID: "ctrl-session-A", title: "ship-planner-planner:1" },
       query: { directory: root },

@@ -13,8 +13,8 @@
  *
  *   - `subagent_depth` is bumped to 2 so Build -> ship-controller ->
  *     worker agents can dispatch without depth errors.
- *   - Build can dispatch ship-controller, delivery-reviewer, and
- *     delivery-verifier (legacy compatibility).
+ *   - Build can call ship_deliver and dispatch ship-controller,
+ *     delivery-reviewer, and delivery-verifier (legacy compatibility).
  *   - Build cannot impersonate planner/builder/final-reviewers
  *     directly; the controller owns those dispatches.
  *   - ship-controller can dispatch every workflow worker plus
@@ -44,6 +44,7 @@ const CONTROLLER_TASK_ALLOW = [
   "delivery-verifier",
 ];
 const PUBLIC_TOOL_IDS = [
+  "delivery_abandon",
   "delivery_cleanup",
   "delivery_github_read",
   "delivery_inspect",
@@ -60,6 +61,7 @@ const PUBLIC_TOOL_IDS = [
   "delivery_sync",
   "delivery_verify",
   "delivery_worktree",
+  "ship_deliver",
   "ship_final_review",
   "ship_plan_approve",
   "ship_plan_start",
@@ -84,6 +86,7 @@ const BUILD_TOOL_ALLOW = [
   "delivery_pr",
   "delivery_ready",
   "delivery_worktree",
+  "ship_deliver",
   "ship_status",
   "ship_resume",
 ];
@@ -91,6 +94,7 @@ const BUILD_TOOL_ASK = [
   "ship_plan_approve",
   "delivery_merge",
   "delivery_issue_close",
+  "delivery_abandon",
   "ship_skill_install",
 ];
 const CONTROLLER_TOOL_ALLOW = [
@@ -122,6 +126,7 @@ const CONTROLLER_TOOL_ASK = [
   "ship_plan_approve",
   "delivery_merge",
   "delivery_issue_close",
+  "delivery_abandon",
 ];
 
 // Build the destructive-command deny list programmatically so the

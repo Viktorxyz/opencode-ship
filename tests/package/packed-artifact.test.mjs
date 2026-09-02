@@ -4,7 +4,7 @@
  * Build a real tarball, extract it into a clean directory that has NO
  * link back to the source tree, remove the local node_modules, then
  * load the bundled plugin from the extracted path and assert exactly
- * 32 tools are registered. This verifies the published artifact is
+ * 34 tools are registered. This verifies the published artifact is
  * truly self-contained.
  *
  * The second test runs the extracted CLI against a fresh Git
@@ -22,8 +22,9 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tar } from "./_test-tar.mjs";
+import { EXPECTED_OPENCODE_SHIP_TOOL_IDS } from "../plugin/expected-tools.mjs";
 
-test("packed-artifact: bundled plugin loads with 32 tools in an isolated consumer", async (t) => {
+test("packed-artifact: bundled plugin loads with 34 tools in an isolated consumer", async (t) => {
   const pkgRoot = process.cwd();
   const tmp = await mkdtemp(join(tmpdir(), "opencode-ship-isolated-"));
   const child = { cleanup: () => {} };
@@ -83,40 +84,10 @@ test("packed-artifact: bundled plugin loads with 32 tools in an isolated consume
   ], { encoding: "utf8" });
   assert.equal(childProc.status, 0, childProc.stderr + "\n" + childProc.stdout);
   const ids = JSON.parse(childProc.stdout.trim());
-  assert.deepEqual(ids, [
-    "delivery_cleanup",
-    "delivery_github_read",
-    "delivery_inspect",
-    "delivery_issue",
-    "delivery_issue_close",
-    "delivery_issue_comment",
-    "delivery_issue_labels",
-    "delivery_issue_link",
-    "delivery_merge",
-    "delivery_pr",
-    "delivery_publish",
-    "delivery_ready",
-    "delivery_review",
-    "delivery_sync",
-    "delivery_verify",
-    "delivery_worktree",
-    "ship_final_review",
-    "ship_plan_approve",
-    "ship_plan_start",
-    "ship_plan_submit",
-    "ship_resume",
-    "ship_run_start",
-    "ship_skill_audit",
-    "ship_skill_discover",
-    "ship_skill_install",
-    "ship_skill_uninstall",
-    "ship_status",
-    "ship_task_commit",
-    "ship_task_complete",
-    "ship_task_report",
-    "ship_task_review",
-    "ship_task_start",
-  ]);
+  assert.equal(packedPackage.version, "1.1.8");
+  assert.ok(ids.includes("ship_deliver"));
+  assert.ok(ids.includes("delivery_abandon"));
+  assert.deepEqual(ids, EXPECTED_OPENCODE_SHIP_TOOL_IDS);
   const coreProc = spawnSync("node", [
     "--input-type=module", "--no-warnings",
     "-e",

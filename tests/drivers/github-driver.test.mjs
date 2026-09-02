@@ -66,6 +66,35 @@ suite("github driver", { concurrency: false }, () => {
     assert.equal(pr.state, "MERGED");
   });
 
+  test("readPullRequest maps OPEN and CLOSED states", { serial: true }, async () => {
+    const replies = [
+      { state: "OPEN", mergedAt: null },
+      { state: "CLOSED", mergedAt: null },
+    ];
+    const r = recorder(async (args) => {
+      if (args[0] === "pr" && args[1] === "view") {
+        const next = replies.shift();
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            number: 1, url: "u", baseRefName: "main", headRefName: "f",
+            headRefOid: "abc", isDraft: false, mergeable: "MERGEABLE",
+            mergeStateStatus: "CLEAN", ...next,
+          }),
+          stderr: "",
+        };
+      }
+      return { status: 0, stdout: "", stderr: "" };
+    });
+    const d = createGhDriver({ runner: r.run });
+    const open = await d.readPullRequest({ repo: "a/b", number: 1 });
+    assert.equal(open.state, "OPEN");
+    assert.equal(open.merged, false);
+    const closed = await d.readPullRequest({ repo: "a/b", number: 1 });
+    assert.equal(closed.state, "CLOSED");
+    assert.equal(closed.merged, false);
+  });
+
   test("ensureIssue reuses an existing open issue when title matches", { serial: true }, async () => {
     const r = recorder(async (args) => {
       if (args[0] === "issue" && args[1] === "list") {

@@ -1,10 +1,10 @@
 /*
  * Re-export every Ship tool factory so the bundled plugin can
- * wire them all from a single import path. The 32-tool surface
+ * wire them all from a single import path. The 34-tool surface
  * is composed of:
  *
- *   16 delivery_* tools for the Git/GitHub delivery lifecycle
- *   16 ship_* tools for planning, task execution, final review,
+ *   17 delivery_* tools for the Git/GitHub delivery lifecycle
+ *   17 ship_* tools for delivery dispatch, planning, task execution, final review,
  *      resume/status, and trusted skill management
  *
  * The bundle preserves the existing behavior; it just centralises
@@ -20,6 +20,7 @@ export { createPrTool } from "./delivery-pr.js";
 export { createReadyTool } from "./delivery-ready.js";
 export { createMergeTool } from "./delivery-merge.js";
 export { createCleanupTool } from "./delivery-cleanup.js";
+export { createAbandonTool } from "./delivery-abandon.js";
 
 export { createGithubReadTool } from "./delivery-github-read.js";
 export { createIssueCommentTool } from "./delivery-issue-comment.js";
@@ -29,6 +30,7 @@ export { createIssueCloseTool } from "./delivery-issue-close.js";
 export { createSyncTool } from "./delivery-sync.js";
 export { createPublishTool } from "./delivery-publish.js";
 
+export { createDeliverTool } from "./ship-deliver.js";
 export { createPlanStartTool } from "./ship-plan-start.js";
 export { createPlanSubmitTool } from "./ship-plan-submit.js";
 export { createPlanApproveTool } from "./ship-plan-approve.js";

@@ -95,8 +95,12 @@ export async function prepareDispatch(repoRoot, workflowId, role, keyInput, payl
   if (!ROLE_KEYS.has(role)) {
     throw new Error(`prepareDispatch: unknown role ${role}`);
   }
-  const common = await resolveGitCommonDir(repoRoot);
   const dispatchKey = dispatchKeyFor(role, keyInput);
+  return prepareDispatchRecord(repoRoot, workflowId, dispatchKey, role, keyInput, payload);
+}
+
+async function prepareDispatchRecord(repoRoot, workflowId, dispatchKey, role, keyInput, payload) {
+  const common = await resolveGitCommonDir(repoRoot);
   const commonDir = opencodeShipStateDir(common);
   const dir = dispatchDir(common, workflowId, dispatchKey);
   await mkdir(dir, { recursive: true });
@@ -236,33 +240,96 @@ export async function dispatchWorker(input) {
   if (!ROLE_KEYS.has(role)) {
     throw new Error(`dispatchWorker: unknown role ${role}`);
   }
+  const dispatchKey = dispatchKeyFor(role, keyInput);
+  return dispatchSession({
+    repoRoot,
+    workflowId,
+    dispatchKey,
+    role,
+    keyInput,
+    payload,
+    client,
+    parentSessionID,
+    titleMarker,
+    agent,
+    model,
+    promptText: payload?.promptText,
+    requireControllerLease: true,
+    caller: "dispatchWorker",
+  });
+}
+
+export async function dispatchController({ repoRoot, issueNumber, client, parentSessionID }) {
+  if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
+    throw new Error("dispatchController: positive issueNumber required");
+  }
+  return dispatchSession({
+    repoRoot,
+    workflowId: `wf-${issueNumber}`,
+    dispatchKey: `controller:issue-${issueNumber}`,
+    role: "controller",
+    keyInput: { issueNumber },
+    payload: { issueNumber, agent: "ship-controller" },
+    client,
+    parentSessionID,
+    titleMarker: `ship-controller-wf-${issueNumber}`,
+    agent: "ship-controller",
+    promptText: `Start or resume durable delivery for issue #${issueNumber}. Call ship_plan_start before implementation mutation.`,
+    requireControllerLease: false,
+    caller: "dispatchController",
+  });
+}
+
+async function dispatchSession(input) {
+  const {
+    repoRoot,
+    workflowId,
+    dispatchKey,
+    role,
+    keyInput,
+    payload,
+    client,
+    parentSessionID,
+    titleMarker,
+    agent,
+    model,
+    promptText,
+    requireControllerLease,
+    caller,
+  } = input;
   if (!client || typeof client.session?.create !== "function" || typeof client.session?.promptAsync !== "function") {
-    throw new Error("dispatchWorker: client.session.create and client.session.promptAsync are required");
+    throw new Error(`${caller}: client.session.create and client.session.promptAsync are required`);
   }
   if (!parentSessionID || typeof parentSessionID !== "string") {
-    throw new Error("dispatchWorker: parentSessionID required");
+    throw new Error(`${caller}: parentSessionID required`);
   }
-  await assertControllerLease(repoRoot, workflowId, parentSessionID);
-  const dispatchKey = dispatchKeyFor(role, keyInput);
+  if (requireControllerLease) {
+    await assertControllerLease(repoRoot, workflowId, parentSessionID);
+  }
   const common = await resolveGitCommonDir(repoRoot);
   const stateDir = opencodeShipStateDir(common);
   const preparedPayload = { ...payload, agent: agent ?? null, model: model ?? null };
+  const parentAudit = requireControllerLease
+    ? { controllerSessionID: parentSessionID }
+    : { parentSessionID };
   return withResourceLock(stateDir, `dispatch:${workflowId}:${dispatchKey}`, async () => {
     let latest = await readLatestDispatch(repoRoot, workflowId, dispatchKey);
     const preparedRecord = await readPreparedDispatch(repoRoot, workflowId, dispatchKey);
     if (preparedRecord && preparedRecord.payloadHash !== hashPayload(preparedPayload)) {
-      throw new Error(`dispatchWorker: payload changed for existing dispatch ${dispatchKey}`);
+      throw new Error(`${caller}: payload changed for existing dispatch ${dispatchKey}`);
     }
     if (latest?.state === "prompted" || latest?.state === "completed") {
       return { sessionID: latest.sessionID, dispatchKey };
     }
     if (!preparedRecord) {
-      await prepareDispatch(repoRoot, workflowId, role, keyInput, preparedPayload);
+      await prepareDispatchRecord(repoRoot, workflowId, dispatchKey, role, keyInput, preparedPayload);
       latest = { state: "prepared", sequence: 0 };
     }
     let sequence = Number(latest?.sequence ?? 0);
     const title = titleMarker ?? `ship-${role}-${dispatchKey}`;
-    let sessionID = latest?.state === "created" ? latest.sessionID : null;
+    const canReuseSession = latest?.state === "created"
+      || (latest?.state === "failed" && latest?.lastError?.startsWith("promptAsync:"));
+    let sessionID = canReuseSession ? latest?.sessionID ?? null : null;
     if (!sessionID) {
       try {
         const created = await client.session.create({
@@ -270,12 +337,12 @@ export async function dispatchWorker(input) {
           query: { directory: repoRoot },
         });
         if (created?.error) {
-          throw new Error(`dispatchWorker: session.create failed: ${formatSdkError(created.error)}`);
+          throw new Error(`${caller}: session.create failed: ${formatSdkError(created.error)}`);
         }
         const createdData = created?.data ?? created;
         sessionID = createdData?.id ?? createdData?.sessionID;
         if (!sessionID) {
-          throw new Error(`dispatchWorker: client.session.create did not return a session id`);
+          throw new Error(`${caller}: client.session.create did not return a session id`);
         }
       } catch (err) {
         sequence += 1;
@@ -289,12 +356,12 @@ export async function dispatchWorker(input) {
       await transitionDispatch(repoRoot, workflowId, dispatchKey, "created", {
         sequence,
         sessionID,
-        controllerSessionID: parentSessionID,
+        ...parentAudit,
       });
     }
     try {
       const body = {
-        parts: [{ type: "text", text: String(payload?.promptText ?? "") }],
+        parts: [{ type: "text", text: String(promptText ?? "") }],
       };
       if (agent) body.agent = agent;
       if (model) body.model = parseModelId(model);
@@ -304,14 +371,14 @@ export async function dispatchWorker(input) {
         query: { directory: repoRoot },
       });
       if (prompted?.error) {
-        throw new Error(`dispatchWorker: session.promptAsync failed: ${formatSdkError(prompted.error)}`);
+        throw new Error(`${caller}: session.promptAsync failed: ${formatSdkError(prompted.error)}`);
       }
     } catch (err) {
       sequence += 1;
       await transitionDispatch(repoRoot, workflowId, dispatchKey, "failed", {
         sequence,
         sessionID,
-        controllerSessionID: parentSessionID,
+        ...parentAudit,
         lastError: `promptAsync: ${err?.message ?? err}`,
       });
       throw err;
@@ -320,7 +387,7 @@ export async function dispatchWorker(input) {
     await transitionDispatch(repoRoot, workflowId, dispatchKey, "prompted", {
       sequence,
       sessionID,
-      controllerSessionID: parentSessionID,
+      ...parentAudit,
     });
     return { sessionID, dispatchKey };
   });

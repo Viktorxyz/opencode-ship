@@ -11,12 +11,14 @@
  *      and the legacy delivery_* permission surface.
  *   2. desiredPointersForProfile("engineering") returns the matrix
  *      leaves, NOT the legacy POINTER_ENTRIES list.
- *   3. The shipped 32 public tools are all expressed as explicit
+ *   3. The shipped 34 public tools are all expressed as explicit
  *      permission leaves on the ship-controller agent (no "*"
  *      wildcard sentinel leaks into a literal pointer).
  */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import {
   matrixLeafPointers,
@@ -36,6 +38,19 @@ test("matrix: rootPermissionMatrix is the canonical source of truth", () => {
   // Tool-level permissions live under `tools`, not `permission`.
   assert.equal(matrix.shipController.tools.ship_plan_approve, "ask");
   assert.equal(matrix.shipController.tools.delivery_merge, "ask");
+  assert.equal(matrix.build.tools.ship_deliver, "allow");
+  assert.equal(matrix.shipController.tools.ship_deliver, "deny");
+  assert.equal(matrix.build.tools.ship_plan_start, "deny");
+  assert.equal(matrix.shipController.tools.ship_plan_start, "allow");
+  assert.equal(matrix.build.tools.delivery_abandon, "ask");
+  assert.equal(matrix.shipController.tools.delivery_abandon, "ask");
+});
+
+test("matrix: shipped controller asset denies recursive ship_deliver", () => {
+  const source = readFileSync(resolve("assets/agents/ship-controller.md"), "utf8");
+  const frontmatter = source.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
+  assert.match(frontmatter, /^\s{2}ship_deliver: deny$/m);
+  assert.doesNotMatch(frontmatter, /^\s{2}ship_deliver: allow$/m);
 });
 
 test("matrix: matrixLeafPointers wires subagent_depth and the controller delegation", () => {

@@ -145,6 +145,9 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
   shipConfig.delivery.verification.commands = [{ id: "canonical", argv: [process.execPath, "-e", "process.exit(0)"] }];
   shipConfig.delivery.verification.requireCleanDiffAfter = false;
   await writeFile(shipConfigPath, JSON.stringify(shipConfig, null, 2) + "\n");
+  const featureRepo = join(repo, ".worktrees", "feature-rc3");
+  const worktree = spawnSync("git", ["-C", repo, "worktree", "add", "-b", "feature/rc3", featureRepo], { encoding: "utf8" });
+  assert.equal(worktree.status, 0, worktree.stderr);
   const manifestDir = join(repo, ".git", "opencode-ship", "delivery", "manifests");
   await mkdir(manifestDir, { recursive: true });
   const now = new Date().toISOString();
@@ -157,7 +160,7 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
     baseBranch: "main",
     baseSha: spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
     branch: "feature/rc3",
-    worktreePath: repo,
+    worktreePath: featureRepo,
     lastPrHeadSha: null,
     lastReviewerSha: null,
     lastVerifierSha: null,
@@ -209,7 +212,7 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
   };
   let markedReady = false;
   const fakeDriver = {
-    refreshHead: async () => spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
+    refreshHead: async () => spawnSync("git", ["-C", featureRepo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
     readChecks: async () => [{ name: "delivery-verify", state: "success", bucket: "pass" }],
     markReady: async () => { markedReady = true; },
   };
@@ -221,7 +224,7 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
     driver: fakeDriver,
     directory: repo,
   });
-  assert.ok(result?.tool, "packed plugin must expose the 32-tool surface");
+  assert.ok(result?.tool, "packed plugin must expose the 34-tool surface");
   const toolIds = Object.keys(result.tool).sort();
   for (const required of [
     "ship_plan_start", "ship_plan_submit", "ship_plan_approve", "ship_run_start",
@@ -353,8 +356,8 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
   //    consumer repo so the tool's HEAD check succeeds.
   spawnSync("git", ["-C", repo, "config", "user.email", "t@local"]);
   spawnSync("git", ["-C", repo, "config", "user.name", "t"]);
-  await mkdir(join(repo, "src"), { recursive: true });
-  await writeFile(join(repo, "src/a.ts"), "// a\n");
+  await mkdir(join(featureRepo, "src"), { recursive: true });
+  await writeFile(join(featureRepo, "src/a.ts"), "// a\n");
   const trailers = [
     `Opencode-Ship-Workflow: wf-1`,
     `Opencode-Ship-Plan: ${planHash}`,
@@ -362,9 +365,9 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
     `Opencode-Ship-Review: ${taskAReviewHash}`,
     `Opencode-Ship-Round: 1`,
   ].join("\n");
-  spawnSync("git", ["-C", repo, "add", "src/a.ts"], { encoding: "utf8" });
-  spawnSync("git", ["-C", repo, "commit", "-m", "feat: add a", `-m`, trailers], { encoding: "utf8" });
-  const headA = spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
+  spawnSync("git", ["-C", featureRepo, "add", "src/a.ts"], { encoding: "utf8" });
+  spawnSync("git", ["-C", featureRepo, "commit", "-m", "feat: add a", `-m`, trailers], { encoding: "utf8" });
+  const headA = spawnSync("git", ["-C", featureRepo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
 
   const taskACommit = await call("ship_task_commit", {
     workflowId: "wf-1",
@@ -456,7 +459,7 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
   assert.match(taskBReviewHash, /^[0-9a-f]{64}$/);
 
   // 8b. ship_task_commit for Task B. We touch src/b.ts and commit.
-  await writeFile(join(repo, "src/b.ts"), "// b\n");
+  await writeFile(join(featureRepo, "src/b.ts"), "// b\n");
   const trailersB = [
     `Opencode-Ship-Workflow: wf-1`,
     `Opencode-Ship-Plan: ${planHash}`,
@@ -464,9 +467,9 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
     `Opencode-Ship-Review: ${taskBReviewHash}`,
     `Opencode-Ship-Round: 2`,
   ].join("\n");
-  spawnSync("git", ["-C", repo, "add", "src/b.ts"], { encoding: "utf8" });
-  spawnSync("git", ["-C", repo, "commit", "-m", "feat: add b", `-m`, trailersB], { encoding: "utf8" });
-  const headB = spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
+  spawnSync("git", ["-C", featureRepo, "add", "src/b.ts"], { encoding: "utf8" });
+  spawnSync("git", ["-C", featureRepo, "commit", "-m", "feat: add b", `-m`, trailersB], { encoding: "utf8" });
+  const headB = spawnSync("git", ["-C", featureRepo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
 
   const taskBCommit = await call("ship_task_commit", {
     workflowId: "wf-1",

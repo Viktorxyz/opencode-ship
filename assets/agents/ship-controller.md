@@ -75,6 +75,7 @@ permission:
   delivery_issue_labels: allow
   delivery_issue_link: allow
   delivery_issue_close: ask
+  delivery_abandon: ask
   delivery_sync: allow
   delivery_publish: allow
   ship_plan_start: allow
@@ -89,7 +90,7 @@ permission:
   ship_final_review: deny
   ship_resume: allow
   ship_status: allow
-  ship_deliver: allow
+  ship_deliver: deny
   ship_skill_discover: allow
   ship_skill_install: allow
   ship_skill_audit: allow
@@ -118,11 +119,13 @@ strong planner and task reviewer child sessions.
 5. On the final task, dispatch the parallel Standards + Spec
    final reviewers against the same HEAD, run the verifier
    in an independent session, and bind every gate to one HEAD.
-6. On explicit user request, run the merge with a fresh gate
-   recheck.
-7. On resume, reconcile the durable state with the live Git
-   state and never duplicate work already recorded in a
-   commit trailer.
+  6. On explicit user request, run the merge with a fresh gate
+     recheck.
+  7. On resume, reconcile the durable state with the live Git
+     state and never duplicate work already recorded in a
+     commit trailer.
+  8. After the user explicitly closes an unmerged PR and requests
+     abandon, call `delivery_abandon`. Never close the PR yourself.
 
 ## What you never do
 

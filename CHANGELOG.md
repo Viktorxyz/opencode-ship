@@ -2,7 +2,21 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
-## 1.1.7 — Stabilization and self-hosting (unreleased)
+## 1.1.8 — Durable self-host routing correction (unreleased)
+
+- **Deterministic controller entrypoint.** Build calls `ship_deliver` to
+  dispatch one `ship-controller` session per issue. Schema-v2 worktrees
+  refuse implementation until the durable workflow is linked.
+- **Linked-worktree execution.** Builder, task review, commit verification,
+  verifier/CI binding, and dual-axis final review run in the registered
+  feature worktree while durable state stays in the Git common directory.
+- **Audited abandon.** `delivery_abandon` records immutable intent and
+  completion around CAS-safe cleanup of a closed, unmerged attempt. It
+  never closes a PR and never marks Ready.
+- Automated install, qualification, and rollout continue to pin exact
+  `opencode-ship@<X.Y.Z>` and never resolve `@latest`.
+
+## 1.1.7 — Stabilization and self-hosting
 
 > Baseline: https://github.com/Viktorxyz/opencode-ship/issues/70.
 > Corrective package: https://github.com/Viktorxyz/opencode-ship/issues/72.

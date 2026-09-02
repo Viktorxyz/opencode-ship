@@ -27,6 +27,7 @@ import { buildFinalReviewPackage } from "../workflow/final-review.js";
 import { listManifests } from "../state/manifest-store.js";
 import { bucketFor } from "../gates.js";
 import { publishGateReceipt, readGateReceipt } from "../workflow/gate-receipts.js";
+import { resolveWorkflowWorktree } from "../workflow/worktree-resolver.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -95,6 +96,14 @@ export function createTaskCompleteTool(deps) {
       return failure("task-complete", `plan still has incomplete tasks: ${remainingTasks.map((task) => task.id).join(", ")}`, { operationId: opId, retryable: false });
     }
     try {
+      const resolved = await resolveWorkflowWorktree(deps.repoRoot, workflowId);
+      if (!resolved.ok) {
+        return failure("task-complete", `workflow worktree resolution failed: ${resolved.kind}`, {
+          operationId: opId,
+          retryable: false,
+          details: resolved,
+        });
+      }
       const gateEvidence = moreTasks ? null : await loadTrustedGateEvidence({
         repoRoot: deps.repoRoot,
         repoSlug: deps.repoSlug,
@@ -106,7 +115,7 @@ export function createTaskCompleteTool(deps) {
       });
       const commonDir = await resolveGitCommonDir(deps.repoRoot);
       const finalPackage = moreTasks ? null : await loadOrBuildFinalPackage({
-        repoRoot: deps.repoRoot,
+        repoRoot: resolved.worktreePath,
         commonDir,
         workflowId,
         runState,
@@ -169,7 +178,7 @@ export function createTaskCompleteTool(deps) {
         ].join("\n\n");
         const [standards, spec] = await Promise.all([
           dispatchWorker({
-            repoRoot: deps.repoRoot,
+            repoRoot: resolved.worktreePath,
             workflowId,
             role: ROLES.FINAL_STANDARDS,
             keyInput: { packageHash },
@@ -181,7 +190,7 @@ export function createTaskCompleteTool(deps) {
             model: models.finalReviewer,
           }),
           dispatchWorker({
-            repoRoot: deps.repoRoot,
+            repoRoot: resolved.worktreePath,
             workflowId,
             role: ROLES.FINAL_SPEC,
             keyInput: { packageHash },
@@ -220,7 +229,7 @@ async function loadTrustedGateEvidence({ repoRoot, repoSlug, driver, adapter, wo
   const manifests = (await listManifests(repoRoot)).filter((manifest) => manifest.issueNumber === issueNumber);
   if (manifests.length !== 1) throw new Error(`expected one delivery manifest for issue #${issueNumber}, found ${manifests.length}`);
   const manifest = manifests[0];
-  if (manifest.schemaVersion < 2 || manifest.workflowId !== workflowId) {
+  if (manifest.schemaVersion !== 2 || manifest.workflowId !== workflowId) {
     throw new Error("delivery manifest is not linked to the current workflow");
   }
   if (manifest.lastVerifierSha !== expectedHead || !/^[0-9a-f]{64}$/.test(manifest.lastVerificationHash ?? "")) {
