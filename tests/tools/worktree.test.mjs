@@ -1,8 +1,10 @@
 import { test, suite } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { loadAdapter } from "../../src/adapter.js";
 import { createIssueTool, createWorktreeTool } from "../../src/index.js";
-import { makeFixtureRepo, cleanupFixture } from "../helpers/fixture.mjs";
+import { readManifest, writeManifest } from "../../src/state/manifest-store.js";
+import { makeFixtureRepo, cleanupFixture, git } from "../helpers/fixture.mjs";
 
 function stubDriver() {
   return {
@@ -11,6 +13,11 @@ function stubDriver() {
       created: true,
     }),
   };
+}
+
+async function updateManifest(repoRoot, taskId, changes) {
+  const manifest = await readManifest(repoRoot, taskId);
+  await writeManifest(repoRoot, { ...manifest, ...changes });
 }
 
 suite("delivery_worktree", { concurrency: false }, () => {
@@ -33,6 +40,7 @@ suite("delivery_worktree", { concurrency: false }, () => {
         branch: "backend/t1",
         labels: [],
       });
+      await updateManifest(fixture.dir, "t1", { workflowId: "wf-1" });
 
       const bootstrapMarker = `${fixture.dir}/.opencode/bootstrap-ran`;
       const worktree = createWorktreeTool({
@@ -74,6 +82,7 @@ suite("delivery_worktree", { concurrency: false }, () => {
         branch: "backend/t2",
         labels: [],
       });
+      await updateManifest(fixture.dir, "t2", { workflowId: "wf-2" });
       const worktree = createWorktreeTool({
         repoRoot: fixture.dir,
         remote: "origin",
@@ -116,6 +125,85 @@ suite("delivery_worktree", { concurrency: false }, () => {
     }
   });
 
+  test("refuses a schema-v2 manifest without a workflow link before Git mutation", { serial: true }, async () => {
+    const fixture = makeFixtureRepo();
+    try {
+      const adapter = await loadAdapter(fixture.dir);
+      const issue = createIssueTool({
+        repoRoot: fixture.dir,
+        driver: stubDriver(),
+        repoSlug: "a/b",
+        owner: "test",
+      });
+      await issue({
+        taskId: "unlinked",
+        title: "T",
+        body: "B",
+        baseBranch: "main",
+        baseSha: "abc",
+        branch: "backend/unlinked",
+        labels: [],
+      });
+      const worktreePath = `${fixture.dir}/.worktrees/backend-unlinked`;
+      const worktree = createWorktreeTool({
+        repoRoot: fixture.dir,
+        remote: "origin",
+        adapter: adapter.adapter,
+      });
+
+      const result = await worktree({
+        taskId: "unlinked",
+        branch: "backend/unlinked",
+        worktreeRelativePath: ".worktrees/backend-unlinked",
+      });
+
+      assert.deepEqual(result, { kind: "missing-workflow-link", taskId: "unlinked" });
+      assert.notEqual(git(fixture.dir, ["show-ref", "--verify", "refs/heads/backend/unlinked"]).status, 0);
+      assert.equal(existsSync(worktreePath), false);
+    } finally {
+      cleanupFixture(fixture);
+    }
+  });
+
+  test("keeps schema-v1 worktree creation compatible without a workflow link", { serial: true }, async () => {
+    const fixture = makeFixtureRepo();
+    try {
+      const adapter = await loadAdapter(fixture.dir);
+      const issue = createIssueTool({
+        repoRoot: fixture.dir,
+        driver: stubDriver(),
+        repoSlug: "a/b",
+        owner: "test",
+      });
+      await issue({
+        taskId: "legacy",
+        title: "T",
+        body: "B",
+        baseBranch: "main",
+        baseSha: "abc",
+        branch: "backend/legacy",
+        labels: [],
+      });
+      await updateManifest(fixture.dir, "legacy", { schemaVersion: 1, workflowId: null });
+      const worktree = createWorktreeTool({
+        repoRoot: fixture.dir,
+        remote: "origin",
+        adapter: adapter.adapter,
+      });
+
+      const result = await worktree({
+        taskId: "legacy",
+        branch: "backend/legacy",
+        worktreeRelativePath: ".worktrees/backend-legacy",
+      });
+
+      assert.equal(result.contractVersion, 1, `unexpected envelope: ${JSON.stringify(result)}`);
+      assert.equal(result.branch, "backend/legacy");
+    } finally {
+      cleanupFixture(fixture);
+    }
+  });
+
   test("fails when bootstrap argv is invalid", { serial: true }, async () => {
     const fixture = makeFixtureRepo();
     try {
@@ -135,6 +223,7 @@ suite("delivery_worktree", { concurrency: false }, () => {
         branch: "backend/t3",
         labels: [],
       });
+      await updateManifest(fixture.dir, "t3", { workflowId: "wf-3" });
       const worktree = createWorktreeTool({
         repoRoot: fixture.dir,
         remote: "origin",
