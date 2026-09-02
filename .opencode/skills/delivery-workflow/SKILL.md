@@ -1,6 +1,6 @@
 ---
 name: delivery-workflow
-description: Orchestrates the canonical delivery lifecycle from issue creation through Ready PR. Use when the user asks for "implement issue N", "work on ready issues", "delivery", "autonomous delivery", or after a plan-mode session confirms the work scope.
+description: Orchestrates the canonical delivery lifecycle from issue creation through Ready PR. Use when the user asks for "implement issue N", "work on ready issues", "delivery", "autonomous delivery", "implement this plan", "execute the plan", "ok implement", or after a plan-mode session confirms the work scope.
 ---
 
 # delivery-workflow
@@ -16,6 +16,9 @@ execution-mode menus.
 ## When you trigger
 
 - "Implement issue N", "work on issue N", "deliver issue N"
+- "implement this plan"
+- "execute the plan"
+- "ok implement"
 - "Pick the next ready issue and implement it"
 - "Open a PR for #N"
 - "Mark PR #N ready"

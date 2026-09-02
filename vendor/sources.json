@@ -417,7 +417,7 @@
       "localFrozenPath": "vendor/upstreams/obra/skills/executing-plans/SKILL.md",
       "localFrozenSha256": "c4c3d8b628c51114cd165fb8246fe02744cd8be180032328391252e653028d9b",
       "localTarget": "assets/skills/executing-plans/SKILL.md",
-      "localSha256": "3ea2e30a7ec67c3d4c6178e3cdd4e70352b32ccd0f961cfb3946e440aaf309e2",
+      "localSha256": "9013549310484f376b7b60ad8b5ee65b973e2555c0aba538fc32fd34798ab74c",
       "reuseMode": "adapted",
       "license": "MIT",
       "adaptationNote": "## Ship integration\n\nThis skill is part of the engineering profile shipped by\n`opencode-ship@1.0`. Execution is driven by the deterministic\nShip controller; the cheap builder (`minimax/MiniMax-M3`) cannot\ncommit, push, mutate GitHub, mark Ready, or merge. The\nverification-before-completion rule is enforced by\n`delivery_verify`, not by the model self-asserting completion."
@@ -433,7 +433,7 @@
       "localFrozenPath": "vendor/upstreams/obra/skills/subagent-driven-development/SKILL.md",
       "localFrozenSha256": "349a08ad8b59b19b86c13a7d2f34a1a38719bf88257004a863eefefa8d9f9e40",
       "localTarget": "assets/skills/subagent-driven-development/SKILL.md",
-      "localSha256": "46d7ace03198558e30671f22e00979235bdd5dcea2e5de5e0ed1cca4bb9ad0a4",
+      "localSha256": "54e4995bc07d3f1335346f0281d4070c190acacfceda360269222e284bffe924",
       "reuseMode": "adapted",
       "license": "MIT",
       "adaptationNote": "## Ship integration\n\nThis skill is part of the engineering profile shipped by\n`opencode-ship@1.0`. Execution is driven by the deterministic\nShip controller; the cheap builder (`minimax/MiniMax-M3`) cannot\ncommit, push, mutate GitHub, mark Ready, or merge. The\nverification-before-completion rule is enforced by\n`delivery_verify`, not by the model self-asserting completion."

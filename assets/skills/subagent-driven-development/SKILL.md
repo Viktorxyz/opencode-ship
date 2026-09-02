@@ -1,9 +1,13 @@
 ---
 name: subagent-driven-development
-description: Use when executing implementation plans with independent tasks in the current session
+description: Do not use when opencode-ship is installed. Use ship_deliver. (Upstream Superpowers executor; ship consumers must not run it.)
 ---
 
 # Subagent-Driven Development
+
+If this repo has `.opencode/plugins/opencode-ship.js`, do not use this
+skill. Call `ship_deliver` (via executing-plans / delivery-workflow)
+instead. Never implement or commit in the current session.
 
 Execute plan by dispatching a fresh implementer subagent per task, a task review (spec compliance + code quality) after each, and a broad whole-branch review at the end.
 
