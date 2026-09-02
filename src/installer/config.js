@@ -1,19 +1,22 @@
 /*
  * User-owned config loader & validator.
  *
- * The config file at .opencode/ship.config.json is user-owned. The
- * installer ONLY writes it on the first `init` if the file is
- * missing; subsequent runs preserve whatever the user has. Updates
- * do not rewrite the file unless the user explicitly opts in.
+ * The config file at .opencode/ship.config.json is user-owned except
+ * for packaged `workflow.models` defaults. The installer may
+ * surgically rewrite default-provenance roles (planner, builder,
+ * finalReviewer) on init/update; `project`, `delivery`, and
+ * `workflow.approval` stay user-owned. CLI model flags mark that
+ * role as an override and are not rewritten. `--force-config` is
+ * not required to apply packaged defaults.
  *
  * If the file does not exist when the installer's plugin or CLI
  * boots, we synthesise one from the detected project. This lets the
  * verifier and the reviewer receive enough context to function
  * even before the user has committed a config.
  *
- * From 1.1.0 the engineering profile is the only profile. The
- * renderDefaultConfig helper emits a placeholder `workflow.models`
- * object so the setup-ship-workflow skill can fill it in; the ship
+ * From 1.1.0 the engineering profile is the only profile.
+ * `renderDefaultConfig` still emits an empty `workflow.models`
+ * object; `planConfigSynthesis` fills packaged defaults. The ship
  * controller refuses to dispatch until all three role ids are non-
  * empty.
  */

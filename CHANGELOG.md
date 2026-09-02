@@ -2,6 +2,20 @@
 
 All notable changes to `opencode-ship` are recorded here.
 
+## Unreleased
+
+- **Packaged workflow model defaults.** `init` and `update` fill
+  `workflow.models` from packaged JSON (`openai/gpt-5.6-sol` /
+  `minimax-coding-plan/MiniMax-M3` / `openai/gpt-5.6-sol`) without
+  `--force-config`. Per-role provenance is recorded on lock schema 5
+  as `manager.models`. Historical defaults are rewritten; CLI flags
+  and unknown ids stay sticky overrides. Other `ship.config.json`
+  fields stay user-owned. Doctor reports `stale default; run update`
+  when a default role's live id lags the package.
+- **Cheap agent step budget 30.** `ship-task-builder`,
+  `ship-task-reviewer`, and `ship-controller` frontmatter `steps`
+  are 30.
+
 ## 1.1.8 — Durable self-host routing correction (unreleased)
 
 - **Deterministic controller entrypoint.** Build calls `ship_deliver` to

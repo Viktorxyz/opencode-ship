@@ -93,7 +93,7 @@ The plugin auto-discovers from `.opencode/plugins/opencode-ship.js`; the consume
 .opencode/agents/delivery-verifier.md
 .opencode/skills/delivery-workflow/SKILL.md
 .opencode/skills/planning-research-checkpoint/SKILL.md
-.opencode/ship.config.json     # user-owned; written by `init` only if absent
+.opencode/ship.config.json     # user-owned except packaged workflow.models defaults
 .opencode/ship.lock.json       # installer-managed; drives update + uninstall
 ```
 
@@ -173,7 +173,7 @@ The plugin is bundled (`scripts/build.mjs` does not externalize it). Consumers d
 
 **What does `init` actually write?**
 
-It writes (or refreshes) five managed files in `.opencode/`, plus the user-owned `ship.config.json` and integrity-hashed `ship.lock.json`. It also merges eleven JSON-pointer values into the root `opencode.json` (or `.jsonc`) without overwriting unrelated keys. By default it does not create `opencode.json` — pass `--force-root-config` to do so. The catalog validator runs first and exits `4` if a packaged source is missing, so the installer refuses to materialise a half-built state.
+It writes (or refreshes) five managed files in `.opencode/`, plus the user-owned `ship.config.json` and integrity-hashed `ship.lock.json`. `init` fills `workflow.models` from packaged defaults (`openai/gpt-5.6-sol` / `minimax-coding-plan/MiniMax-M3` / `openai/gpt-5.6-sol`). `update` rewrites a role only when its provenance is `default` (or a historical default); `--planner-model` / `--builder-model` / `--final-reviewer-model` mark that role as an override. Other `ship.config.json` fields stay user-owned. It also merges eleven JSON-pointer values into the root `opencode.json` (or `.jsonc`) without overwriting unrelated keys. By default it does not create `opencode.json` — pass `--force-root-config` to do so. The catalog validator runs first and exits `4` if a packaged source is missing, so the installer refuses to materialise a half-built state.
 
 **Where does the lock live and how is it integrity-checked?**
 
