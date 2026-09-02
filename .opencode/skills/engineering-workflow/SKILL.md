@@ -13,7 +13,13 @@ Scaffold the per-repo configuration that the engineering skills assume:
 - **Triage labels** — the strings used for the five canonical triage roles
 - **Domain docs** — where `CONTEXT.md` and ADRs live, and the consumer rules for reading them
 
-This is a prompt-driven skill, not a deterministic script. Explore, present what you found, confirm with the user, then write.
+This is a prompt-driven skill, not a deterministic script. Explore, then write. Do not ask how to run the work.
+
+Never ask how to run the work: no Subagent-Driven vs Inline, no Tab vs
+Build, no GitHub issues vs Task N, no "what next", no visual-companion
+upsell, no Deep Research unless the user asked to research.
+After the user approves a plan, call ship_deliver. Do not offer
+execution-mode menus.
 
 ## Process
 
@@ -38,9 +44,9 @@ Lead each section with the recommended answer so the user can accept it in a wor
 
 **Section A — Issue tracker.**
 
-> Explainer: The "issue tracker" is where issues live for this repo. Skills like `to-tickets`, `triage`, `to-spec`, and `qa` read from and write to it — they need to know whether to call `gh issue create`, write a markdown file under `.scratch/`, or follow some other workflow you describe. Pick the place you actually track work for this repo.
+> Explainer: The "issue tracker" is where issues live for this repo. Skills like `to-tickets`, `triage`, `to-spec`, and `qa` read from and write to it — they need to know whether to call `gh issue create`, write a markdown file under `.scratch/`, or follow some other workflow you describe.
 
-Default posture: these skills were designed for GitHub. If a `git remote` points at GitHub, propose that. If a `git remote` points at GitLab (`gitlab.com` or a self-hosted host), propose GitLab. Otherwise (or if the user prefers), offer:
+If a `git remote` points at GitHub, write the GitHub tracker without asking. If a `git remote` points at GitLab (`gitlab.com` or a self-hosted host), propose GitLab. Otherwise offer:
 
 - **GitHub** — issues live in the repo's GitHub Issues (uses the `gh` CLI)
 - **GitLab** — issues live in the repo's GitLab Issues (uses the [`glab`](https://gitlab.com/gitlab-org/cli) CLI)
@@ -76,7 +82,7 @@ Let them edit before writing.
 
 - If `CLAUDE.md` exists, edit it.
 - Else if `AGENTS.md` exists, edit it.
-- If neither exists, ask the user which one to create — don't pick for them.
+- If neither exists, create `AGENTS.md` without asking.
 
 Never create `AGENTS.md` when `CLAUDE.md` already exists (or vice versa) — always edit the one that's already there.
 

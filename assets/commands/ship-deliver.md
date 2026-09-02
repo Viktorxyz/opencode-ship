@@ -7,6 +7,12 @@ description: Start a delivery workflow. First checks the setup-pending marker, t
 `ship-deliver <issue-number>` is the canonical entry point
 for a delivery workflow.
 
+Never ask how to run the work: no Subagent-Driven vs Inline, no Tab vs
+Build, no GitHub issues vs Task N, no "what next", no visual-companion
+upsell, no Deep Research unless the user asked to research.
+After the user approves a plan, call ship_deliver. Do not offer
+execution-mode menus.
+
 ## Procedure
 
 ### 0. Setup gate (mandatory)
@@ -32,8 +38,11 @@ Call `ship_deliver` with the issue number. Do not implement the issue through th
 1. Check setup-pending.
 2. Call `ship_deliver(issueNumber)`.
 3. Surface the controller session and `wf-<issue>` workflow id.
-4. Await the explicit plan approval prompt.
-5. Resume only through `ship-controller`.
+4. After issue ensure, print `Track: issue #<number>.`
+5. Await the explicit plan approval prompt.
+6. Resume only through `ship-controller`. After each successful
+   tool, print the matching `progressLine` as a normal chat
+   sentence. Do not wrap in JSON. Do not explain the stage.
 
 ### 2. Plan + approve
 
@@ -41,15 +50,16 @@ The controller starts or resumes durable workflow state, dispatches the planner,
 
 ### 3. Execute
 
-The controller drives each task through the cheap builder, task reviewer, commit binding, and same-HEAD Standards + Spec + verifier + required CI gates.
+The controller drives each task through the cheap builder, task reviewer, commit binding, and same-HEAD Standards + Spec + verifier + required CI gates. Print `Build: task <k>/<n> <title>.` and `Review: pass.` or `Review: fail (see notes).` per task, then `Verify: pass.` or `Verify: fail.` once.
 
 ### 4. Ready
 
-Stop at Ready. Surface PR URL, worktree path, verifier SHA, and the explicit-merge instruction.
+Stop at Ready. Print `Ready: PR #<number>.` Surface PR URL, worktree path, verifier SHA, and the explicit-merge instruction.
 
 ### 5. Merge
 
 On explicit `merge it`: fresh gate recheck, squash merge, and cleanup.
+Print `Merge: <sha>.` then `Cleanup: done.`
 
 ## Hard rules
 
