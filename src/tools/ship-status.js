@@ -10,6 +10,28 @@ import { readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
+
+const RUN_STATE_TO_STAGE = {
+  drafting: "plan",
+  "plan-approved": "approve",
+  "issue-linked": "track",
+  "running-tasks": "build",
+  "all-tasks-done": "verify",
+  "final-review": "review",
+  "final-review-pass": "verify",
+  "final-review-fail": "review",
+  ready: "ready",
+  merged: "merge",
+  cleaned: "cleanup",
+  failed: "review",
+};
+
+function stageForStatus(index, run, lastEvent) {
+  if (run?.state && RUN_STATE_TO_STAGE[run.state]) return RUN_STATE_TO_STAGE[run.state];
+  if (index?.state === "drafting") return "plan";
+  return "plan";
+}
 
 export function createStatusTool(deps) {
   return async function status(input) {
@@ -35,7 +57,16 @@ export function createStatusTool(deps) {
           lastEvent = JSON.parse(await readFile(join(eventsDir, sorted[sorted.length - 1]), "utf8"));
         }
       }
-      return success("status", { workflowId, index, run, lastEvent }, { operationId: opId });
+      const stage = stageForStatus(index, run, lastEvent);
+      return success("status", {
+        workflowId,
+        stage,
+        index,
+        run,
+        lastEvent,
+        progress: progressLine(stage),
+        next: nextLine(stage),
+      }, { operationId: opId });
     } catch (err) {
       return failure("status", String(err?.message ?? err), { operationId: opId, retryable: true });
     }

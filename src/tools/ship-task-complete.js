@@ -28,6 +28,7 @@ import { listManifests } from "../state/manifest-store.js";
 import { bucketFor } from "../gates.js";
 import { publishGateReceipt, readGateReceipt } from "../workflow/gate-receipts.js";
 import { resolveWorkflowWorktree } from "../workflow/worktree-resolver.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -218,6 +219,8 @@ export function createTaskCompleteTool(deps) {
         finalReview,
         state: state.state,
         sequence: event.sequence,
+        progress: progressLine("verify", { ok: true }),
+        next: nextLine("verify"),
       }, { operationId: opId });
     } catch (err) {
       return failure("task-complete", String(err?.message ?? err), { operationId: opId, retryable: true });

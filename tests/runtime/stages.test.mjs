@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { STAGES, progressLine } from "../../src/runtime/stages.js";
+import { STAGES, progressLine, nextLine } from "../../src/runtime/stages.js";
 
 test("STAGES lists the twelve canonical ids", () => {
   assert.deepEqual(STAGES, [
@@ -67,4 +67,26 @@ test("progressLine: merge", () => {
 
 test("progressLine: cleanup", () => {
   assert.equal(progressLine("cleanup"), "Cleanup: done.");
+});
+
+test("nextLine after plan tells the user the product fork", () => {
+  assert.equal(
+    nextLine("plan"),
+    "Next: say if this is the product you want.",
+  );
+});
+
+test("nextLine after plan confirmation is start-now vs later", () => {
+  assert.equal(
+    nextLine("approve"),
+    "Next: start building now, or continue later.",
+  );
+});
+
+test("nextLine after track is wait for build progress", () => {
+  assert.equal(nextLine("track"), "Next: building starts.");
+});
+
+test("nextLine after ready asks for merge in product language", () => {
+  assert.equal(nextLine("ready"), "Next: say if I should merge it.");
 });

@@ -21,6 +21,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
 import { dispatchWorker, issueControllerLease, ROLES } from "../runtime/opencode-dispatcher.js";
 import { listManifests, writeManifest } from "../state/manifest-store.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
 
 function normalizeWorkflowId(issueNumber) {
   return `wf-${issueNumber}`;
@@ -117,6 +118,7 @@ export function createPlanStartTool(deps) {
         state: "drafting",
       };
       await writeFile(join(wfDir, "index.json"), JSON.stringify(indexRecord, null, 2), "utf8");
+      const stage = "plan";
       return success("plan-start", {
         workflowId,
         issueNumber,
@@ -129,6 +131,8 @@ export function createPlanStartTool(deps) {
           finalReviewer: models.finalReviewer,
         },
         skills,
+        progress: progressLine(stage, { path: `wf-${issueNumber}` }),
+        next: nextLine(stage),
       }, { operationId: opId });
     } catch (err) {
       return failure("plan-start", String(err?.message ?? err), { operationId: opId, retryable: true });

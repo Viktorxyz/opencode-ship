@@ -12,6 +12,7 @@ import { transition } from "../state/lifecycle.js";
 import { checkGates, gateFailureEnvelope } from "../gates.js";
 import { appendRunEvent, RUN_EVENT_KINDS } from "../workflow/run-controller.js";
 import { readFinalReviewEvidence } from "../workflow/final-review-store.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
 
 export function createReadyTool(deps) {
   return async function ready(input) {
@@ -100,6 +101,14 @@ export function createReadyTool(deps) {
         data: { headSha: prHead, taskId: input.taskId },
       });
     }
-    return { contractVersion: 1, manifestPath: path, pr: m.prNumber, workflowId };
+    const stage = "ready";
+    return {
+      contractVersion: 1,
+      manifestPath: path,
+      pr: m.prNumber,
+      workflowId,
+      progress: progressLine(stage, { number: m.prNumber }),
+      next: nextLine(stage),
+    };
   };
 }

@@ -184,7 +184,11 @@ test("neutral: engineering init records the docs/superpowers Plan edit glob but 
   const writingPlans = readFileSync(join(repo, ".opencode/skills/writing-plans/SKILL.md"), "utf8");
   assert.doesNotMatch(writingPlans, /Which approach/);
   assert.doesNotMatch(writingPlans, /Subagent-Driven/);
+  assert.doesNotMatch(writingPlans, /Tab vs Build/);
+  assert.match(writingPlans, /Start building now/);
   assert.match(writingPlans, /ship_deliver/);
+  assert.match(shipPlan, /Start building now/,
+    "ship-plan prompt must offer the start-now vs later fork");
 });
 
 test("neutral: uninstall removes the lock and the managed files", async (t) => {

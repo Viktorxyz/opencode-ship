@@ -21,3 +21,20 @@ export function progressLine(stage, extra = {}) {
     default: return null; // shape + approve: no line
   }
 }
+
+export function nextLine(stage) {
+  switch (stage) {
+    case "setup": return "Next: tell me what you want to build.";
+    case "discover": return "Next: I will use these skills while building.";
+    case "plan": return "Next: say if this is the product you want.";
+    case "approve": return "Next: start building now, or continue later.";
+    case "track": return "Next: building starts.";
+    case "build":
+    case "review":
+    case "verify": return "Next: I keep going.";
+    case "ready": return "Next: say if I should merge it.";
+    case "merge": return "Next: cleanup.";
+    case "cleanup": return "Next: tell me what to build next.";
+    default: return null;
+  }
+}
