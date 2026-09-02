@@ -17,6 +17,8 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import {
   matrixLeafPointers,
@@ -40,6 +42,13 @@ test("matrix: rootPermissionMatrix is the canonical source of truth", () => {
   assert.equal(matrix.shipController.tools.ship_deliver, "deny");
   assert.equal(matrix.build.tools.ship_plan_start, "deny");
   assert.equal(matrix.shipController.tools.ship_plan_start, "allow");
+});
+
+test("matrix: shipped controller asset denies recursive ship_deliver", () => {
+  const source = readFileSync(resolve("assets/agents/ship-controller.md"), "utf8");
+  const frontmatter = source.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
+  assert.match(frontmatter, /^\s{2}ship_deliver: deny$/m);
+  assert.doesNotMatch(frontmatter, /^\s{2}ship_deliver: allow$/m);
 });
 
 test("matrix: matrixLeafPointers wires subagent_depth and the controller delegation", () => {

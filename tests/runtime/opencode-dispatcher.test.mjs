@@ -97,6 +97,42 @@ test("dispatchController: creates and prompts one controller session per issue",
       },
       query: { directory: root },
     });
+    const latest = await readLatestDispatch(root, "wf-80", "controller:issue-80");
+    assert.equal(latest.parentSessionID, "build-session");
+    assert.equal(latest.controllerSessionID, undefined);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dispatchController: retries a failed prompt without creating another session", async () => {
+  const root = makeRepo();
+  try {
+    const client = fakeClient("controller-session");
+    let promptAttempts = 0;
+    client.session.promptAsync = async (options) => {
+      client.calls.promptAsync.push(options);
+      promptAttempts += 1;
+      if (promptAttempts === 1) throw new Error("prompt failed");
+      return { data: undefined, error: undefined };
+    };
+    const input = {
+      repoRoot: root,
+      issueNumber: 80,
+      client,
+      parentSessionID: "build-session",
+    };
+
+    await assert.rejects(dispatchController(input), /prompt failed/);
+    const retried = await dispatchController(input);
+
+    assert.equal(retried.sessionID, "controller-session");
+    assert.equal(client.calls.create.length, 1);
+    assert.equal(client.calls.promptAsync.length, 2);
+    assert.deepEqual(
+      client.calls.promptAsync.map((call) => call.path),
+      [{ id: "controller-session" }, { id: "controller-session" }],
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -164,6 +200,8 @@ test("dispatchWorker: prepared -> created -> prompted on success", async () => {
     const latest = await readLatestDispatch(root, "wf-1", "planner:1");
     assert.equal(latest.state, "prompted");
     assert.equal(latest.sessionID, "planner-session-1");
+    assert.equal(latest.controllerSessionID, "ctrl-session-A");
+    assert.equal(latest.parentSessionID, undefined);
     assert.deepEqual(client.calls.create, [{
       body: { parentID: "ctrl-session-A", title: "ship-planner-planner:1" },
       query: { directory: root },

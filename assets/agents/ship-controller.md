@@ -89,7 +89,7 @@ permission:
   ship_final_review: deny
   ship_resume: allow
   ship_status: allow
-  ship_deliver: allow
+  ship_deliver: deny
   ship_skill_discover: allow
   ship_skill_install: allow
   ship_skill_audit: allow

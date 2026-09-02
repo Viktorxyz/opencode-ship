@@ -17,6 +17,7 @@ export function createDeliverTool(deps) {
       return failure("deliver", "positive issueNumber required", {
         operationId: opId,
         retryable: false,
+        details: { workflowId: null, controllerSessionID: null },
       });
     }
 

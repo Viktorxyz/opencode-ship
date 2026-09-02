@@ -309,6 +309,9 @@ async function dispatchSession(input) {
   const common = await resolveGitCommonDir(repoRoot);
   const stateDir = opencodeShipStateDir(common);
   const preparedPayload = { ...payload, agent: agent ?? null, model: model ?? null };
+  const parentAudit = requireControllerLease
+    ? { controllerSessionID: parentSessionID }
+    : { parentSessionID };
   return withResourceLock(stateDir, `dispatch:${workflowId}:${dispatchKey}`, async () => {
     let latest = await readLatestDispatch(repoRoot, workflowId, dispatchKey);
     const preparedRecord = await readPreparedDispatch(repoRoot, workflowId, dispatchKey);
@@ -324,7 +327,7 @@ async function dispatchSession(input) {
     }
     let sequence = Number(latest?.sequence ?? 0);
     const title = titleMarker ?? `ship-${role}-${dispatchKey}`;
-    let sessionID = latest?.state === "created" ? latest.sessionID : null;
+    let sessionID = latest?.sessionID ?? null;
     if (!sessionID) {
       try {
         const created = await client.session.create({
@@ -351,7 +354,7 @@ async function dispatchSession(input) {
       await transitionDispatch(repoRoot, workflowId, dispatchKey, "created", {
         sequence,
         sessionID,
-        controllerSessionID: parentSessionID,
+        ...parentAudit,
       });
     }
     try {
@@ -373,7 +376,7 @@ async function dispatchSession(input) {
       await transitionDispatch(repoRoot, workflowId, dispatchKey, "failed", {
         sequence,
         sessionID,
-        controllerSessionID: parentSessionID,
+        ...parentAudit,
         lastError: `promptAsync: ${err?.message ?? err}`,
       });
       throw err;
@@ -382,7 +385,7 @@ async function dispatchSession(input) {
     await transitionDispatch(repoRoot, workflowId, dispatchKey, "prompted", {
       sequence,
       sessionID,
-      controllerSessionID: parentSessionID,
+      ...parentAudit,
     });
     return { sessionID, dispatchKey };
   });

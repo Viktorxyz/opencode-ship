@@ -47,6 +47,10 @@ test("ship_deliver refuses an invalid issue number", async () => {
   assert.equal(result.kind, "deliver");
   assert.equal(result.operationId, "invalid-issue");
   assert.match(result.message, /issueNumber/);
+  assert.deepEqual(result.details, {
+    workflowId: null,
+    controllerSessionID: null,
+  });
 });
 
 test("ship_deliver refuses a missing or non-Build caller", async () => {
