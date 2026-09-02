@@ -31,6 +31,8 @@ If the marker is present:
 
 If the marker is absent, continue.
 
+`ship_plan_start` runs stack skill sync before creating a workflow. Do not run the `skill-discovery` skill or `npx skills find` as a separate step.
+
 ### 1. Dispatch the controller
 
 Call `ship_deliver` with the issue number. Do not implement the issue through the legacy `delivery_issue` / `delivery_worktree` / `delivery_pr` path.

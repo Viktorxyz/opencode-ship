@@ -1,10 +1,11 @@
 /**
  * ship_plan_start tool.
  *
- * Controller-only: creates a workflow record, issues the controller
- * session lease, and dispatches the configured planner child session
- * via the real OpenCode dispatcher. The workflow id is derived from
- * the issue number so resume can locate it.
+ * Controller-only: runs stack skill sync, creates a workflow record,
+ * issues the controller session lease, and dispatches the configured
+ * planner child session via the real OpenCode dispatcher. The
+ * workflow id is derived from the issue number so resume can locate it.
+ * Skill discovery is inside this tool so it cannot be skipped.
  *
  * Authorization: the ToolContext session id is recorded as the
  * controller lease. Any later controller tool call must run from
@@ -48,6 +49,28 @@ export function createPlanStartTool(deps) {
     }
     const workflowId = normalizeWorkflowId(issueNumber);
     const repoRoot = deps.repoRoot;
+    let skills = { installed: [], skippedUntrusted: [], skippedPolicy: [], registryUnavailable: false, errors: [] };
+    try {
+      const syncFn = deps.syncSkills ?? (await import("../skills/sync.js")).syncSkills;
+      skills = await syncFn({
+        repoRoot,
+        mode: "deliver",
+        issueText: `issue #${issueNumber}`,
+        installFn: async (input) => {
+          const { createSkillInstallTool } = await import("./ship-skill-install.js");
+          const tool = createSkillInstallTool(deps);
+          return tool(input);
+        },
+      });
+    } catch (err) {
+      skills = {
+        installed: [],
+        skippedUntrusted: [],
+        skippedPolicy: [],
+        registryUnavailable: true,
+        errors: [String(err?.message ?? err)],
+      };
+    }
     try {
       const commonDir = await resolveGitCommonDir(repoRoot);
       const wfDir = join(opencodeShipStateDir(commonDir), "plans", workflowId);
@@ -105,6 +128,7 @@ export function createPlanStartTool(deps) {
           builder: models.builder,
           finalReviewer: models.finalReviewer,
         },
+        skills,
       }, { operationId: opId });
     } catch (err) {
       return failure("plan-start", String(err?.message ?? err), { operationId: opId, retryable: true });

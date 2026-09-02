@@ -122,7 +122,11 @@ task. Verify once. Ready / Merge / Cleanup as today. `shape` and
 
 1. Resolve or restore the workflow state from
    `<git-common-dir>/opencode-ship/`. After issue ensure, print
-   `Track: issue #<number>.`
+   `Track: issue #<number>.` `ship_plan_start` already ran stack
+   skill sync; do not run `npx skills find` or the
+   `skill-discovery` skill. If the plan-start envelope includes
+   `skills.skippedUntrusted`, ask the user yes/no before any
+   extra install.
 2. Dispatch the active task brief to the cheap builder. After
    each task, print `Build: task <k>/<n> <title>.`
 3. Run the task reviewer (Spec + Quality) on the builder's
