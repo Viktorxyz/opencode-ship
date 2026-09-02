@@ -155,6 +155,13 @@ test("validateLinkedWorktree: refuses an ancestor symlink alias", async () => {
   }
 });
 
+test("isProjectSkillDest: only .opencode/skills/<id>", async () => {
+  const { isProjectSkillDest } = await import("../../src/skills/worktree.js");
+  assert.equal(isProjectSkillDest(".opencode/skills/react-best-practices"), true);
+  assert.equal(isProjectSkillDest("src/react-best-practices"), false);
+  assert.equal(isProjectSkillDest(".opencode/skills/../plugins/x"), false);
+});
+
 test("validateRelativeInstallPath: refuses absolute paths", () => {
   const r = validateRelativeInstallPath("/abs/path");
   assert.equal(r.ok, false);

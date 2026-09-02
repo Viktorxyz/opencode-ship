@@ -96,7 +96,7 @@ const toolDefs = [
   ["ship_resume", "Restore, reconcile, and continue idempotently.", "resume"],
   ["ship_status", "Read-only compact workflow state.", "status"],
   ["ship_skill_discover", "Query the trusted skill registry and partition candidates.", "skillDiscover"],
-  ["ship_skill_install", "Install a trusted skill into the active issue worktree.", "skillInstall"],
+  ["ship_skill_install", "Install a trusted skill under .opencode/skills on the main checkout or a linked worktree.", "skillInstall"],
   ["ship_skill_audit", "Audit the installed trusted skills inventory.", "skillAudit"],
   ["ship_skill_uninstall", "Remove a trusted skill whose recorded sha256 still matches.", "skillUninstall"],
 ];
@@ -565,7 +565,7 @@ const factories = {
     args: {
       package: tool.schema.string(),
       skillName: tool.schema.string(),
-      worktreePath: tool.schema.string(),
+      worktreePath: tool.schema.string().optional(),
       version: tool.schema.string().optional(),
       operationId: tool.schema.string().optional(),
     },

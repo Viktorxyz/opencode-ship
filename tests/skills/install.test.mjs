@@ -43,18 +43,22 @@ function makeRepoWithLinkedWorktree() {
   return { repo, linked };
 }
 
-test("lifecycle: ship_skill_install refuses the main checkout", async () => {
+test("lifecycle: ship_skill_install allows main checkout under .opencode/skills", async () => {
   const { repo } = makeRepoWithLinkedWorktree();
   try {
     const { createSkillInstallTool } = await import("../../src/tools/ship-skill-install.js");
-    const tool = createSkillInstallTool({ repoRoot: repo, config: { value: { skills: [] } } });
-    const r = await tool({
-      package: "vercel-labs/skills",
-      worktreePath: repo,
-      skillName: "find-skills",
+    const tool = createSkillInstallTool({
+      repoRoot: repo,
+      config: { value: { skills: [] } },
+      discoverSkills: async () => ({ ok: false }),
     });
-    assert.equal(r.kind, "skill-install");
-    assert.ok(/forbidden|rejected/i.test(r.message), `expected main-checkout refusal, got: ${r.message}`);
+    const r = await tool({
+      package: "vercel-labs/agent-skills",
+      skillName: "react-best-practices",
+    });
+    assert.equal(r.ok, false);
+    assert.doesNotMatch(r.message ?? "", /main worktree are forbidden/i);
+    assert.doesNotMatch(r.message ?? "", /worktreePath required/i);
   } finally {
     rmSync(repo, { recursive: true, force: true });
   }

@@ -1,11 +1,12 @@
 /**
  * Worktree boundary validation.
  *
- * `ship_skill_install` must never write into the consumer's main
- * checkout. It is allowed only against a registered linked
- * worktree (one that appears in `git worktree list --porcelain`).
+ * `ship_skill_install` may write into the consumer's main checkout
+ * only under `.opencode/skills/<id>`. Linked-worktree installs
+ * remain allowed against a registered worktree (one that appears
+ * in `git worktree list --porcelain`).
  *
- * The validator refuses:
+ * The linked-worktree validator refuses:
  *
  *   - the main worktree (the checkout that owns .git/),
  *   - unregistered directories,
@@ -170,6 +171,12 @@ export async function validateLinkedWorktree(mainRepo, worktreePath, options = {
  *
  * @param {string} destRel
  */
+const PROJECT_SKILL_DEST_RE = /^\.opencode\/skills\/[A-Za-z0-9._-]{1,128}$/;
+
+export function isProjectSkillDest(destRel) {
+  return PROJECT_SKILL_DEST_RE.test(String(destRel ?? ""));
+}
+
 export function validateRelativeInstallPath(destRel) {
   if (typeof destRel !== "string" || destRel.length === 0) {
     return { ok: false, kind: "absolute", message: "destination path required" };

@@ -1,12 +1,14 @@
 /**
  * ship_skill_install tool.
  *
- * Install a trusted skill into the active issue worktree
- * (NEVER the main worktree). The tool requires:
+ * Install a trusted skill into `<repoRoot>/.opencode/skills/<name>`
+ * on the main checkout, or into a registered linked worktree at
+ * the same relative path. The tool requires:
  *
  *   - the consumer's main checkout at `repoRoot`;
- *   - `worktreePath` is a registered linked worktree (validated
- *     via `git worktree list --porcelain`);
+ *   - `worktreePath` omitted or equal to repoRoot (project-local
+ *     `.opencode/skills/<name>`), or a registered linked worktree
+ *     (validated via `git worktree list --porcelain`);
  *   - the candidate is in the trusted-owner allowlist and meets
  *     the install threshold;
  *   - the destination does not shadow a managed skill;
@@ -16,6 +18,7 @@
  *   - every installed file is hashed individually and recorded in
  *     the append-only inventory chain (schema v2).
  *
+ * Main-checkout writes are allowed only under `.opencode/skills/**`.
  * The tool refuses to write when the `skills` CLI is unavailable
  * or returns an error. No placeholder `SKILL.md` is ever written.
  */
@@ -30,7 +33,7 @@ import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { readPolicy, isAutoInstallable } from "../skills/policy.js";
 import { appendEvent, readInventory, verifyInventory } from "../skills/inventory.js";
-import { validateLinkedWorktree, validateRelativeInstallPath, validateInstallDestination } from "../skills/worktree.js";
+import { validateLinkedWorktree, validateRelativeInstallPath, validateInstallDestination, isProjectSkillDest } from "../skills/worktree.js";
 import { listSkills } from "../skills/registry.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
@@ -42,20 +45,21 @@ export function createSkillInstallTool(deps) {
   return async function skillInstall(input) {
     const opId = input.operationId ?? `skill-install-${Date.now().toString(36)}`;
     const packageSpec = String(input.package ?? "");
-    const worktreePath = String(input.worktreePath ?? "");
+    const worktreePath = input.worktreePath == null ? "" : String(input.worktreePath);
     const skillName = String(input.skillName ?? "");
     const version = String(input.version ?? "");
     if (!packageSpec || !SAFE_NAME_RE.test(packageSpec)) {
       return failure("skill-install", "package required (safe npm spec)", { operationId: opId, retryable: false });
-    }
-    if (!worktreePath) {
-      return failure("skill-install", "worktreePath required (must be the active issue worktree)", { operationId: opId, retryable: false });
     }
     if (!skillName || !SAFE_ID_RE.test(skillName)) {
       return failure("skill-install", "skillName required (safe id)", { operationId: opId, retryable: false });
     }
     if (version && !SAFE_VERSION_RE.test(version)) {
       return failure("skill-install", "version must match a safe semver spec", { operationId: opId, retryable: false });
+    }
+    const destRel = `.opencode/skills/${skillName}`;
+    if (!isProjectSkillDest(destRel)) {
+      return failure("skill-install", `destination rejected: ${destRel}`, { operationId: opId, retryable: false });
     }
     const policy = await readPolicy(deps.repoRoot);
     const ownerCandidate = {
@@ -67,16 +71,23 @@ export function createSkillInstallTool(deps) {
     if (!ownerDecision.ok) {
       return failure("skill-install", `policy forbids install: ${ownerDecision.reason}`, { operationId: opId, retryable: false });
     }
-    const wtCheck = await validateLinkedWorktree(deps.repoRoot, worktreePath);
-    if (!wtCheck.ok) {
-      return failure("skill-install", `worktree rejected: ${wtCheck.message}`, { operationId: opId, retryable: false });
+    const requested = worktreePath ? resolve(worktreePath) : resolve(deps.repoRoot);
+    const main = resolve(deps.repoRoot);
+    let installRoot;
+    if (requested === main) {
+      installRoot = main;
+    } else {
+      const wtCheck = await validateLinkedWorktree(deps.repoRoot, worktreePath);
+      if (!wtCheck.ok) {
+        return failure("skill-install", `worktree rejected: ${wtCheck.message}`, { operationId: opId, retryable: false });
+      }
+      installRoot = wtCheck.path;
     }
-    const destRel = `.opencode/skills/${skillName}`;
     const pathCheck = validateRelativeInstallPath(destRel);
     if (!pathCheck.ok) {
       return failure("skill-install", `destination rejected: ${pathCheck.message}`, { operationId: opId, retryable: false });
     }
-    const destinationCheck = await validateInstallDestination(wtCheck.path, destRel);
+    const destinationCheck = await validateInstallDestination(installRoot, destRel);
     if (!destinationCheck.ok) {
       return failure("skill-install", `destination rejected: ${destinationCheck.message}`, { operationId: opId, retryable: false });
     }
@@ -129,7 +140,7 @@ export function createSkillInstallTool(deps) {
       await mkdir(dirname(destAbs), { recursive: true });
       const destTmp = `${destAbs}.${randomBytes(4).toString("hex")}.tmp`;
       await copyDir(installedFiles.stagedDir, destTmp);
-      const finalDestinationCheck = await validateInstallDestination(wtCheck.path, destRel);
+      const finalDestinationCheck = await validateInstallDestination(installRoot, destRel);
       if (!finalDestinationCheck.ok) {
         await rm(destTmp, { recursive: true, force: true });
         return failure("skill-install", `destination rejected: ${finalDestinationCheck.message}`, { operationId: opId, retryable: false });
@@ -144,7 +155,7 @@ export function createSkillInstallTool(deps) {
         return failure("skill-install", "drift detected after copy; rolled back", { operationId: opId, retryable: false });
       }
       // 5. Append to the inventory chain (schema v2).
-      const recorded = await appendEvent(wtCheck.path, {
+      const recorded = await appendEvent(installRoot, {
         type: "install",
         skill: skillName,
         package: packageSpec,
@@ -158,7 +169,7 @@ export function createSkillInstallTool(deps) {
         package: packageSpec,
         version: version || null,
         destination: destRel,
-        worktree: wtCheck.path,
+        worktree: installRoot,
         source: installedFiles.source,
         files: fileRecords,
         sequence: recorded.sequence,
