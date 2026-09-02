@@ -28,6 +28,7 @@ import { CATALOG } from "./catalog.js";
 import { bytesHashString } from "./hash.js";
 import { loadConfig, renderDefaultConfig } from "./config.js";
 import { isSafeManagedPath } from "./lock.js";
+import { loadWorkflowModelDefaults, resolveWorkflowModels } from "./workflow-models.js";
 import {
   setPointer,
   getPointer,
@@ -255,12 +256,16 @@ export async function planUninstall({ repoRoot, lock }) {
 export async function planConfigSynthesis({ repoRoot, detection, lock, forceOverwrite, migrationSeed = null, models = null }) {
   const existing = await loadConfig(repoRoot);
   const hasModelFlags = Boolean(models && (models.planner || models.builder || models.finalReviewer));
-  // Model flags always patch the existing config so the lock
-  // reflects the live model snapshot. This is not "force
-  // overwrite" — unrelated fields are preserved — but it does
-  // require writing the config back. Other updates still need
-  // forceOverwrite.
-  if (existing?.ok && !forceOverwrite && !hasModelFlags) {
+  const { current, history } = loadWorkflowModelDefaults();
+  const resolved = resolveWorkflowModels({
+    configModels: existing?.ok ? (existing.value.workflow?.models ?? {}) : {},
+    lockModels: lock?.manager?.models ?? null,
+    cliModels: models,
+    current,
+    history,
+  });
+
+  if (existing?.ok && !forceOverwrite && resolved.changedRoles.length === 0) {
     return {
       kind: "noop",
       op: "config",
@@ -269,42 +274,39 @@ export async function planConfigSynthesis({ repoRoot, detection, lock, forceOver
       currentSha: existing.sha256,
       desiredSha: existing.sha256,
       configValue: existing.value,
+      modelsProvenance: resolved.provenance,
       reason: "user config already present",
     };
   }
+
   let desiredValue = migrationSeed
     ?? (existing?.ok ? structuredClone(existing.value) : renderDefaultConfig(detection));
-  if (hasModelFlags) {
-    desiredValue = {
-      ...desiredValue,
-      schemaVersion: 2,
-      profile: "engineering",
-      workflow: {
-        ...(desiredValue.workflow ?? {}),
-        models: {
-          planner: models.planner ?? desiredValue?.workflow?.models?.planner,
-          builder: models.builder ?? desiredValue?.workflow?.models?.builder,
-          finalReviewer: models.finalReviewer ?? desiredValue?.workflow?.models?.finalReviewer,
-        },
-        approval: {
-          mirrorToIssue: true,
-          maxFailedRounds: 3,
-          ...(desiredValue?.workflow?.approval ?? {}),
-        },
-      },
-    };
-  }
   if (desiredValue.profile === "core") desiredValue.profile = "engineering";
+  desiredValue.workflow = {
+    ...(desiredValue.workflow ?? {}),
+    models: resolved.models,
+    approval: {
+      mirrorToIssue: true,
+      maxFailedRounds: 3,
+      ...(desiredValue.workflow?.approval ?? {}),
+    },
+  };
+
   const desiredJson = JSON.stringify(desiredValue, null, 2) + "\n";
   const desiredSha = bytesHashString(desiredJson);
-  const kind = existing?.ok && (forceOverwrite || hasModelFlags) ? "update" : "create";
-  const reason = existing?.ok
-    ? hasModelFlags && !forceOverwrite
-      ? "patching workflow.models from CLI model flags"
-      : "user config overwritten via --force-config"
-    : migrationSeed
+  const kind = existing?.ok ? "update" : "create";
+  let reason;
+  if (!existing?.ok) {
+    reason = migrationSeed
       ? "synthesising a default config from legacy adapter migration"
       : "synthesising a default config from detection";
+  } else if (forceOverwrite) {
+    reason = "user config overwritten via --force-config";
+  } else if (hasModelFlags) {
+    reason = "patching workflow.models from CLI model flags";
+  } else {
+    reason = "applying packaged workflow model defaults";
+  }
   return {
     kind,
     op: "config",
@@ -314,6 +316,7 @@ export async function planConfigSynthesis({ repoRoot, detection, lock, forceOver
     desiredSha,
     bytes: Buffer.from(desiredJson, "utf8"),
     configValue: desiredValue,
+    modelsProvenance: resolved.provenance,
     reason,
   };
 }

@@ -19,16 +19,11 @@ export async function runUpdate(options) {
     }
     throw e;
   }
-  const hasExplicitModels = options.models
-    && (options.models.planner || options.models.builder || options.models.finalReviewer);
   const preview = await previewInstall({
     rootPath: options.rootPath,
     profile: options.profile ?? null,
     replaceManaged: options.replaceManaged,
-    // If the user passes model flags, the run is explicitly
-    // populating workflow.models. We must rewrite the config in
-    // that case even when the existing config is otherwise valid.
-    forceConfig: Boolean(options.forceConfig || hasExplicitModels),
+    forceConfig: Boolean(options.forceConfig),
     forceRootConfig: options.forceRootConfig,
     models: options.models ?? null,
   });

@@ -179,7 +179,7 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
   // removed only by the explicit `setup-complete` command (the
   // setup-ship-workflow skill now ALSO calls that command).
   const setupPending = resolved.profile === "engineering"
-    && !hasCompletedModels(configValue);
+    && !hasCompletedModels(configPlan.configValue);
 
   const plan = [...(filePlan ?? []), ...staleFilePlan, ...migrationPlan, configPlan, rootPlan];
   const conflicts = plan.filter((p) => p && p.kind === "conflict");
@@ -197,6 +197,7 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
     summary,
     migrationReport,
     setupPending,
+    modelsProvenance: configPlan.modelsProvenance,
   };
 }
 
