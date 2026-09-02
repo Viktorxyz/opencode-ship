@@ -74,7 +74,7 @@ test("packed: every shipped skill companion required by the catalog is present",
   const paths = new Set(entries.map((e) => e.path));
   for (const required of [
     "package/assets/skills/setup-ship-workflow/SKILL.md",
-    "package/assets/skills/delivery-workflow/SKILL.md",
+    "package/assets/skills/ship-workflow/SKILL.md",
     "package/assets/skills/engineering-workflow/SKILL.md",
     "package/assets/skills/brainstorming/SKILL.md",
     "package/assets/skills/triage/SKILL.md",

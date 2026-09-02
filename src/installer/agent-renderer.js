@@ -13,9 +13,9 @@
  *   finalReviewer   -> ship-final-standards-reviewer,
  *                      ship-final-spec-reviewer
  *
- * The legacy `delivery-reviewer` and `delivery-verifier` agents
- * stay model-neutral so consumers can drive them with any model
- * that respects the delivery contract.
+ * The `ship-reviewer` and `ship-verifier` agents (and their
+ * delivery-* legacy paths) stay model-neutral so consumers can
+ * drive them with any model that respects the ship contract.
  *
  * Rendered bytes are what the lock hash pins, so the catalog
  * template hashes are decoupled from the consumer-side agent

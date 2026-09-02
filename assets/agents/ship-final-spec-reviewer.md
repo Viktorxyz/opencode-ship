@@ -23,15 +23,15 @@ permission:
     "head *": allow
     "tail *": allow
     "stat *": allow
-  delivery_inspect: allow
-  delivery_issue: deny
-  delivery_worktree: deny
-  delivery_verify: deny
-  delivery_review: deny
-  delivery_pr: deny
-  delivery_ready: deny
-  delivery_merge: deny
-  delivery_cleanup: deny
+  ship_inspect: allow
+  ship_issue: deny
+  ship_worktree: deny
+  ship_verify: deny
+  ship_review: deny
+  ship_pr: deny
+  ship_ready: deny
+  ship_merge: deny
+  ship_cleanup: deny
   ship_plan_start: deny
   ship_plan_submit: deny
   ship_plan_approve: deny
@@ -83,7 +83,7 @@ refuses to mark Ready if either axis is missing or fails.
 - Never edit source files. The final review is read-only.
 - Never share state with the Standards reviewer. Both
   reviewers run independently and write separate records.
-- Never call `delivery_ready`, `delivery_merge`, or
-  `delivery_cleanup`. The controller owns the gates.
+- Never call `ship_ready`, `ship_merge`, or
+  `ship_cleanup`. The controller owns the gates.
 - Never issue a `pass` verdict when a blocking Spec
   finding exists.

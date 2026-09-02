@@ -33,15 +33,15 @@ permission:
     "pnpm run verify *": allow
     "node *": allow
     "mkdir *": allow
-  delivery_inspect: deny
-  delivery_issue: deny
-  delivery_worktree: deny
-  delivery_verify: deny
-  delivery_review: deny
-  delivery_pr: deny
-  delivery_ready: deny
-  delivery_merge: deny
-  delivery_cleanup: deny
+  ship_inspect: deny
+  ship_issue: deny
+  ship_worktree: deny
+  ship_verify: deny
+  ship_review: deny
+  ship_pr: deny
+  ship_ready: deny
+  ship_merge: deny
+  ship_cleanup: deny
   ship_plan_start: deny
   ship_plan_submit: deny
   ship_plan_approve: deny
@@ -86,7 +86,7 @@ review.
 - Never record a Spec or Quality verdict; that is the task
   reviewer's job.
 - Never run the verifier or self-assert completion. The
-  delivery_verify tool is independent of the builder.
+  ship_verify tool is independent of the builder.
 - Never edit files outside the task brief's reviewed paths.
 - Never write secrets, tokens, or credentials to the
   filesystem.

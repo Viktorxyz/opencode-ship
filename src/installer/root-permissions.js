@@ -14,13 +14,13 @@
  *   - `subagent_depth` is bumped to 2 so Build -> ship-controller ->
  *     worker agents can dispatch without depth errors.
  *   - Build can call ship_deliver and dispatch ship-controller,
- *     delivery-reviewer, and delivery-verifier (legacy compatibility).
+ *     ship-reviewer, and ship-verifier (delivery-* remain as aliases).
  *   - Build cannot impersonate planner/builder/final-reviewers
  *     directly; the controller owns those dispatches.
  *   - ship-controller can dispatch every workflow worker plus
  *     verifier; it cannot approve plans or merge on its own.
- *   - Tool consent boundary: ship_plan_approve and delivery_merge
- *     ask; delivery_publish, ship_task_start, ship_task_commit,
+ *   - Tool consent boundary: ship_plan_approve and ship_merge
+ *     ask; ship_publish, ship_task_start, ship_task_commit,
  *     ship_final_review, and ship_resume are allowed on the
  *     controller; the Build agent never sees them.
  */
@@ -34,16 +34,30 @@ const DENY = "deny";
 
 export const SUBAGENT_DEPTH = 2;
 
-const DELIVERY_AGENTS = ["delivery-reviewer", "delivery-verifier"];
+function withShipAliases(ids) {
+  const out = [];
+  const seen = new Set();
+  for (const id of ids) {
+    const extras = id.startsWith("delivery_") ? [`ship_${id.slice("delivery_".length)}`] : [];
+    for (const candidate of [id, ...extras]) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      out.push(candidate);
+    }
+  }
+  return out;
+}
+
 const CONTROLLER_TASK_ALLOW = [
   "ship-planner",
   "ship-task-builder",
   "ship-task-reviewer",
   "ship-final-standards-reviewer",
   "ship-final-spec-reviewer",
+  "ship-verifier",
   "delivery-verifier",
 ];
-const PUBLIC_TOOL_IDS = [
+const PUBLIC_TOOL_IDS = withShipAliases([
   "delivery_abandon",
   "delivery_cleanup",
   "delivery_github_read",
@@ -78,8 +92,8 @@ const PUBLIC_TOOL_IDS = [
   "ship_task_report",
   "ship_task_review",
   "ship_task_start",
-];
-const BUILD_TOOL_ALLOW = [
+]);
+const BUILD_TOOL_ALLOW = withShipAliases([
   "delivery_cleanup",
   "delivery_inspect",
   "delivery_issue",
@@ -89,15 +103,15 @@ const BUILD_TOOL_ALLOW = [
   "ship_deliver",
   "ship_status",
   "ship_resume",
-];
-const BUILD_TOOL_ASK = [
+]);
+const BUILD_TOOL_ASK = withShipAliases([
   "ship_plan_approve",
   "delivery_merge",
   "delivery_issue_close",
   "delivery_abandon",
   "ship_skill_install",
-];
-const CONTROLLER_TOOL_ALLOW = [
+]);
+const CONTROLLER_TOOL_ALLOW = withShipAliases([
   "delivery_inspect",
   "delivery_cleanup",
   "delivery_github_read",
@@ -121,13 +135,13 @@ const CONTROLLER_TOOL_ALLOW = [
   "ship_skill_install",
   "ship_skill_audit",
   "ship_skill_uninstall",
-];
-const CONTROLLER_TOOL_ASK = [
+]);
+const CONTROLLER_TOOL_ASK = withShipAliases([
   "ship_plan_approve",
   "delivery_merge",
   "delivery_issue_close",
   "delivery_abandon",
-];
+]);
 
 // Build the destructive-command deny list programmatically so the
 // linter (which forbids literal "git reset --hard" / "git push
@@ -187,6 +201,8 @@ export function rootPermissionMatrix() {
           "ship-controller": "allow",
           "general": "allow",
           "plan": "deny",
+          "ship-reviewer": "allow",
+          "ship-verifier": "allow",
           "delivery-reviewer": "allow",
           "delivery-verifier": "allow",
         },
@@ -231,6 +247,8 @@ export const LEGACY_DELIVERY_POINTERS = [
   { pointer: "/agent/build/permission/delivery_cleanup", value: "allow" },
   { pointer: "/agent/build/permission/task/delivery-reviewer", value: "allow" },
   { pointer: "/agent/build/permission/task/delivery-verifier", value: "allow" },
+  { pointer: "/agent/build/permission/task/ship-reviewer", value: "allow" },
+  { pointer: "/agent/build/permission/task/ship-verifier", value: "allow" },
 ];
 
 /**

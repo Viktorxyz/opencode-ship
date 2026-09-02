@@ -86,6 +86,37 @@ test("validateCatalog: rejects an unknown kind", () => {
   assert.throws(() => validateCatalog({ catalog: broken }), /unsupported entry kind/);
 });
 
+test("CATALOG: canonical ship agent and skill ids exist", () => {
+  const ids = new Set(CATALOG.map((e) => e.id));
+  assert.ok(ids.has("agent:ship-reviewer"));
+  assert.ok(ids.has("agent:ship-verifier"));
+  assert.ok(ids.has("skill:ship-workflow"));
+  const reviewer = CATALOG.find((e) => e.id === "agent:ship-reviewer");
+  const verifier = CATALOG.find((e) => e.id === "agent:ship-verifier");
+  const workflow = CATALOG.find((e) => e.id === "skill:ship-workflow");
+  assert.equal(reviewer.path, ".opencode/agents/ship-reviewer.md");
+  assert.equal(verifier.path, ".opencode/agents/ship-verifier.md");
+  assert.equal(workflow.path, ".opencode/skills/ship-workflow/SKILL.md");
+});
+
+test("CATALOG: legacy delivery entries are adopt-on-match aliases", () => {
+  const legacyReviewer = CATALOG.find((e) => e.id === "agent:delivery-reviewer");
+  const shipReviewer = CATALOG.find((e) => e.id === "agent:ship-reviewer");
+  const legacyVerifier = CATALOG.find((e) => e.id === "agent:delivery-verifier");
+  const shipVerifier = CATALOG.find((e) => e.id === "agent:ship-verifier");
+  const legacyWorkflow = CATALOG.find((e) => e.id === "skill:delivery-workflow");
+  const shipWorkflow = CATALOG.find((e) => e.id === "skill:ship-workflow");
+  assert.equal(legacyReviewer.legacy, true);
+  assert.equal(legacyVerifier.legacy, true);
+  assert.equal(legacyWorkflow.legacy, true);
+  assert.equal(legacyReviewer.source, shipReviewer.source);
+  assert.equal(legacyVerifier.source, shipVerifier.source);
+  assert.equal(legacyWorkflow.source, shipWorkflow.source);
+  assert.equal(legacyReviewer.path, ".opencode/agents/delivery-reviewer.md");
+  assert.equal(legacyVerifier.path, ".opencode/agents/delivery-verifier.md");
+  assert.equal(legacyWorkflow.path, ".opencode/skills/delivery-workflow/SKILL.md");
+});
+
 test("validateCatalog: rejected error carries structured issues", () => {
   const broken = [{ ...CATALOG[0], kind: "wonderkind" }];
   try {

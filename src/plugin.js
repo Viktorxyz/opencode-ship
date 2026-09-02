@@ -8,8 +8,8 @@
  * project's own `.opencode/ship.config.json` (falling back to
  * autodetection when the file is missing).
  *
- * The plugin exposes the canonical 34 typed tools and
- * relays every execute call to the existing core factories. Plugin
+ * The plugin exposes the canonical ship_* tools plus delivery_*
+ * aliases and relays every execute call to the existing core factories. Plugin
  * startup performs no writes other than a best-effort retry of the
  * `cleanupPending` queue tracked in `.opencode/ship.lock.json`.
  */
@@ -64,25 +64,32 @@ import { tryImmediateCleanup, listPending } from "./installer/cleanup.js";
 import { flattenShipConfig, selectRuntimeAdapter } from "./installer/ship-adapter.js";
 import { PACKAGE_VERSION } from "./version.js";
 
+const LIFECYCLE_TOOL_DEFS = [
+  ["inspect", "Inspect a manifest and a project-local doctor report.", "inspect"],
+  ["issue", "Find or create the issue for a ship task.", "issue"],
+  ["worktree", "Create an isolated worktree for the task.", "worktree"],
+  ["verify", "Run the consumer's canonical verification command.", "verify"],
+  ["review", "Record the reviewer verdict against the PR head SHA.", "review"],
+  ["pr", "Open a draft PR linked to the issue.", "pr"],
+  ["ready", "Mark the PR ready after every required gate has passed.", "ready"],
+  ["merge", "Squash merge the PR after an explicit user request.", "merge"],
+  ["cleanup", "Remove the agent-owned worktree and branch after merge.", "cleanup"],
+  ["abandon", "Abandon a closed unmerged attempt after explicit approval.", "abandon"],
+  ["github_read", "Typed read of issue, PR, or check data.", "githubRead"],
+  ["issue_comment", "Idempotent typed comment on an issue.", "issueComment"],
+  ["issue_labels", "Idempotent label add/remove on an issue.", "issueLabels"],
+  ["issue_link", "Mark a relationship between two issues.", "issueLink"],
+  ["issue_close", "Close an issue with a recorded user permission subject.", "issueClose"],
+  ["sync", "Fetch and merge base into the feature branch.", "sync"],
+  ["publish", "Push the manifest branch to origin with HEAD verification.", "publish"],
+];
+
 const toolDefs = [
-  ["delivery_inspect", "Inspect a manifest and a project-local doctor report.", "inspect"],
-  ["delivery_issue", "Find or create the issue for a delivery task.", "issue"],
-  ["delivery_worktree", "Create an isolated worktree for the task.", "worktree"],
-  ["delivery_verify", "Run the consumer's canonical verification command.", "verify"],
-  ["delivery_review", "Record the reviewer verdict against the PR head SHA.", "review"],
-  ["delivery_pr", "Open a draft PR linked to the issue.", "pr"],
-  ["delivery_ready", "Mark the PR ready after every required gate has passed.", "ready"],
-  ["delivery_merge", "Squash merge the PR after an explicit user request.", "merge"],
-  ["delivery_cleanup", "Remove the agent-owned worktree and branch after merge.", "cleanup"],
-  ["delivery_abandon", "Abandon a closed unmerged delivery attempt after explicit approval.", "abandon"],
-  ["delivery_github_read", "Typed read of issue, PR, or check data.", "githubRead"],
-  ["delivery_issue_comment", "Idempotent typed comment on an issue.", "issueComment"],
-  ["delivery_issue_labels", "Idempotent label add/remove on an issue.", "issueLabels"],
-  ["delivery_issue_link", "Mark a relationship between two issues.", "issueLink"],
-  ["delivery_issue_close", "Close an issue with a recorded user permission subject.", "issueClose"],
-  ["delivery_sync", "Fetch and merge base into the feature branch.", "sync"],
-  ["delivery_publish", "Push the manifest branch to origin with HEAD verification.", "publish"],
-  ["ship_deliver", "Dispatch durable delivery for an issue to the controller.", "deliver"],
+  ...LIFECYCLE_TOOL_DEFS.flatMap(([suffix, description, key]) => [
+    [`ship_${suffix}`, description, key],
+    [`delivery_${suffix}`, description, key],
+  ]),
+  ["ship_deliver", "Dispatch durable ship workflow for an issue to the controller.", "deliver"],
   ["ship_plan_start", "Create a workflow and dispatch the configured planner.", "planStart"],
   ["ship_plan_submit", "Planner-only immutable PlanV2 submission.", "planSubmit"],
   ["ship_plan_approve", "Interactive approval + immutable local seal.", "planApprove"],

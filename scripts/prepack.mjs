@@ -71,9 +71,9 @@ for (const path of [
   "dist/plugin.d.ts",
   "dist/cli.d.ts",
   "dist/core.d.ts",
-  "assets/agents/delivery-reviewer.md",
-  "assets/agents/delivery-verifier.md",
-  "assets/skills/delivery-workflow/SKILL.md",
+  "assets/agents/ship-reviewer.md",
+  "assets/agents/ship-verifier.md",
+  "assets/skills/ship-workflow/SKILL.md",
   "assets/skills/planning-research-checkpoint/SKILL.md",
   "schema/project-adapter.schema.json",
   "schema/ship-config.schema.json",
@@ -97,7 +97,7 @@ for (const path of [
 // manifest; this loop is a fast guard against an empty
 // `scripts/vendor-sync.mjs` run leaking into a published tarball.
 const skillNames = [
-  "setup-ship-workflow", "engineering-workflow", "grilling",
+  "setup-ship-workflow", "ship-workflow", "engineering-workflow", "grilling",
   "domain-modeling", "grill-with-docs", "triage", "to-spec", "to-tickets",
   "wayfinder", "handoff", "research", "prototype", "codebase-design", "code-review",
   "brainstorming", "writing-plans", "executing-plans", "subagent-driven-development",

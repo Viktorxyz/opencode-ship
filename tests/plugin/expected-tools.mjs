@@ -1,9 +1,12 @@
 /*
  * Canonical opencode-ship tool set.
  *
- * The bundled plugin registers exactly 34 typed tools (17
- * delivery + 17 ship). This module is the
- * single source of truth for the expected set so:
+ * The bundled plugin registers 51 typed tools:
+ *   - 17 canonical ship_* lifecycle tools
+ *   - 17 delivery_* aliases (same runners; kept for one minor)
+ *   - 17 already-canonical ship_* workflow tools
+ *
+ * This module is the single source of truth for the expected set so:
  *
  *   - the in-process plugin-load test asserts the contract at the
  *     plugin boundary;
@@ -17,7 +20,7 @@
  */
 
 export const EXPECTED_OPENCODE_SHIP_TOOLS = Object.freeze([
-  // 17 delivery tools
+  // 17 delivery_* aliases
   "delivery_abandon",
   "delivery_cleanup",
   "delivery_github_read",
@@ -35,7 +38,25 @@ export const EXPECTED_OPENCODE_SHIP_TOOLS = Object.freeze([
   "delivery_sync",
   "delivery_verify",
   "delivery_worktree",
-  // 17 ship tools
+  // 17 canonical ship_* lifecycle tools
+  "ship_abandon",
+  "ship_cleanup",
+  "ship_github_read",
+  "ship_inspect",
+  "ship_issue",
+  "ship_issue_close",
+  "ship_issue_comment",
+  "ship_issue_labels",
+  "ship_issue_link",
+  "ship_merge",
+  "ship_pr",
+  "ship_publish",
+  "ship_ready",
+  "ship_review",
+  "ship_sync",
+  "ship_verify",
+  "ship_worktree",
+  // 17 already-canonical ship workflow tools
   "ship_deliver",
   "ship_final_review",
   "ship_plan_approve",
@@ -64,3 +85,23 @@ export const EXPECTED_OPENCODE_SHIP_TOOL_IDS = Object.freeze(
 );
 
 export const OPENCODE_SHIP_TOOL_COUNT = EXPECTED_OPENCODE_SHIP_TOOLS.length;
+
+export const LIFECYCLE_TOOL_ALIASES = Object.freeze([
+  ["ship_inspect", "delivery_inspect"],
+  ["ship_issue", "delivery_issue"],
+  ["ship_worktree", "delivery_worktree"],
+  ["ship_verify", "delivery_verify"],
+  ["ship_review", "delivery_review"],
+  ["ship_pr", "delivery_pr"],
+  ["ship_ready", "delivery_ready"],
+  ["ship_merge", "delivery_merge"],
+  ["ship_cleanup", "delivery_cleanup"],
+  ["ship_abandon", "delivery_abandon"],
+  ["ship_github_read", "delivery_github_read"],
+  ["ship_issue_comment", "delivery_issue_comment"],
+  ["ship_issue_labels", "delivery_issue_labels"],
+  ["ship_issue_link", "delivery_issue_link"],
+  ["ship_issue_close", "delivery_issue_close"],
+  ["ship_sync", "delivery_sync"],
+  ["ship_publish", "delivery_publish"],
+]);

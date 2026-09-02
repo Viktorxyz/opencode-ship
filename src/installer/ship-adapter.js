@@ -11,8 +11,8 @@
 import { resolve } from "node:path";
 
 const REQUIRED_DEFAULTS = {
-  review: { agent: "delivery-reviewer", required: true, invalidateOnHeadChange: true },
-  ci: { driver: "github-status-checks", requiredChecks: ["delivery-verify"], wait: true, flakyRetry: 1 },
+  review: { agent: "ship-reviewer", required: true, invalidateOnHeadChange: true },
+  ci: { driver: "github-status-checks", requiredChecks: ["opencode-ship-verify"], wait: true, flakyRetry: 1 },
   ready: { requires: ["review", "local-verification", "remote-ci"], stopAfterReady: true },
   merge: { strategy: "squash", policy: "explicit-user-request-only", requireFreshGates: true },
   cleanup: { when: "next-task", requires: ["pr-merged", "worktree-clean", "no-unpublished-commits"] },

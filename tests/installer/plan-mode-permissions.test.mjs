@@ -46,6 +46,15 @@ test("planModePermissions: returns a deny-first shape", () => {
     "delivery_ready",
     "delivery_merge",
     "delivery_cleanup",
+    "ship_inspect",
+    "ship_issue",
+    "ship_worktree",
+    "ship_verify",
+    "ship_review",
+    "ship_pr",
+    "ship_ready",
+    "ship_merge",
+    "ship_cleanup",
   ]) {
     assert.equal(block[tool], "deny", `${tool} must be denied in Plan Mode`);
   }

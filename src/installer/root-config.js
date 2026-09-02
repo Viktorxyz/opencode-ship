@@ -81,6 +81,61 @@ export const POINTER_ENTRIES = [
     strategy: "value",
     value: "allow",
   },
+  {
+    pointer: "/agent/build/permission/ship_inspect",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/agent/build/permission/ship_issue",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/agent/build/permission/ship_worktree",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/agent/build/permission/ship_verify",
+    strategy: "value",
+    value: "deny",
+  },
+  {
+    pointer: "/agent/build/permission/ship_review",
+    strategy: "value",
+    value: "deny",
+  },
+  {
+    pointer: "/agent/build/permission/ship_pr",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/agent/build/permission/ship_ready",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/agent/build/permission/ship_merge",
+    strategy: "value",
+    value: "ask",
+  },
+  {
+    pointer: "/agent/build/permission/ship_cleanup",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/agent/build/permission/task/ship-reviewer",
+    strategy: "value",
+    value: "allow",
+  },
+  {
+    pointer: "/agent/build/permission/task/ship-verifier",
+    strategy: "value",
+    value: "allow",
+  },
   // Build -> ship-controller delegation so the deep plan/build/review
   // chain works with subagent_depth=2.
   {

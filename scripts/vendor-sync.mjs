@@ -60,7 +60,7 @@ This skill is part of the engineering profile shipped by
 Ship controller; the cheap builder (\`minimax/MiniMax-M3\`) cannot
 commit, push, mutate GitHub, mark Ready, or merge. The
 verification-before-completion rule is enforced by
-\`delivery_verify\`, not by the model self-asserting completion.`;
+\`ship_verify\`, not by the model self-asserting completion.`;
 
 /**
  * Map of shipped skill names to:
@@ -173,7 +173,7 @@ async function vendorSkill(entry, sources) {
 async function main() {
   await rm(UPSTREAMS, { recursive: true, force: true });
   // Only remove vendored skill directories from assets/skills/; the
-  // Ship-owned skills (delivery-workflow, planning-research-checkpoint)
+  // Ship-owned skills (ship-workflow, planning-research-checkpoint)
   // ship verbatim from the repo and must survive a vendor-sync run.
   for (const entry of SKILLS) {
     if (entry.reuseAs) continue;

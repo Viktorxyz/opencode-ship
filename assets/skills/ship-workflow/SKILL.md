@@ -1,9 +1,9 @@
 ---
-name: delivery-workflow
-description: Orchestrates the canonical delivery lifecycle from issue creation through Ready PR. Use when the user asks for "implement issue N", "work on ready issues", "delivery", "autonomous delivery", "implement this plan", "execute the plan", "ok implement", or after a plan-mode session confirms the work scope.
+name: ship-workflow
+description: Orchestrates the canonical ship lifecycle from issue creation through Ready PR. Use when the user asks for "implement issue N", "work on ready issues", "ship", "implement this plan", "execute the plan", "ok implement", or after a plan-mode session confirms the work scope.
 ---
 
-# delivery-workflow
+# ship-workflow
 
 You drive the opencode-ship package from a one-line user request to a green, conflict-free, ready-to-merge pull request by dispatching the durable controller.
 
@@ -35,18 +35,18 @@ Do **not** trigger on:
 
 | Step | Tool | Notes |
 |---|---|---|
-| 1. Cleanup merged worktrees | `delivery_inspect` / `delivery_cleanup` | Only for provably merged attempts |
+| 1. Cleanup merged worktrees | `ship_inspect` / `ship_cleanup` | Only for provably merged attempts |
 | 2. Setup gate | `/ship-deliver` | Refuse if `.opencode/ship.setup-pending.json` exists |
 | 3. Dispatch controller | `ship_deliver` | Canonical Build-to-controller entrypoint |
 | 4. Plan + approve | controller / `ship_plan_approve` | Never auto-approve |
 | 5. Execute in linked worktree | controller | Builder, task review, commit, verifier, CI, dual-axis final review |
-| 6. Ready | `delivery_ready` | Controller-owned; same-HEAD gates required |
+| 6. Ready | `ship_ready` | Controller-owned; same-HEAD gates required |
 | 7. Stop at Ready | (this skill) | Do not merge without an explicit user request |
-| 8. Merge | `delivery_merge` | Explicit user request only |
-| 9. Cleanup | `delivery_cleanup` | After a successful merge |
-| 10. Abandon closed unmerged attempts | `delivery_abandon` | Only after the user explicitly closes the PR and requests abandon |
+| 8. Merge | `ship_merge` | Explicit user request only |
+| 9. Cleanup | `ship_cleanup` | After a successful merge |
+| 10. Abandon closed unmerged attempts | `ship_abandon` | Only after the user explicitly closes the PR and requests abandon |
 
-Do not call `delivery_worktree`, `delivery_pr`, `delivery_ready`, or `delivery_merge` from Build to implement an issue. Those mutations belong to `ship-controller` after `ship_deliver`.
+Do not call `ship_worktree`, `ship_pr`, `ship_ready`, or `ship_merge` from Build to implement an issue. Those mutations belong to `ship-controller` after `ship_deliver`.
 
 ## Progress
 
@@ -68,12 +68,12 @@ explain the stage.
 ## Hard rules
 
 1. Every PR carries a `Closes #N` reference. If the issue does not exist, the controller creates it first.
-2. The lifecycle stops at Ready by default. An explicit "merge it" is the only thing that triggers `delivery_merge`.
+2. The lifecycle stops at Ready by default. An explicit "merge it" is the only thing that triggers `ship_merge`.
 3. Force-push, hard-reset, stash, and `git worktree remove` are denied. Use typed cleanup/abandon tools.
 4. You never edit `main` directly. You never bypass the reviewer/verifier gates.
 5. The typed tools are the only sanctioned way to mutate GitHub state. Do not invoke `gh pr merge`, `gh api`, or raw Git plumbing directly.
 6. When a gate fails, fix the cause and re-run only the failed gate; never skip.
-7. If `delivery_merge` returns a `MergeError`, surface it verbatim. Do not invent a workaround.
+7. If `ship_merge` returns a `MergeError`, surface it verbatim. Do not invent a workaround.
 
 ## Stop conditions
 

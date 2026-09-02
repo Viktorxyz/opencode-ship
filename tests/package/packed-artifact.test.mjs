@@ -3,8 +3,8 @@
  *
  * Build a real tarball, extract it into a clean directory that has NO
  * link back to the source tree, remove the local node_modules, then
- * load the bundled plugin from the extracted path and assert exactly
- * 34 tools are registered. This verifies the published artifact is
+ * load the bundled plugin from the extracted path and assert the
+ * canonical tool set is registered. This verifies the published artifact is
  * truly self-contained.
  *
  * The second test runs the extracted CLI against a fresh Git
@@ -24,7 +24,7 @@ import { pathToFileURL } from "node:url";
 import { tar } from "./_test-tar.mjs";
 import { EXPECTED_OPENCODE_SHIP_TOOL_IDS } from "../plugin/expected-tools.mjs";
 
-test("packed-artifact: bundled plugin loads with 34 tools in an isolated consumer", async (t) => {
+test("packed-artifact: bundled plugin loads with the canonical tool set in an isolated consumer", async (t) => {
   const pkgRoot = process.cwd();
   const tmp = await mkdtemp(join(tmpdir(), "opencode-ship-isolated-"));
   const child = { cleanup: () => {} };
@@ -86,6 +86,8 @@ test("packed-artifact: bundled plugin loads with 34 tools in an isolated consume
   const ids = JSON.parse(childProc.stdout.trim());
   assert.equal(packedPackage.version, "1.1.8");
   assert.ok(ids.includes("ship_deliver"));
+  assert.ok(ids.includes("ship_issue"));
+  assert.ok(ids.includes("delivery_issue"));
   assert.ok(ids.includes("delivery_abandon"));
   assert.deepEqual(ids, EXPECTED_OPENCODE_SHIP_TOOL_IDS);
   const coreProc = spawnSync("node", [
@@ -136,6 +138,9 @@ test("packed-artifact: extracted CLI init writes a fresh repository with all man
 
   for (const p of [
     ".opencode/plugins/opencode-ship.js",
+    ".opencode/agents/ship-reviewer.md",
+    ".opencode/agents/ship-verifier.md",
+    ".opencode/skills/ship-workflow/SKILL.md",
     ".opencode/agents/delivery-reviewer.md",
     ".opencode/agents/delivery-verifier.md",
     ".opencode/skills/delivery-workflow/SKILL.md",
@@ -163,8 +168,13 @@ test("packed-artifact: extracted CLI init writes a fresh repository with all man
     "/agent/build/permission/delivery_verify",
     "/agent/build/permission/delivery_review",
     "/agent/build/permission/delivery_merge",
+    "/agent/build/permission/ship_verify",
+    "/agent/build/permission/ship_review",
+    "/agent/build/permission/ship_merge",
     "/agent/build/permission/task/delivery-reviewer",
     "/agent/build/permission/task/delivery-verifier",
+    "/agent/build/permission/task/ship-reviewer",
+    "/agent/build/permission/task/ship-verifier",
   ]) {
     assert.ok(pointers.has(expected), `missing pointer record: ${expected}`);
   }
@@ -189,9 +199,9 @@ test("packed-artifact: npm pack includes every required file", async (t) => {
     "package/dist/plugin.js",
     "package/dist/core.js",
     "package/dist/core.d.ts",
-    "package/assets/agents/delivery-reviewer.md",
-    "package/assets/agents/delivery-verifier.md",
-    "package/assets/skills/delivery-workflow/SKILL.md",
+    "package/assets/agents/ship-reviewer.md",
+    "package/assets/agents/ship-verifier.md",
+    "package/assets/skills/ship-workflow/SKILL.md",
     "package/assets/skills/planning-research-checkpoint/SKILL.md",
     "package/schema/ship-config.schema.json",
     "package/schema/ship-lock.schema.json",

@@ -15,7 +15,7 @@ Never commit. Never push. Never edit source. Never work on `main`.
 
 1. Read the plan path the user named, or the latest `.opencode/plans/*.md`.
 2. Print `Plan: <path>`.
-3. Ensure a GitHub issue exists: call `delivery_issue` with
+3. Ensure a GitHub issue exists: call `ship_issue` with
    `title` from the plan heading, `body` containing the plan path,
    `baseBranch` from `.opencode/ship.config.json` `project.defaultBranch`,
    `branch` `fix/<slug-from-title>`, `taskId` a slug from the title.
