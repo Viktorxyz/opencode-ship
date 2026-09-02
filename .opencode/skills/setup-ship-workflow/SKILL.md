@@ -15,6 +15,12 @@ Jira, Linear, or local markdown because the controller's own delivery
 tool belt is GitHub-bound. A team that needs a different tracker should
 hold off on `opencode-ship@1.1.2` until 1.2 ships the next tracker.
 
+Never ask how to run the work: no Subagent-Driven vs Inline, no Tab vs
+Build, no GitHub issues vs Task N, no "what next", no visual-companion
+upsell, no Deep Research unless the user asked to research.
+After the user approves a plan, call ship_deliver. Do not offer
+execution-mode menus.
+
 ## When you trigger
 
 - The user runs `/setup-ship-workflow` or types "set up ship" / "continue setup".
@@ -51,9 +57,9 @@ Also check:
 
 ### 2. Section A — GitHub repository
 
-The default is the GitHub repository that owns `git remote`. Confirm the
-detected `owner/repo` slug against the user's answer. If the user has
-multiple remotes, ask which one is the ship target.
+If `git remote` is GitHub, write the GitHub tracker without asking,
+using the detected `owner/repo` slug. If the user has multiple remotes,
+ask which one is the ship target.
 
 Write `docs/agents/issue-tracker.md` with the resolved `owner/repo`,
 `default branch`, and the canonical `gh` commands:
@@ -157,7 +163,7 @@ Pick the file to edit:
 
 - If `CLAUDE.md` exists, edit it.
 - Else if `AGENTS.md` exists, edit it.
-- If neither, ask the user to pick one — never create both.
+- If neither exists, create `AGENTS.md` without asking.
 
 If an `## Ship workflow` block exists, update in place. Otherwise append:
 

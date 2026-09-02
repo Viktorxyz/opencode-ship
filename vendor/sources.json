@@ -177,7 +177,7 @@
       "localFrozenPath": "vendor/upstreams/mattpocock/skills/engineering/wayfinder/SKILL.md",
       "localFrozenSha256": "257e40665b28ae959ffdcb97d7a72b074360f4a3d201bd84786505308546e434",
       "localTarget": "assets/skills/wayfinder/SKILL.md",
-      "localSha256": "1dc2fa0a585464104ca983a00fba5c6a78ee716bdb2f8d7ac0893f63ca5215bc",
+      "localSha256": "8a918643fa69af6230f4425ab171eb29dcc1483e9ca2cef1e059057de005d257",
       "reuseMode": "adapted",
       "license": "MIT",
       "adaptationNote": "## Ship integration\n\nThis skill is part of the engineering profile shipped by\n`opencode-ship@1.0`. The strong planner child session is\nconfigured with `openai/gpt-5.6-sol` and the durable workflow\nstate lives under `<git-common-dir>/opencode-ship/`. All\nGitHub mutations go through Ship's typed tools; never use\n`gh api` or raw shell."
@@ -337,7 +337,7 @@
       "localFrozenPath": "vendor/upstreams/obra/skills/brainstorming/SKILL.md",
       "localFrozenSha256": "4a54a4858b99807f3155ed1614b2f116e35ea5c1b788e793f565dd837fd3891f",
       "localTarget": "assets/skills/brainstorming/SKILL.md",
-      "localSha256": "5cbb6cd5794b43713fd4343de16312d6a08ba3182a579767547b89fa0f00cfe9",
+      "localSha256": "3acb4ee96a226ea400a97dd623249f51c9a70d54ce434c1dd98e7ff0255a99b9",
       "reuseMode": "adapted",
       "license": "MIT",
       "adaptationNote": "## Ship integration\n\nThis skill is part of the engineering profile shipped by\n`opencode-ship@1.0`. Execution is driven by the deterministic\nShip controller; the cheap builder (`minimax/MiniMax-M3`) cannot\ncommit, push, mutate GitHub, mark Ready, or merge. The\nverification-before-completion rule is enforced by\n`delivery_verify`, not by the model self-asserting completion."
@@ -385,7 +385,7 @@
       "localFrozenPath": "vendor/upstreams/obra/skills/writing-plans/SKILL.md",
       "localFrozenSha256": "72190c88b2b5a67a96b91d66aa72b9161913e10e8769da3f28a226f4cc7b99d0",
       "localTarget": "assets/skills/writing-plans/SKILL.md",
-      "localSha256": "14c2184bdc6ee538614011ee247f2d51cae6e8770c2d2e961d44620aa0d739c6",
+      "localSha256": "18006ce408e266b7963f184b4d42fe2bba07e26d5e9cd9fbfbadd43c6dd8bd50",
       "reuseMode": "adapted",
       "license": "MIT",
       "adaptationNote": "## Ship integration\n\nThis skill is part of the engineering profile shipped by\n`opencode-ship@1.0`. Execution is driven by the deterministic\nShip controller; the cheap builder (`minimax/MiniMax-M3`) cannot\ncommit, push, mutate GitHub, mark Ready, or merge. The\nverification-before-completion rule is enforced by\n`delivery_verify`, not by the model self-asserting completion."
@@ -417,7 +417,7 @@
       "localFrozenPath": "vendor/upstreams/obra/skills/executing-plans/SKILL.md",
       "localFrozenSha256": "c4c3d8b628c51114cd165fb8246fe02744cd8be180032328391252e653028d9b",
       "localTarget": "assets/skills/executing-plans/SKILL.md",
-      "localSha256": "de7d1e38991d184f4affbe2d97342c39041689ac14d657f2b2542f45de0681e6",
+      "localSha256": "9013549310484f376b7b60ad8b5ee65b973e2555c0aba538fc32fd34798ab74c",
       "reuseMode": "adapted",
       "license": "MIT",
       "adaptationNote": "## Ship integration\n\nThis skill is part of the engineering profile shipped by\n`opencode-ship@1.0`. Execution is driven by the deterministic\nShip controller; the cheap builder (`minimax/MiniMax-M3`) cannot\ncommit, push, mutate GitHub, mark Ready, or merge. The\nverification-before-completion rule is enforced by\n`delivery_verify`, not by the model self-asserting completion."
@@ -433,7 +433,7 @@
       "localFrozenPath": "vendor/upstreams/obra/skills/subagent-driven-development/SKILL.md",
       "localFrozenSha256": "349a08ad8b59b19b86c13a7d2f34a1a38719bf88257004a863eefefa8d9f9e40",
       "localTarget": "assets/skills/subagent-driven-development/SKILL.md",
-      "localSha256": "46d7ace03198558e30671f22e00979235bdd5dcea2e5de5e0ed1cca4bb9ad0a4",
+      "localSha256": "54e4995bc07d3f1335346f0281d4070c190acacfceda360269222e284bffe924",
       "reuseMode": "adapted",
       "license": "MIT",
       "adaptationNote": "## Ship integration\n\nThis skill is part of the engineering profile shipped by\n`opencode-ship@1.0`. Execution is driven by the deterministic\nShip controller; the cheap builder (`minimax/MiniMax-M3`) cannot\ncommit, push, mutate GitHub, mark Ready, or merge. The\nverification-before-completion rule is enforced by\n`delivery_verify`, not by the model self-asserting completion."

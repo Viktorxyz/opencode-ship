@@ -149,23 +149,13 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
+After saving the plan, tell the user the file path in one sentence
+using: `Plan: <path>`. Ask one product question: whether the plan
+matches what they want. Then stop.
 
-**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
-
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
-
-**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
-
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Fresh subagent per task + two-stage review
-
-**If Inline Execution chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:executing-plans
-- Batch execution with checkpoints for review
+Never ask how to run the work: no Subagent vs Inline, no Tab vs
+Build, no GitHub issues vs Task N, no "what next".
+When the user approves, the Build agent calls `ship_deliver`.
 
 ## Ship integration
 
