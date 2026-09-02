@@ -1,9 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   loadWorkflowModelDefaults,
   resolveWorkflowModels,
 } from "../../src/installer/workflow-models.js";
+import { renderDefaultConfig } from "../../src/installer/config.js";
+import { checkWorkflowModelDefaults } from "../../src/installer/commands/doctor.js";
+import { makeProject, cleanProject } from "../fixtures/installer-fixture.mjs";
 
 const CURRENT = {
   planner: "openai/gpt-5.6-sol",
@@ -100,4 +105,20 @@ test("resolve: CLI flag sets that role to override only", () => {
   assert.equal(r.provenance.planner.source, "override");
   assert.equal(r.provenance.builder.source, "default");
   assert.deepEqual(r.changedRoles, ["planner"]);
+});
+
+test("doctor: stale default builder fails with run update", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const cfg = renderDefaultConfig({ packageManager: "npm" });
+  cfg.workflow.models = {
+    planner: "openai/gpt-5.6-sol",
+    builder: "minimax/MiniMax-M3",
+    finalReviewer: "openai/gpt-5.6-sol",
+  };
+  await mkdir(join(repoRoot, ".opencode"), { recursive: true });
+  await writeFile(join(repoRoot, ".opencode/ship.config.json"), JSON.stringify(cfg, null, 2) + "\n");
+  const r = await checkWorkflowModelDefaults(repoRoot);
+  assert.equal(r.ok, false);
+  assert.match(r.detail, /stale default; run update/);
 });

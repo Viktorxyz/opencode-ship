@@ -5,7 +5,7 @@
  * qualification covers the basic consumer lifecycle on a packed
  * tarball:
  *   - engineering init with explicit models
- *   - engineering init without models fails before any write
+ *   - engineering init without CLI model flags writes packaged defaults
  *   - partial models also fail
  *   - doctor reports a healthy engineering footprint
  *   - uninstall restores the preinstall state
@@ -246,7 +246,7 @@ test("neutral: doctor reports a healthy footprint after engineering init", async
   assert.equal(footprint.kind, "noop", `profile footprint check failed: ${footprint.reason}`);
 });
 
-test("neutral: engineering init without model IDs fails before any write", async (t) => {
+test("neutral: engineering init without CLI model flags succeeds", async (t) => {
   const { tmp, consumer, packageDir } = await packAndExtract();
   t.after(async () => rm(tmp, { recursive: true, force: true }));
   const origin = await makeBareOrigin();
@@ -258,17 +258,17 @@ test("neutral: engineering init without model IDs fails before any write", async
     join(packageDir, "dist/cli.js"), "init", "--root", repo, "--json",
     "--profile", "engineering",
   ], { encoding: "utf8" });
-  // The one-liner flow without models succeeds but leaves the
-  // setup-pending marker so the user is routed through
-  // /setup-ship-workflow. The contract is: install succeeds,
-  // marker is written, models remain empty, doctor reflects
-  // pending setup.
-  assert.equal(r.status, 0, `engineering init without models must succeed with setup pending; stdout=${r.stdout}`);
+  assert.equal(r.status, 0, `engineering init without CLI model flags must succeed; stdout=${r.stdout}`);
   assert.ok(existsSync(join(repo, ".opencode/ship.lock.json")), "lock must be written");
-  assert.ok(existsSync(join(repo, ".opencode/ship.setup-pending.json")), "setup pending marker must be written");
+  assert.equal(existsSync(join(repo, ".opencode/ship.setup-pending.json")), false, "models-empty setup-pending must not be written");
+  const cfg = JSON.parse(readFileSync(join(repo, ".opencode/ship.config.json"), "utf8"));
+  assert.equal(cfg.workflow.models.planner, "openai/gpt-5.6-sol");
+  assert.equal(cfg.workflow.models.builder, "minimax-coding-plan/MiniMax-M3");
+  assert.equal(cfg.workflow.models.finalReviewer, "openai/gpt-5.6-sol");
   const lock = JSON.parse(readFileSync(join(repo, ".opencode/ship.lock.json"), "utf8"));
   assert.equal(lock.manager.profile, "engineering");
   assert.equal(lock.manager.setupComplete, false);
+  assert.equal(lock.manager.models.planner.source, "default");
 });
 
 test("neutral: engineering init without model IDs and --force-config fails before any write", async (t) => {

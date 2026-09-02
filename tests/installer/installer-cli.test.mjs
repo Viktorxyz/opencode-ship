@@ -210,6 +210,32 @@ test("init: --force-root-config preserves JSONC key order when rewriting", async
   assert.ok(permissionKeys.indexOf("*") < permissionKeys.indexOf("delivery_merge"));
 });
 
+test("init: writes packaged default models into ship.config.json", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const r = await runInit(repoRoot);
+  assert.equal(r.code, 0, JSON.stringify(r, null, 2));
+  const cfg = JSON.parse(readFileSync(join(repoRoot, ".opencode/ship.config.json"), "utf8"));
+  assert.equal(cfg.workflow.models.planner, "openai/gpt-5.6-sol");
+  assert.equal(cfg.workflow.models.builder, "minimax-coding-plan/MiniMax-M3");
+  assert.equal(cfg.workflow.models.finalReviewer, "openai/gpt-5.6-sol");
+  const lock = JSON.parse(readFileSync(join(repoRoot, ".opencode/ship.lock.json"), "utf8"));
+  assert.equal(lock.manager.models.planner.source, "default");
+});
+
+test("init --planner-model: that role is override; others stay default", async (t) => {
+  const { parent, repoRoot } = await makeProject();
+  t.after(async () => cleanProject(parent));
+  const r = cli(repoRoot, [
+    "init", "--json",
+    "--planner-model", "anthropic/claude-sonnet-4",
+  ]);
+  assert.equal(r.code, 0, JSON.stringify(r, null, 2));
+  const lock = JSON.parse(readFileSync(join(repoRoot, ".opencode/ship.lock.json"), "utf8"));
+  assert.equal(lock.manager.models.planner.source, "override");
+  assert.equal(lock.manager.models.builder.source, "default");
+});
+
 function hashOf(s) {
   return createHash("sha256").update(s).digest("hex");
 }
