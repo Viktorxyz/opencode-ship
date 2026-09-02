@@ -23,15 +23,15 @@ permission:
     "head *": allow
     "tail *": allow
     "stat *": allow
-  delivery_inspect: allow
-  delivery_issue: deny
-  delivery_worktree: deny
-  delivery_verify: deny
-  delivery_review: deny
-  delivery_pr: deny
-  delivery_ready: deny
-  delivery_merge: deny
-  delivery_cleanup: deny
+  ship_inspect: allow
+  ship_issue: deny
+  ship_worktree: deny
+  ship_verify: deny
+  ship_review: deny
+  ship_pr: deny
+  ship_ready: deny
+  ship_merge: deny
+  ship_cleanup: deny
   ship_plan_start: deny
   ship_plan_submit: deny
   ship_plan_approve: deny
@@ -70,8 +70,8 @@ the controller cannot record a verdict on its own behalf.
   the implementation.
 - Never call `ship_task_report`. That is the builder's
   job.
-- Never call `delivery_verify`, `delivery_review`, or
-  `delivery_ready`. Verifier output is one input; the
+- Never call `ship_verify`, `ship_review`, or
+  `ship_ready`. Verifier output is one input; the
   Spec + Quality verdict is the reviewer's own.
 - Never talk to the builder directly. The controller
   relays findings.

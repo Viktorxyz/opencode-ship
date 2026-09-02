@@ -24,13 +24,13 @@
     "invalidateOnHeadChange": true
   },
   "review": {
-    "agent": "delivery-reviewer",
+    "agent": "ship-reviewer",
     "required": true,
     "invalidateOnHeadChange": true
   },
   "ci": {
     "driver": "github-status-checks",
-    "requiredChecks": ["delivery-verify"],
+    "requiredChecks": ["opencode-ship-verify"],
     "wait": true,
     "flakyRetry": 1
   },

@@ -3,6 +3,7 @@ import { readPolicy, isAutoInstallable } from "./policy.js";
 import { stackQueries, readPackageJson } from "./stack-queries.js";
 
 const MANAGED_SKILL_NAMES = new Set([
+  "ship-workflow",
   "delivery-workflow",
   "planning-research-checkpoint",
   "skill-discovery",

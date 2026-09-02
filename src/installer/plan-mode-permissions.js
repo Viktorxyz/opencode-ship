@@ -84,6 +84,15 @@ export function planModePermissions() {
       delivery_ready: DENY_DEFAULT,
       delivery_merge: DENY_DEFAULT,
       delivery_cleanup: DENY_DEFAULT,
+      ship_inspect: DENY_DEFAULT,
+      ship_issue: DENY_DEFAULT,
+      ship_worktree: DENY_DEFAULT,
+      ship_verify: DENY_DEFAULT,
+      ship_review: DENY_DEFAULT,
+      ship_pr: DENY_DEFAULT,
+      ship_ready: DENY_DEFAULT,
+      ship_merge: DENY_DEFAULT,
+      ship_cleanup: DENY_DEFAULT,
     },
   };
 }

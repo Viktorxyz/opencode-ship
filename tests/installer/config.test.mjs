@@ -20,6 +20,8 @@ test("renderDefaultConfig: 1.1 emits engineering profile with empty workflow.mod
   assert.deepEqual(cfg.workflow.models, {});
   assert.equal(cfg.workflow.approval.mirrorToIssue, true);
   assert.equal(cfg.workflow.approval.maxFailedRounds, 3);
+  assert.equal(cfg.delivery.review.agent, "ship-reviewer");
+  assert.deepEqual(cfg.delivery.ci.requiredChecks, ["opencode-ship-verify"]);
 });
 
 test("renderDefaultConfig: respects detection overrides", () => {

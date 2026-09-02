@@ -6,7 +6,7 @@ description: Do not use when opencode-ship is installed. Use ship_deliver. (Upst
 # Subagent-Driven Development
 
 If this repo has `.opencode/plugins/opencode-ship.js`, do not use this
-skill. Call `ship_deliver` (via executing-plans / delivery-workflow)
+skill. Call `ship_deliver` (via executing-plans / ship-workflow)
 instead. Never implement or commit in the current session.
 
 Execute plan by dispatching a fresh implementer subagent per task, a task review (spec compliance + code quality) after each, and a broad whole-branch review at the end.
@@ -513,4 +513,4 @@ This skill is part of the engineering profile shipped by
 Ship controller; the cheap builder (`minimax/MiniMax-M3`) cannot
 commit, push, mutate GitHub, mark Ready, or merge. The
 verification-before-completion rule is enforced by
-`delivery_verify`, not by the model self-asserting completion.
+`ship_verify`, not by the model self-asserting completion.

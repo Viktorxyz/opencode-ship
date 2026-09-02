@@ -164,4 +164,4 @@ This skill is part of the engineering profile shipped by
 Ship controller; the cheap builder (`minimax/MiniMax-M3`) cannot
 commit, push, mutate GitHub, mark Ready, or merge. The
 verification-before-completion rule is enforced by
-`delivery_verify`, not by the model self-asserting completion.
+`ship_verify`, not by the model self-asserting completion.

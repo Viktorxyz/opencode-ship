@@ -213,7 +213,7 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
   let markedReady = false;
   const fakeDriver = {
     refreshHead: async () => spawnSync("git", ["-C", featureRepo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
-    readChecks: async () => [{ name: "delivery-verify", state: "success", bucket: "pass" }],
+    readChecks: async () => [{ name: "opencode-ship-verify", state: "success", bucket: "pass" }],
     markReady: async () => { markedReady = true; },
   };
   const plugin = await loadPlugin(packageDir);
@@ -224,12 +224,12 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
     driver: fakeDriver,
     directory: repo,
   });
-  assert.ok(result?.tool, "packed plugin must expose the 34-tool surface");
+  assert.ok(result?.tool, "packed plugin must expose the canonical tool surface");
   const toolIds = Object.keys(result.tool).sort();
   for (const required of [
     "ship_plan_start", "ship_plan_submit", "ship_plan_approve", "ship_run_start",
     "ship_task_start", "ship_task_report", "ship_task_review", "ship_task_commit", "ship_task_complete",
-    "ship_final_review", "ship_resume", "ship_status", "delivery_ready",
+    "ship_final_review", "ship_resume", "ship_status", "ship_ready", "delivery_ready", "ship_issue", "delivery_issue",
   ]) {
     assert.ok(toolIds.includes(required), `packed plugin missing ${required}`);
   }

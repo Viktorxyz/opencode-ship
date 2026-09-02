@@ -4,6 +4,7 @@ All notable changes to `opencode-ship` are recorded here.
 
 ## Unreleased
 
+- **Ship naming.** Canonical tool ids are `ship_*`; `delivery_*` remain aliases. Agents `ship-reviewer` / `ship-verifier`, skill `ship-workflow`.
 - **Automatic stack skill discovery.** `init` and `ship_plan_start`
   map `package.json` dependencies to registry queries and
   auto-install trusted skills into `.opencode/skills/<name>/`.

@@ -39,9 +39,9 @@ The `init` command succeeds without any model flags. The setup skill writes the 
 `opencode-ship` is the npm-distributed successor to `opencode-delivery`. From 1.1.0 it bundles:
 
 - a **typed OpenCode plugin** that auto-loads from `.opencode/plugins/opencode-ship.js`;
-- **ship agents** (controller, planner, task-builder, task-reviewer, final-standards-reviewer, final-spec-reviewer) plus the two legacy delivery agents (reviewer, verifier) for backward compatibility;
+- **ship agents** (controller, planner, task-builder, task-reviewer, final-standards-reviewer, final-spec-reviewer, reviewer, verifier);
 - **ship commands** (`ship-deliver`, `ship-resume`, `ship-status`) plus the one-shot `setup-ship-workflow`;
-- **the engineering skill catalog** (delivery-workflow, planning-research-checkpoint, the Matt + Superpowers methodology catalog, the new setup-ship-workflow and skill-discovery);
+- **the engineering skill catalog** (ship-workflow, planning-research-checkpoint, the Matt + Superpowers methodology catalog, the new setup-ship-workflow and skill-discovery);
 - **setup-ship-workflow skill** that walks the user through tracker / labels / docs / model roles;
 - **automatic stack skill discovery** on `init` and `ship_plan_start` that auto-installs trusted-source skills into project-local `.opencode/skills/` with immutable provenance.
 - a **lifecycle state machine** for one issue → one worktree → one PR → one merge → one cleanup;
@@ -49,7 +49,7 @@ The `init` command succeeds without any model flags. The setup skill writes the 
 - a **GitHub CLI driver** that talks only to typed `gh pr/issue` verbs (never `gh api`);
 - a **project adapter** (`.opencode/ship.config.json`) so any project can declare its own verify/bootstrap/CI commands;
 - **reviewer** and **verifier** subagents, both with strictly bounded permissions;
-- **delivery-workflow** skill that drives the canonical lifecycle;
+- **ship-workflow** skill that drives the canonical lifecycle;
 - **planning-research-checkpoint** skill that offers a single, optional Deep Research gate per non-trivial plan;
 - a **doctor** that walks every catalog entry to verify install state and lock consistency;
 - an **install/doctor/diff/update/uninstall** CLI with stable exit codes and `--json` envelopes;
@@ -89,9 +89,9 @@ The plugin auto-discovers from `.opencode/plugins/opencode-ship.js`; the consume
 
 ```
 .opencode/plugins/opencode-ship.js
-.opencode/agents/delivery-reviewer.md
-.opencode/agents/delivery-verifier.md
-.opencode/skills/delivery-workflow/SKILL.md
+.opencode/agents/ship-reviewer.md
+.opencode/agents/ship-verifier.md
+.opencode/skills/ship-workflow/SKILL.md
 .opencode/skills/planning-research-checkpoint/SKILL.md
 .opencode/ship.config.json     # user-owned except packaged workflow.models defaults
 .opencode/ship.lock.json       # installer-managed; drives update + uninstall
@@ -130,7 +130,7 @@ Existing consumers of `opencode-delivery@0.1.x` (commit-pinned shim) can run `pn
 13. Push and wait for required remote CI checks.
 14. Mark the PR Ready and stop.
 15. Explicit "merge it" re-runs the freshness checks and performs the squash merge.
-16. The plugin immediately invokes `delivery_cleanup`; failures persist their next cleanup stage in the Git common dir for the next session.
+16. The plugin immediately invokes `ship_cleanup`; failures persist their next cleanup stage in the Git common dir for the next session. `delivery_*` tool ids remain aliases for one minor.
 
 ## Exit codes
 

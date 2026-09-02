@@ -38,6 +38,9 @@ test("init: creates all managed files on a fresh project", async (t) => {
   assert.equal(r.code, 0, JSON.stringify(r, null, 2));
   for (const p of [
     ".opencode/plugins/opencode-ship.js",
+    ".opencode/agents/ship-reviewer.md",
+    ".opencode/agents/ship-verifier.md",
+    ".opencode/skills/ship-workflow/SKILL.md",
     ".opencode/agents/delivery-reviewer.md",
     ".opencode/agents/delivery-verifier.md",
     ".opencode/skills/delivery-workflow/SKILL.md",
@@ -168,8 +171,13 @@ test("init: --force-root-config creates a minimal opencode.json", async (t) => {
   assert.equal(doc.agent.build.permission.delivery_review, "deny");
   assert.equal(doc.agent.build.permission.delivery_merge, "ask");
   assert.equal(doc.agent.build.permission.delivery_inspect, "allow");
+  assert.equal(doc.agent.build.permission.ship_inspect, "allow");
+  assert.equal(doc.agent.build.permission.ship_issue, "allow");
+  assert.equal(doc.agent.build.permission.ship_merge, "ask");
   assert.equal(doc.agent.build.permission.task["delivery-reviewer"], "allow");
   assert.equal(doc.agent.build.permission.task["delivery-verifier"], "allow");
+  assert.equal(doc.agent.build.permission.task["ship-reviewer"], "allow");
+  assert.equal(doc.agent.build.permission.task["ship-verifier"], "allow");
   assert.equal(doc.subagent_depth, 2);
   // From 1.1.3 the agent-root wildcard is NOT emitted; consumer
   // built-ins (read, edit, bash, …) must stay consumer-owned.
@@ -216,6 +224,8 @@ test("init: writes packaged default models into ship.config.json", async (t) => 
   const r = await runInit(repoRoot);
   assert.equal(r.code, 0, JSON.stringify(r, null, 2));
   const cfg = JSON.parse(readFileSync(join(repoRoot, ".opencode/ship.config.json"), "utf8"));
+  assert.equal(cfg.delivery.review.agent, "ship-reviewer");
+  assert.deepEqual(cfg.delivery.ci.requiredChecks, ["opencode-ship-verify"]);
   assert.equal(cfg.workflow.models.planner, "openai/gpt-5.6-sol");
   assert.equal(cfg.workflow.models.builder, "minimax-coding-plan/MiniMax-M3");
   assert.equal(cfg.workflow.models.finalReviewer, "openai/gpt-5.6-sol");

@@ -60,24 +60,25 @@ permission:
     ship-task-reviewer: allow
     ship-final-standards-reviewer: allow
     ship-final-spec-reviewer: allow
+    ship-verifier: allow
     delivery-verifier: allow
-  delivery_inspect: allow
-  delivery_issue: allow
-  delivery_worktree: allow
-  delivery_verify: deny
-  delivery_review: deny
-  delivery_pr: allow
-  delivery_ready: allow
-  delivery_merge: ask
-  delivery_cleanup: allow
-  delivery_github_read: allow
-  delivery_issue_comment: allow
-  delivery_issue_labels: allow
-  delivery_issue_link: allow
-  delivery_issue_close: ask
-  delivery_abandon: ask
-  delivery_sync: allow
-  delivery_publish: allow
+  ship_inspect: allow
+  ship_issue: allow
+  ship_worktree: allow
+  ship_verify: deny
+  ship_review: deny
+  ship_pr: allow
+  ship_ready: allow
+  ship_merge: ask
+  ship_cleanup: allow
+  ship_github_read: allow
+  ship_issue_comment: allow
+  ship_issue_labels: allow
+  ship_issue_link: allow
+  ship_issue_close: ask
+  ship_abandon: ask
+  ship_sync: allow
+  ship_publish: allow
   ship_plan_start: allow
   ship_plan_submit: deny
   ship_plan_approve: ask
@@ -145,7 +146,7 @@ task. Verify once. Ready / Merge / Cleanup as today. `shape` and
    state and never duplicate work already recorded in a
    commit trailer.
 8. After the user explicitly closes an unmerged PR and requests
-   abandon, call `delivery_abandon`. Never close the PR yourself.
+   abandon, call `ship_abandon`. Never close the PR yourself.
 9. After a successful merge, clean up and print `Cleanup: done.`
 
 ## What you never do

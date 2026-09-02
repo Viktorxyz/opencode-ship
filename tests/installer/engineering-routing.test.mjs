@@ -75,12 +75,12 @@ test("parseCommand: ship-deliver routes to the controller command", () => {
 
 test("shipped command and skill use ship_deliver as the canonical entrypoint", () => {
   const command = readFileSync(resolve("assets/commands/ship-deliver.md"), "utf8");
-  const skill = readFileSync(resolve("assets/skills/delivery-workflow/SKILL.md"), "utf8");
+  const skill = readFileSync(resolve("assets/skills/ship-workflow/SKILL.md"), "utf8");
   const controller = readFileSync(resolve("assets/agents/ship-controller.md"), "utf8");
   assert.match(command, /ship_deliver/);
   assert.match(skill, /ship_deliver/);
-  assert.doesNotMatch(skill, /\| 3\. Find or create the issue \| `delivery_issue`/);
-  assert.match(controller, /delivery_abandon/);
+  assert.doesNotMatch(skill, /\| 3\. Find or create the issue \| `ship_issue`/);
+  assert.match(controller, /ship_abandon/);
 });
 
 test("helpText: lists the engineering model flags", () => {

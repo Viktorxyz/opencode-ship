@@ -23,15 +23,15 @@ permission:
     "head *": allow
     "tail *": allow
     "stat *": allow
-  delivery_inspect: allow
-  delivery_issue: deny
-  delivery_worktree: deny
-  delivery_verify: deny
-  delivery_review: deny
-  delivery_pr: deny
-  delivery_ready: deny
-  delivery_merge: deny
-  delivery_cleanup: deny
+  ship_inspect: allow
+  ship_issue: deny
+  ship_worktree: deny
+  ship_verify: deny
+  ship_review: deny
+  ship_pr: deny
+  ship_ready: deny
+  ship_merge: deny
+  ship_cleanup: deny
   ship_plan_start: deny
   ship_plan_submit: allow
   ship_plan_approve: deny
@@ -71,7 +71,8 @@ planner never edits source files and never commits.
   implementation.
 - Never call `ship_plan_approve`. Approval is a user
   action; the controller surfaces it.
-- Never call any `delivery_*` tool. The planner cannot
+- Never call `ship_issue`, `ship_worktree`, `ship_pr`,
+  `ship_ready`, `ship_merge`, or `ship_cleanup`. The planner cannot
   mutate the consumer's repository or GitHub.
 - Never produce a plan that contains placeholders, shell
   command strings, absolute paths, parent paths, `.git`

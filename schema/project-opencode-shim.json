@@ -11,6 +11,8 @@
           "general": "allow",
           "reviewer": "allow",
           "verifier": "allow",
+          "ship-reviewer": "allow",
+          "ship-verifier": "allow",
           "delivery-reviewer": "allow",
           "delivery-verifier": "allow",
           "plan": "deny"

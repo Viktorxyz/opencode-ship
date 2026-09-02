@@ -11,7 +11,7 @@ and before any `ship-deliver`. It is prompt-driven, idempotent, and refuses
 to return until every step is committed or explicitly skipped.
 
 The setup contract is GitHub-only. The skill refuses to drive GitLab,
-Jira, Linear, or local markdown because the controller's own delivery
+Jira, Linear, or local markdown because the controller's own ship
 tool belt is GitHub-bound. A team that needs a different tracker should
 hold off on `opencode-ship@1.1.2` until 1.2 ships the next tracker.
 
@@ -27,7 +27,7 @@ execution-mode menus.
 - The installer creates `.opencode/ship.setup-pending.json` after `init`.
 - The controller also routes `ship-deliver` to this skill until the marker is cleared.
 
-Do **not** trigger on a normal planning or delivery request.
+Do **not** trigger on a normal planning or ship request.
 
 ## Process
 
@@ -175,7 +175,7 @@ active model roles and approval policy. Issues live in GitHub.
 See `docs/agents/issue-tracker.md`. Triage labels are documented in
 `docs/agents/triage-labels.md`.
 
-For a single-issue delivery, the user invokes `/setup-ship-workflow`
+For a single-issue ship, the user invokes `/setup-ship-workflow`
 once, then `ship-deliver <issue-number>` (or types "Ship issue N"). The
 controller dispatches the planner, builder, and reviewers; no further
 user action is required until Ready.

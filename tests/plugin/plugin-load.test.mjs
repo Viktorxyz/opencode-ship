@@ -5,10 +5,10 @@
  * runtime types without booting OpenCode. It verifies:
  *   - the bundled plugin is the default-exported function
  *   - calling it returns an object with a `tool` key
- *   - the `tool` object exposes exactly the 34 named tool
- *     definitions (17 delivery + 17 workflow)
+ *   - the `tool` object exposes exactly the canonical named tool
+ *     definitions (17 ship lifecycle + 17 delivery aliases + 17 workflow)
  *
- * The canonical 34-tool set is imported from
+ * The canonical tool set is imported from
  * `tests/plugin/expected-tools.mjs`, the single source of truth
  * shared with the opencode-discovery smoke test.
  */
@@ -17,7 +17,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
-import { EXPECTED_OPENCODE_SHIP_TOOL_IDS, OPENCODE_SHIP_TOOL_COUNT } from "./expected-tools.mjs";
+import { EXPECTED_OPENCODE_SHIP_TOOL_IDS, OPENCODE_SHIP_TOOL_COUNT, LIFECYCLE_TOOL_ALIASES } from "./expected-tools.mjs";
 
 const pluginPath = pathToFileURL(resolve("dist/plugin.js")).href;
 
@@ -34,7 +34,7 @@ test("plugin: bundle exports only plugin entry functions", async () => {
   assert.deepEqual(Object.keys(mod).sort(), ["ShipPlugin", "default"]);
 });
 
-test("plugin: registers exactly 34 tools", async () => {
+test("plugin: registers the canonical tool set including delivery_* aliases", async () => {
   const mod = await import(pluginPath);
   const fakeCtx = {
     worktree: process.cwd(),
@@ -66,5 +66,27 @@ test("plugin: every tool returns a contract-version-2 envelope", async () => {
     const parsed = JSON.parse(raw);
     assert.equal(parsed.contractVersion, 2, `${id} must return contract-version-2 envelope`);
     assert.ok(typeof parsed.kind === "string", `${id} must include a kind`);
+  }
+});
+
+test("plugin: ship_issue and delivery_issue exist and share behavior", async () => {
+  const mod = await import(pluginPath);
+  const fakeCtx = {
+    worktree: process.cwd(),
+    project: { worktree: process.cwd() },
+    client: {},
+    directory: process.cwd(),
+  };
+  const result = await mod.default(fakeCtx);
+  for (const [canonical, alias] of LIFECYCLE_TOOL_ALIASES) {
+    assert.ok(result.tool[canonical], `missing canonical ${canonical}`);
+    assert.ok(result.tool[alias], `missing alias ${alias}`);
+    assert.equal(result.tool[canonical].description, result.tool[alias].description, `${canonical} and ${alias} must share description`);
+    const canonicalEnv = JSON.parse(await result.tool[canonical].execute({}, fakeCtx));
+    const aliasEnv = JSON.parse(await result.tool[alias].execute({}, fakeCtx));
+    assert.equal(canonicalEnv.ok, aliasEnv.ok, `${canonical} and ${alias} must share ok`);
+    const canonicalBody = canonicalEnv.data ?? canonicalEnv.details ?? canonicalEnv.message;
+    const aliasBody = aliasEnv.data ?? aliasEnv.details ?? aliasEnv.message;
+    assert.deepEqual(canonicalBody, aliasBody, `${canonical} and ${alias} must share payload`);
   }
 });

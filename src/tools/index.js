@@ -3,8 +3,8 @@
  * wire them all from a single import path. The 34-tool surface
  * is composed of:
  *
- *   17 delivery_* tools for the Git/GitHub delivery lifecycle
- *   17 ship_* tools for delivery dispatch, planning, task execution, final review,
+ *   17 ship_* lifecycle tools (with delivery_* aliases for one minor)
+ *   17 already-canonical ship_* tools for dispatch, planning, task execution, final review,
  *      resume/status, and trusted skill management
  *
  * The bundle preserves the existing behavior; it just centralises

@@ -32,18 +32,24 @@ test("matrix: rootPermissionMatrix is the canonical source of truth", () => {
   const matrix = rootPermissionMatrix();
   assert.equal(matrix.subagentDepth, SUBAGENT_DEPTH);
   assert.equal(matrix.build.permission.task["ship-controller"], "allow");
+  assert.equal(matrix.build.permission.task["ship-reviewer"], "allow");
+  assert.equal(matrix.build.permission.task["ship-verifier"], "allow");
   assert.equal(matrix.shipController.permission.task["ship-task-builder"], "allow");
+  assert.equal(matrix.shipController.permission.task["ship-verifier"], "allow");
   assert.equal(matrix.shipController.permission.task["ship-final-standards-reviewer"], "allow");
   assert.equal(matrix.shipController.permission.task["ship-final-spec-reviewer"], "allow");
   // Tool-level permissions live under `tools`, not `permission`.
   assert.equal(matrix.shipController.tools.ship_plan_approve, "ask");
   assert.equal(matrix.shipController.tools.delivery_merge, "ask");
+  assert.equal(matrix.shipController.tools.ship_merge, "ask");
   assert.equal(matrix.build.tools.ship_deliver, "allow");
   assert.equal(matrix.shipController.tools.ship_deliver, "deny");
   assert.equal(matrix.build.tools.ship_plan_start, "deny");
   assert.equal(matrix.shipController.tools.ship_plan_start, "allow");
   assert.equal(matrix.build.tools.delivery_abandon, "ask");
   assert.equal(matrix.shipController.tools.delivery_abandon, "ask");
+  assert.equal(matrix.build.tools.ship_abandon, "ask");
+  assert.equal(matrix.shipController.tools.ship_abandon, "ask");
 });
 
 test("matrix: shipped controller asset denies recursive ship_deliver", () => {
@@ -63,6 +69,8 @@ test("matrix: matrixLeafPointers wires subagent_depth and the controller delegat
   // Legacy delivery_* permissions stay for consumers that already adopted opencode-delivery.
   assert.ok(byPointer.has("/agent/build/permission/delivery_inspect"));
   assert.equal(byPointer.get("/agent/build/permission/delivery_inspect").value, "allow");
+  assert.ok(byPointer.has("/agent/build/permission/ship_inspect"));
+  assert.equal(byPointer.get("/agent/build/permission/ship_inspect").value, "allow");
 });
 
 test("matrix: every shipped public tool has an explicit controller permission", () => {

@@ -97,10 +97,10 @@ export function renderDefaultConfig(detection, overrides = {}) {
         requireCleanDiffAfter: true,
         invalidateOnHeadChange: true,
       },
-      review: { agent: "delivery-reviewer", required: true, invalidateOnHeadChange: true },
+      review: { agent: "ship-reviewer", required: true, invalidateOnHeadChange: true },
       ci: {
         driver: "github-status-checks",
-        requiredChecks: ["delivery-verify"],
+        requiredChecks: ["opencode-ship-verify"],
         wait: true,
         flakyRetry: 1,
       },

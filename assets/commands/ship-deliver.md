@@ -1,11 +1,11 @@
 ---
-description: Start a delivery workflow. First checks the setup-pending marker, then dispatches the durable ship-controller through ship_deliver.
+description: Start a ship workflow. First checks the setup-pending marker, then dispatches the durable ship-controller through ship_deliver.
 ---
 
 # ship-deliver
 
 `ship-deliver <issue-number>` is the canonical entry point
-for a delivery workflow.
+for a ship workflow.
 
 Never ask how to run the work: no Subagent-Driven vs Inline, no Tab vs
 Build, no GitHub issues vs Task N, no "what next", no visual-companion
@@ -35,7 +35,7 @@ If the marker is absent, continue.
 
 ### 1. Dispatch the controller
 
-Call `ship_deliver` with the issue number. Do not implement the issue through the legacy `delivery_issue` / `delivery_worktree` / `delivery_pr` path.
+Call `ship_deliver` with the issue number. Do not implement the issue through Build-owned `ship_issue` / `ship_worktree` / `ship_pr` calls.
 
 1. Check setup-pending.
 2. Call `ship_deliver(issueNumber)`.
@@ -69,8 +69,8 @@ Print `Merge: <sha>.` then `Cleanup: done.`
 - **Never auto-approve a plan.** The user always reviews the plan.
 - **Never mark Ready or merge without a passing Standards review, a passing Spec review, a passing verifier run, and a passing required-CI check, all bound to one HEAD.**
 - **Never force-push, hard-reset, stash, or `git worktree remove`.**
-- **Never use `gh api` or raw shell on GitHub.** Use the typed `delivery_*` tools.
-- **Never abandon an attempt without an explicit user request after the PR is closed unmerged.** The controller may then call `delivery_abandon`.
+- **Never use `gh api` or raw shell on GitHub.** Use the typed `ship_*` tools.
+- **Never abandon an attempt without an explicit user request after the PR is closed unmerged.** The controller may then call `ship_abandon`.
 
 ## Stop conditions
 
