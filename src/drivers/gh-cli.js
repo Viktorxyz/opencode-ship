@@ -320,6 +320,20 @@ export function createGhDriver(opts = {}) {
       return fields.headRefOid;
     },
 
+    async readIssue({ repo, number }) {
+      if (typeof number !== "number") throw new Error("readIssue: number is required");
+      if (!parseRepoSlug(repo)) throw new Error(`readIssue: invalid repo slug ${repo}`);
+      return ghJson(run, [
+        "issue",
+        "view",
+        String(number),
+        "--repo",
+        repo,
+        "--json",
+        "title,body",
+      ]);
+    },
+
     async runCommand(argv) {
       // Production gh command gateway. Every command must pass the
       // argv allowlist policy; the runner is the same spawn helper

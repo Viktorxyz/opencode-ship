@@ -9,6 +9,7 @@
 import { previewInstall, commitInstall, serializePlan } from "../executor.js";
 import { validateCatalog } from "../catalog.js";
 import { clearSetupPending } from "../setup-pending.js";
+import { syncSkills } from "../../skills/sync.js";
 
 export async function runUpdate(options) {
   try {
@@ -43,6 +44,36 @@ export async function runUpdate(options) {
   // `update` no longer auto-clears the setup-pending marker.
   // The marker is removed only by the explicit `setup-complete`
   // command, which is the only writer of `lock.manager.setupComplete`.
+  //
+  // After a successful transaction, run the same skill-sync
+  // helper `init` uses so a fresh stack skill (e.g. a newly
+  // added `react` dependency) lands without a second install
+  // round-trip. Skill sync failures are surfaced in
+  // `committed.extra.skills` but never fail the update.
+  if (committed.extra?.exitCode === 0 && preview.repoRoot) {
+    let skillsReport = { installed: [], skippedUntrusted: [], skippedPolicy: [], registryUnavailable: false, errors: [] };
+    try {
+      const syncFn = options.syncSkills ?? syncSkills;
+      skillsReport = await syncFn({
+        repoRoot: preview.repoRoot,
+        mode: "deliver",
+        installFn: async ({ package: pkg, skillName, version }) => {
+          const { createSkillInstallTool } = await import("../../tools/ship-skill-install.js");
+          const tool = createSkillInstallTool({ repoRoot: preview.repoRoot, config: { value: { skills: [] } } });
+          return tool({ package: pkg, skillName, version });
+        },
+      });
+    } catch (err) {
+      skillsReport = {
+        installed: [],
+        skippedUntrusted: [],
+        skippedPolicy: [],
+        registryUnavailable: true,
+        errors: [String(err?.message ?? err)],
+      };
+    }
+    committed.extra = { ...(committed.extra ?? {}), skills: skillsReport };
+  }
   if (options.json) {
     process.stdout.write(JSON.stringify({
       reportVersion: 1,

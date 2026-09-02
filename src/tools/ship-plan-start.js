@@ -50,13 +50,33 @@ export function createPlanStartTool(deps) {
     }
     const workflowId = normalizeWorkflowId(issueNumber);
     const repoRoot = deps.repoRoot;
+    // Pull the real issue title and body via `gh issue view` so
+    // the stack-skill discovery sees the user's actual request
+    // (and any inline plan path) instead of the literal "issue #N".
+    // The lookup is optional: if the driver is unavailable we
+    // fall back to the literal so the controller does not refuse
+    // to dispatch when offline.
+    let issueText = `issue #${issueNumber}`;
+    try {
+      const readIssue = deps.readIssue ?? deps.driver?.readIssue;
+      if (typeof readIssue === "function" && deps.repoSlug) {
+        const issue = await readIssue({ repo: deps.repoSlug, number: issueNumber });
+        const title = typeof issue?.title === "string" ? issue.title : "";
+        const body = typeof issue?.body === "string" ? issue.body : "";
+        const combined = [title, body].filter(Boolean).join("\n").trim();
+        if (combined.length > 0) issueText = combined;
+      }
+    } catch {
+      // Issue read is best-effort: the literal fallback keeps the
+      // controller from refusing to dispatch when gh is offline.
+    }
     let skills = { installed: [], skippedUntrusted: [], skippedPolicy: [], registryUnavailable: false, errors: [] };
     try {
       const syncFn = deps.syncSkills ?? (await import("../skills/sync.js")).syncSkills;
       skills = await syncFn({
         repoRoot,
         mode: "deliver",
-        issueText: `issue #${issueNumber}`,
+        issueText,
         installFn: async (input) => {
           const { createSkillInstallTool } = await import("./ship-skill-install.js");
           const tool = createSkillInstallTool(deps);

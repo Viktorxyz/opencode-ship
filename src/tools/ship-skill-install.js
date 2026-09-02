@@ -34,7 +34,7 @@ import { randomBytes } from "node:crypto";
 import { readPolicy, isAutoInstallable } from "../skills/policy.js";
 import { appendEvent, readInventory, verifyInventory } from "../skills/inventory.js";
 import { validateLinkedWorktree, validateRelativeInstallPath, validateInstallDestination, isProjectSkillDest } from "../skills/worktree.js";
-import { listSkills } from "../skills/registry.js";
+import { listSkills, SKILLS_INSTALL_TIMEOUT_MS } from "../skills/registry.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 const SAFE_NAME_RE = /^[A-Za-z0-9._/-]{1,160}$/;
@@ -187,6 +187,30 @@ export function createSkillInstallTool(deps) {
 }
 
 /**
+ * Locate the skill directory the CLI wrote inside `stageDir`.
+ *
+ * The CLI may emit the skill into one of three locations; the
+ * lookup order matches the CLI's documented behaviour and the
+ * legacy staging convention used by `opencode-ship@1.1.x`:
+ *
+ *   1. <stageDir>/.opencode/skills/<skillName>
+ *   2. <stageDir>/.agents/skills/<skillName>
+ *   3. <stageDir>/skills/<skillName>
+ *
+ * @param {string} stageDir
+ * @param {string} skillName
+ * @returns {string | null}
+ */
+export function findStagedSkillDir(stageDir, skillName) {
+  const candidates = [
+    join(stageDir, ".opencode", "skills", skillName),
+    join(stageDir, ".agents", "skills", skillName),
+    join(stageDir, "skills", skillName),
+  ];
+  return candidates.find((path) => existsSync(path)) ?? null;
+}
+
+/**
  * Invoke the public `skills` CLI in a staging directory and return
  * the staged skill directory plus its source provenance.
  */
@@ -220,7 +244,7 @@ async function materialiseFromSkillsCli({ packageSpec, skillName, version, stage
     execFile(
       "npm",
       args,
-      { cwd: stageDir, shell: false, maxBuffer: 1024 * 1024 },
+      { cwd: stageDir, shell: false, maxBuffer: 1024 * 1024, timeout: SKILLS_INSTALL_TIMEOUT_MS },
       (err, stdout, stderr) => {
         if (err) {
           const code = typeof err?.code === "number" ? err.code : -1;
@@ -235,14 +259,12 @@ async function materialiseFromSkillsCli({ packageSpec, skillName, version, stage
     );
   });
   if (!result.ok) return result;
-  // The CLI copies the skill into `./.opencode/skills/<name>` under
-  // the staging cwd. We look for that path explicitly.
-  const stagedDir = join(stageDir, ".opencode", "skills", skillName);
-  if (!existsSync(stagedDir)) {
+  const stagedDir = findStagedSkillDir(stageDir, skillName);
+  if (!stagedDir) {
     return {
       ok: false,
       retryable: false,
-      message: `skills CLI did not produce ${stagedDir}`,
+      message: `skills CLI did not produce any of: ${[".opencode/skills", ".agents/skills", "skills"].map((p) => join(stageDir, p, skillName)).join(", ")}`,
     };
   }
   // Sanity check: the staged directory must contain a SKILL.md.
