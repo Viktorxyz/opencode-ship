@@ -14,6 +14,10 @@ export const STACK_DEP_QUERIES = {
   "drizzle-orm": "drizzle",
 };
 
+/**
+ * @param {{ packageJson?: object | null, issueText?: string }} [input]
+ * @returns {string[]}
+ */
 export function stackQueries({ packageJson, issueText } = {}) {
   const found = [];
   const seen = new Set();

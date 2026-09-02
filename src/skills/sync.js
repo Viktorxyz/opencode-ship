@@ -9,6 +9,16 @@ const MANAGED_SKILL_NAMES = new Set([
   "setup-ship-workflow",
 ]);
 
+/**
+ * @param {{
+ *   repoRoot?: string,
+ *   mode?: "init" | "deliver",
+ *   issueText?: string,
+ *   listSkillsFn?: Function,
+ *   installFn?: Function,
+ *   policy?: object,
+ * }} [input]
+ */
 export async function syncSkills({
   repoRoot,
   mode: _mode,

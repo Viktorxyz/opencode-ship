@@ -43,7 +43,7 @@ The `init` command succeeds without any model flags. The setup skill writes the 
 - **ship commands** (`ship-deliver`, `ship-resume`, `ship-status`) plus the one-shot `setup-ship-workflow`;
 - **the engineering skill catalog** (delivery-workflow, planning-research-checkpoint, the Matt + Superpowers methodology catalog, the new setup-ship-workflow and skill-discovery);
 - **setup-ship-workflow skill** that walks the user through tracker / labels / docs / model roles;
-- **skill-discovery** that auto-installs trusted-source skills into the active issue worktree with immutable provenance.
+- **automatic stack skill discovery** on `init` and `ship_plan_start` that auto-installs trusted-source skills into project-local `.opencode/skills/` with immutable provenance.
 - a **lifecycle state machine** for one issue → one worktree → one PR → one merge → one cleanup;
 - a **Git worktree driver** (no rebase-after-push, no force-push, no `--force-with-lease`);
 - a **GitHub CLI driver** that talks only to typed `gh pr/issue` verbs (never `gh api`);

@@ -4,6 +4,12 @@ All notable changes to `opencode-ship` are recorded here.
 
 ## Unreleased
 
+- **Automatic stack skill discovery.** `init` and `ship_plan_start`
+  map `package.json` dependencies to registry queries and
+  auto-install trusted skills into `.opencode/skills/<name>/`.
+  Untrusted candidates are printed on init and returned on
+  plan-start. Registry failure is a warning. Main-checkout
+  installs are allowed only under `.opencode/skills/**`.
 - **Packaged workflow model defaults.** `init` and `update` fill
   `workflow.models` from packaged JSON (`openai/gpt-5.6-sol` /
   `minimax-coding-plan/MiniMax-M3` / `openai/gpt-5.6-sol`) without
