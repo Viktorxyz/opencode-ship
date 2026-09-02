@@ -3,7 +3,7 @@ description: Task reviewer. Records a single Spec + Quality verdict through `shi
 mode: subagent
 temperature: 0.2
 model: <model-from-config>
-steps: 8
+steps: 30
 permission:
   "*": deny
   edit: deny
