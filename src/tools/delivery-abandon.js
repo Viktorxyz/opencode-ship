@@ -169,7 +169,11 @@ async function resumeCleanup({ deps, intent, opId }) {
     }
     deletedBranch = !branchExists(deps.repoRoot, intent.branch);
   }
-  await Promise.resolve(removeManifest(deps.repoRoot, intent.taskId));
+  try {
+    await Promise.resolve(removeManifest(deps.repoRoot, intent.taskId));
+  } catch (err) {
+    return refuse(opId, "manifest-delete-failed", { stderr: String(err?.message ?? err) });
+  }
   const remaining = await readManifest(deps.repoRoot, intent.taskId);
   const deletedManifest = remaining === null;
   const completion = {

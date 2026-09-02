@@ -1,7 +1,7 @@
 import { test, suite } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { createAbandonTool } from "../../src/tools/delivery-abandon.js";
@@ -152,6 +152,38 @@ suite("delivery_abandon", { concurrency: false }, () => {
     }
   });
 
+  test("refuses invalid worktree, rebase, and remote divergence", { serial: true }, async () => {
+    const { fixture, wtPath, head, branch } = await seedAttempt();
+    try {
+      await writeManifest(fixture.dir, {
+        ...(await readManifest(fixture.dir, "t1")),
+        worktreePath: join(fixture.dir, "missing-wt"),
+      });
+      const invalid = await toolFor(fixture, closedPr(head))({ taskId: "t1", subject: "close it" });
+      assert.equal(invalid.details.kind, "invalid-worktree");
+      await writeManifest(fixture.dir, { ...(await readManifest(fixture.dir, "t1")), worktreePath: wtPath });
+      const rebasePath = resolve(wtPath, git(wtPath, ["rev-parse", "--git-path", "rebase-merge"]).stdout.trim());
+      mkdirSync(rebasePath, { recursive: true });
+      const rebase = await toolFor(fixture, closedPr(head))({ taskId: "t1", subject: "close it" });
+      assert.equal(rebase.details.kind, "rebase-in-progress");
+      rmSync(rebasePath, { recursive: true, force: true });
+      const origin = join(fixture.dir, "origin.git");
+      spawnSync("git", ["init", "--bare", "-b", "main", origin]);
+      git(fixture.dir, ["remote", "add", "origin", origin]);
+      git(wtPath, ["push", "origin", branch]);
+      writeFileSync(join(wtPath, "div.txt"), "z\n");
+      git(wtPath, ["add", "div.txt"]);
+      git(wtPath, ["commit", "-qm", "diverge"]);
+      const divergedHead = git(wtPath, ["rev-parse", "HEAD"]).stdout.trim();
+      await writeManifest(fixture.dir, { ...(await readManifest(fixture.dir, "t1")), lastPrHeadSha: divergedHead });
+      const diverged = await toolFor(fixture, closedPr(divergedHead))({ taskId: "t1", subject: "close it" });
+      assert.equal(diverged.details.kind, "remote-diverged");
+      assert.equal((await readAbandon(fixture.dir, "t1")).intent, null);
+    } finally {
+      cleanupFixture(fixture);
+    }
+  });
+
   test("refuses Ready and merged durable runs", { serial: true }, async () => {
     const { fixture, head } = await seedAttempt({
       manifest: { workflowId: "wf-78" },
@@ -211,6 +243,14 @@ suite("delivery_abandon", { concurrency: false }, () => {
       assert.equal(failBranch.details.kind, "branch-delete-failed");
       assert.equal(existsSync(wtPath), false);
       assert.equal(git(fixture.dir, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]).status, 0);
+
+      const failManifest = await toolFor(fixture, closedPr(head), {
+        deleteManifest: async () => {
+          throw new Error("injected manifest failure");
+        },
+      })({ taskId: "t1", subject: "User approved closing failed acceptance" });
+      assert.equal(failManifest.ok, false);
+      assert.equal(git(fixture.dir, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]).status, 1);
 
       const done = await toolFor(fixture, closedPr(head))({
         taskId: "t1",
