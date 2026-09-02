@@ -34,6 +34,10 @@ export const MAX_TRUSTED_PER_RUN = 5;
 const ANSI_RE = /\x1B\[[0-9;]*m/g;
 
 /**
+ * @typedef {{ package: string, skill: string, installs: number }} SkillCandidate
+ */
+
+/**
  * Parse a `skills find <query>` candidate line.
  *
  * Two real-world shapes are accepted:
@@ -58,7 +62,7 @@ const ANSI_RE = /\x1B\[[0-9;]*m/g;
  * single decoration line does not poison the whole batch.
  *
  * @param {string} text
- * @returns {Array<{ package: string, skill: string, installs: number }>}
+ * @returns {SkillCandidate[]}
  */
 export function parseFindOutput(text) {
   if (typeof text !== "string") return [];
@@ -88,6 +92,13 @@ export function parseFindOutput(text) {
 }
 
 /**
+ * @typedef {{ ok: true, candidates: SkillCandidate[], raw: string }} DiscoverSuccess
+ * @typedef {{ ok: false, error: { kind: "registry-contract-mismatch", raw: string } }} DiscoverContractMismatch
+ * @typedef {{ ok: false, error: { kind: "missing-args" } }} DiscoverMissingArgs
+ * @typedef {{ ok: false, error: { kind: "registry-unavailable", stderr: string } }} DiscoverUnavailable
+ */
+
+/**
  * Wrap the parser with a contract check: if the registry returns
  * non-empty output that contains no parseable candidates, the
  * CLI has drifted from the contract the installer relies on.
@@ -96,7 +107,7 @@ export function parseFindOutput(text) {
  * contract mismatch.
  *
  * @param {string} text
- * @returns {{ ok: true, candidates: Array, raw: string } | { ok: false, error: { kind: "registry-contract-mismatch", raw: string } }}
+ * @returns {DiscoverSuccess | DiscoverContractMismatch}
  */
 export function discoverSkillsWithStdout(text) {
   const raw = typeof text === "string" ? text : "";
@@ -140,6 +151,9 @@ function runCapture(cmd, args, options) {
  * Run `npx skills find <query>` against the consumer repo and
  * parse the candidate list. The CLI emits one candidate per line
  * as `<owner>/<repo>@<skill> <count>[K|M] installs`.
+ *
+ * @param {{ repoRoot: string, query: string, npmBin?: string }} input
+ * @returns {Promise<DiscoverSuccess | DiscoverContractMismatch | DiscoverMissingArgs | DiscoverUnavailable>}
  */
 export async function discoverSkills({ repoRoot, query, npmBin = "npx" }) {
   if (!repoRoot || !query) {

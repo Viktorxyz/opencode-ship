@@ -169,8 +169,14 @@ test("neutral: engineering init records the docs/superpowers Plan edit glob but 
     "ship-plan prompt must forbid workflow questions");
   assert.match(shipPlan, /Never mention permission globs/i,
     "ship-plan prompt must not surface permission internals");
-  assert.match(shipPlan, /Never create GitHub issues/i,
-    "ship-plan prompt must not create GitHub issues");
+  // The ship-plan agent hands off to ship_issue + ship_deliver
+  // after the user confirms the plan. The typed-tool handoff
+  // replaces the legacy "Never create GitHub issues" rule with
+  // a single, explicit fork: Start building now, or continue later?
+  assert.match(shipPlan, /Start building now/,
+    "ship-plan prompt must offer the start-now vs later fork");
+  assert.doesNotMatch(shipPlan, /Never create GitHub issues/i,
+    "ship-plan prompt must allow the ship_issue handoff after the user confirms");
   assert.match(shipPlan, /Never offer to implement/i,
     "ship-plan prompt must not offer to implement");
   assert.match(shipPlan, /Never claim OpenCode's native `plan_exit`/,
