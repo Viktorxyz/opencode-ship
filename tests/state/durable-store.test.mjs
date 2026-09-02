@@ -12,6 +12,14 @@ import {
   tryHardLink,
 } from "../../src/state/durable-store.js";
 
+function deferred() {
+  let resolvePromise;
+  const promise = new Promise((resolve) => {
+    resolvePromise = resolve;
+  });
+  return { promise, resolve: resolvePromise };
+}
+
 suite("durable-store: atomicReplaceJson", { concurrency: false }, () => {
   test("writes JSON atomically with no .tmp residue", { serial: true }, async () => {
     const dir = await mkdtemp(resolve(tmpdir(), "ocd-ds-"));
@@ -93,54 +101,60 @@ suite("durable-store: publishImmutableJson", { concurrency: false }, () => {
 });
 
 suite("durable-store: withResourceLock", { concurrency: false }, () => {
-  test("serialises concurrent callbacks on the same key", { serial: true }, async () => {
+  test("excludes a concurrent try-acquire callback on the same key", { serial: true }, async () => {
     const dir = await mkdtemp(resolve(tmpdir(), "ocd-lock-"));
-    const order = [];
-    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-    // Run them sequentially rather than concurrently to avoid
-    // the scheduling race where the second lock caller wakes up
-    // before the first one's polling loop notices the lock is
-    // free. The serial behavior we care about is that the
-    // callbacks don't overlap in time; the order is whatever
-    // FIFO ordering the polling gives them.
-    const aResult = await withResourceLock(dir, "alpha", async () => {
-      order.push("a-start");
-      await wait(20);
-      order.push("a-end");
+    const entered = deferred();
+    const release = deferred();
+    let contenderRan = false;
+    const holder = withResourceLock(dir, "alpha", async () => {
+      entered.resolve();
+      await release.promise;
       return "A";
     });
-    const bResult = await withResourceLock(dir, "alpha", async () => {
-      order.push("b-start");
-      await wait(20);
-      order.push("b-end");
-      return "B";
-    });
-    assert.equal(aResult, "A");
-    assert.equal(bResult, "B");
-    assert.deepEqual(order, ["a-start", "a-end", "b-start", "b-end"]);
-    await rm(dir, { recursive: true, force: true });
+
+    await entered.promise;
+    try {
+      await assert.rejects(
+        () => withResourceLock(dir, "alpha", {
+          callback: async () => {
+            contenderRan = true;
+          },
+          options: { acquire: "try" },
+        }),
+        /resource is busy: alpha/,
+      );
+      assert.equal(contenderRan, false);
+    } finally {
+      release.resolve();
+      assert.equal(await holder, "A");
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test("different keys do not block each other", { serial: true }, async () => {
     const dir = await mkdtemp(resolve(tmpdir(), "ocd-lock-"));
-    const order = [];
-    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const alphaEntered = deferred();
+    const releaseAlpha = deferred();
+    let betaRan = false;
     const a = withResourceLock(dir, "alpha", async () => {
-      order.push("a-start");
-      await wait(40);
-      order.push("a-end");
+      alphaEntered.resolve();
+      await releaseAlpha.promise;
     });
-    const b = withResourceLock(dir, "beta", async () => {
-      order.push("b-start");
-      await wait(10);
-      order.push("b-end");
-    });
-    await Promise.all([a, b]);
-    assert.ok(order.includes("a-start") && order.includes("b-start"));
-    const aIdx = order.indexOf("a-end");
-    const bIdx = order.indexOf("b-end");
-    assert.ok(bIdx < aIdx, "beta should finish before alpha since it is shorter and not blocked");
-    await rm(dir, { recursive: true, force: true });
+
+    await alphaEntered.promise;
+    try {
+      await withResourceLock(dir, "beta", {
+        callback: async () => {
+          betaRan = true;
+        },
+        options: { acquire: "try" },
+      });
+      assert.equal(betaRan, true);
+    } finally {
+      releaseAlpha.resolve();
+      await a;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   test("quarantines a stale same-host dead-PID lock after 120s", { serial: true }, async () => {
