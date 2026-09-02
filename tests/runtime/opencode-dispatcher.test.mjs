@@ -27,6 +27,7 @@ import {
   issueControllerLease,
   readControllerLease,
   readLatestDispatch,
+  transitionDispatch,
   dispatchKeyFor,
   withControllerLease,
   ROLES,
@@ -132,6 +133,50 @@ test("dispatchController: retries a failed prompt without creating another sessi
     assert.deepEqual(
       client.calls.promptAsync.map((call) => call.path),
       [{ id: "controller-session" }, { id: "controller-session" }],
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dispatchController: creates a fresh session after the previous session is orphaned", async () => {
+  const root = makeRepo();
+  try {
+    const calls = { create: [], promptAsync: [] };
+    const client = {
+      session: {
+        create: async (options) => {
+          calls.create.push(options);
+          return { data: { id: `controller-session-${calls.create.length}` }, error: undefined };
+        },
+        promptAsync: async (options) => {
+          calls.promptAsync.push(options);
+          return { data: undefined, error: undefined };
+        },
+      },
+    };
+    const input = {
+      repoRoot: root,
+      issueNumber: 80,
+      client,
+      parentSessionID: "build-session",
+    };
+
+    const first = await dispatchController(input);
+    const latest = await readLatestDispatch(root, "wf-80", "controller:issue-80");
+    await transitionDispatch(root, "wf-80", "controller:issue-80", "orphaned", {
+      sequence: latest.sequence + 1,
+      sessionID: first.sessionID,
+      parentSessionID: "build-session",
+    });
+    const retried = await dispatchController(input);
+
+    assert.equal(first.sessionID, "controller-session-1");
+    assert.equal(retried.sessionID, "controller-session-2");
+    assert.equal(calls.create.length, 2);
+    assert.deepEqual(
+      calls.promptAsync.map((call) => call.path),
+      [{ id: "controller-session-1" }, { id: "controller-session-2" }],
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

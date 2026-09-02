@@ -327,7 +327,9 @@ async function dispatchSession(input) {
     }
     let sequence = Number(latest?.sequence ?? 0);
     const title = titleMarker ?? `ship-${role}-${dispatchKey}`;
-    let sessionID = latest?.sessionID ?? null;
+    const canReuseSession = latest?.state === "created"
+      || (latest?.state === "failed" && latest?.lastError?.startsWith("promptAsync:"));
+    let sessionID = canReuseSession ? latest?.sessionID ?? null : null;
     if (!sessionID) {
       try {
         const created = await client.session.create({
