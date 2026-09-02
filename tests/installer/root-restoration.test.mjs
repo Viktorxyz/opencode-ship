@@ -40,8 +40,8 @@ import {
 } from "../../src/installer/root-config.js";
 import { makeProject, cleanProject } from "../fixtures/installer-fixture.mjs";
 
-test("lock schema: v4 is the current revision and v1/v2/v3 still validate", () => {
-  assert.equal(CURRENT_LOCK_SCHEMA, 4, "setup-complete contract must promote CURRENT_LOCK_SCHEMA to 4");
+test("lock schema: v5 is the current revision and v1/v2/v3/v4 still validate", () => {
+  assert.equal(CURRENT_LOCK_SCHEMA, 5, "model provenance contract must promote CURRENT_LOCK_SCHEMA to 5");
   // v1 legacy manager-aware lock should still parse as legacy core.
   const v1 = {
     contractVersion: 1,
@@ -88,6 +88,23 @@ test("lock schema: v4 is the current revision and v1/v2/v3 still validate", () =
   v3.integrity.lockSha256 = computeIntegrity(v3).lockSha256;
   const v3Result = validateLock(v3);
   assert.equal(v3Result.ok, true, `v3 should still validate: ${v3Result.issues.join("; ")}`);
+
+  const v4 = {
+    contractVersion: 4,
+    manager: {
+      schemaVersion: 4,
+      name: "opencode-ship",
+      version: "1.1.8",
+      profile: "engineering",
+      appliedAt: new Date().toISOString(),
+      config: { path: ".opencode/ship.config.json", sha256: "c".repeat(64) },
+    },
+    files: [],
+    integrity: { lockSha256: "d".repeat(64) },
+  };
+  v4.integrity.lockSha256 = computeIntegrity(v4).lockSha256;
+  const v4Result = validateLock(v4);
+  assert.equal(v4Result.ok, true, `v4 should still validate: ${v4Result.issues.join("; ")}`);
 });
 
 test("lock v4: root pointer records carry a scope and previous value", async (t) => {
@@ -110,7 +127,7 @@ test("lock v4: root pointer records carry a scope and previous value", async (t)
   });
   assert.equal(r.exitCode, 0, JSON.stringify(r));
   const lock = await readLock(repoRoot);
-  assert.equal(lock.manager.schemaVersion, 4);
+  assert.equal(lock.manager.schemaVersion, 5);
   const records = (lock.manager?.rootDocuments ?? []).flatMap((d) => d.pointers ?? []);
   const deliveryVerify = records.find((entry) => entry.pointer === "/agent/build/permission/delivery_verify");
   assert.ok(deliveryVerify, "delivery_verify pointer must be recorded");

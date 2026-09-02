@@ -6,13 +6,13 @@
   "required": ["contractVersion", "manager", "files", "integrity"],
   "additionalProperties": false,
   "properties": {
-    "contractVersion": { "enum": [1, 2, 3, 4] },
+    "contractVersion": { "enum": [1, 2, 3, 4, 5] },
     "manager": {
       "type": "object",
       "required": ["schemaVersion", "name", "version", "appliedAt", "config"],
       "additionalProperties": false,
       "properties": {
-        "schemaVersion": { "enum": [1, 2, 3, 4] },
+        "schemaVersion": { "enum": [1, 2, 3, 4, 5] },
         "name": { "type": "string", "pattern": "^opencode-ship$" },
         "version": { "type": "string", "minLength": 1 },
         "templateSet": { "type": "string", "minLength": 1 },
@@ -33,6 +33,16 @@
             "path": { "type": "string" },
             "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
             "existed": { "type": "boolean" }
+          }
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["planner", "builder", "finalReviewer"],
+          "properties": {
+            "planner": { "$ref": "#/$defs/modelProvenance" },
+            "builder": { "$ref": "#/$defs/modelProvenance" },
+            "finalReviewer": { "$ref": "#/$defs/modelProvenance" }
           }
         },
         "rootDocuments": {
@@ -101,6 +111,17 @@
       "properties": {
         "opencodeMin": { "type": "string" },
         "coreVersion": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "modelProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "applied"],
+      "properties": {
+        "source": { "enum": ["default", "override"] },
+        "applied": { "type": "string", "minLength": 1 }
       }
     }
   }
