@@ -11,7 +11,11 @@ Load plan, review critically, execute all tasks, report when complete.
 
 **Announce at start:** "I'm using the executing-plans skill to implement this plan."
 
-**Note:** Tell your human partner that Superpowers works much better with access to subagents (Claude Code, Codex CLI, Codex App, Copilot CLI, and Gemini CLI all qualify; see the per-platform tool refs in `../using-superpowers/references/`). If subagents are available, use superpowers:subagent-driven-development instead of this skill.
+Never ask how to run the work: no Subagent-Driven vs Inline, no Tab vs
+Build, no GitHub issues vs Task N, no "what next", no visual-companion
+upsell, no Deep Research unless the user asked to research.
+After the user approves a plan, call ship_deliver. Do not offer
+execution-mode menus.
 
 ## The Process
 
@@ -32,10 +36,9 @@ For each task:
 
 ### Step 3: Complete Development
 
-After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
+After all tasks complete and verified, print `Ready:` and wait for
+an explicit merge request. `ship_deliver` already owns Ready / merge
+/ cleanup.
 
 ## When to Stop and Ask for Help
 

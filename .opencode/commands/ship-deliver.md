@@ -7,6 +7,12 @@ description: Start a delivery workflow. First checks the setup-pending marker, r
 `ship-deliver <issue-number>` is the canonical entry point
 for a delivery workflow.
 
+Never ask how to run the work: no Subagent-Driven vs Inline, no Tab vs
+Build, no GitHub issues vs Task N, no "what next", no visual-companion
+upsell, no Deep Research unless the user asked to research.
+After the user approves a plan, call ship_deliver. Do not offer
+execution-mode menus.
+
 ## Procedure
 
 ### 0. Setup gate (mandatory)
@@ -37,7 +43,7 @@ Auto-install trusted sources (see `ship.config.json#skillDiscovery.trustedOwners
 
 ### 2. Plan + approve
 
-1. Resolve or restore workflow state from `<git-common-dir>/opencode-ship/`.
+1. Resolve or restore workflow state from `<git-common-dir>/opencode-ship/`. After issue ensure, print `Track: issue #<number>.`
 2. Dispatch the strong planner (`openai/gpt-5.6-sol` by default) to produce a PlanV2 contract.
 3. Wait for `ship_plan_approve` from the user. Never auto-approve.
 4. Mirror the plan to the issue.
@@ -51,13 +57,20 @@ Drive each task through:
 - controller commit + push
 - same-HEAD gate: Standards + Spec final reviews, verifier, required CI
 
+After each successful tool, print the matching `progressLine` as a
+normal chat sentence. Do not wrap in JSON. Do not explain the stage.
+Print `Build: task <k>/<n> <title>.` and `Review: pass.` or
+`Review: fail (see notes).` per task, then `Verify: pass.` or
+`Verify: fail.` once.
+
 ### 4. Ready
 
-Stop at Ready. Surface PR URL, worktree path, verifier SHA, and the explicit-merge instruction.
+Stop at Ready. Print `Ready: PR #<number>.` Surface PR URL, worktree path, verifier SHA, and the explicit-merge instruction.
 
 ### 5. Merge
 
 On explicit `merge it`: fresh gate recheck, squash merge, cleanup, core downgrade, uninstall, root-config byte restoration.
+Print `Merge: <sha>.` then `Cleanup: done.`
 
 ## Hard rules
 
@@ -70,9 +83,10 @@ On explicit `merge it`: fresh gate recheck, squash merge, cleanup, core downgrad
 
 ## Single-shot research checkpoint
 
-If you decide the task is non-trivial, pause once and **ask the user** whether to run Deep Research before generating any prompt. The default save-tokens path is "no research, continue with the plan as written". Only on explicit "yes" do you generate a draft Deep Research prompt and run the research; summarize the relevant findings inline and continue. Do not write to `docs/research/` unless the findings materially shape an ADR; ADR storage is the project's call, not yours. Continue only after the user confirms or declines.
+Default is no research. Do not ask “Run Deep Research?”.
+Run research only if the user said “research” / “istrazi”.
 
-The full procedure lives in the `planning-research-checkpoint` skill. Do not duplicate the prompt-generation logic here — just trigger the skill and respect its ask-first policy.
+The full procedure lives in the `planning-research-checkpoint` skill.
 
 ## Stop conditions
 

@@ -181,6 +181,10 @@ test("neutral: engineering init records the docs/superpowers Plan edit glob but 
     "ship-plan prompt must not tell the user to switch to Build");
   assert.doesNotMatch(shipPlan, /What you do[\s\S]*?use this Tab/i,
     "ship-plan prompt must not tell the user which tab to use");
+  const writingPlans = readFileSync(join(repo, ".opencode/skills/writing-plans/SKILL.md"), "utf8");
+  assert.doesNotMatch(writingPlans, /Which approach/);
+  assert.doesNotMatch(writingPlans, /Subagent-Driven/);
+  assert.match(writingPlans, /ship_deliver/);
 });
 
 test("neutral: uninstall removes the lock and the managed files", async (t) => {
