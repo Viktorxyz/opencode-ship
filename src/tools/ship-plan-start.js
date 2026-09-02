@@ -16,8 +16,9 @@
 import { success, failure } from "./envelope.js";
 import { resolveModelRoles } from "../installer/engineering-config.js";
 import { isSetupComplete, readLock } from "../installer/lock.js";
-import { join } from "node:path";
+import { join, isAbsolute } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
 import { dispatchWorker, issueControllerLease, ROLES } from "../runtime/opencode-dispatcher.js";
 import { listManifests, writeManifest } from "../state/manifest-store.js";
@@ -25,6 +26,26 @@ import { nextLine, progressLine } from "../runtime/stages.js";
 
 function normalizeWorkflowId(issueNumber) {
   return `wf-${issueNumber}`;
+}
+
+// Match `.opencode/plans/<file>.md` (and the `.opencode/plans/`
+// prefix) inside the issue body. The plan path is the only signal
+// the planner needs to know "this issue already has an approved
+// markdown; do not redesign the product".
+const PLAN_PATH_RE = /(?:\.opencode\/plans\/[A-Za-z0-9._-]+\.md)/g;
+
+function extractApprovedPlanPath(text) {
+  if (typeof text !== "string") return null;
+  const matches = text.match(PLAN_PATH_RE);
+  if (!matches || matches.length === 0) return null;
+  return matches[0];
+}
+
+function resolveApprovedPlanPath(repoRoot, planPath) {
+  if (!planPath) return null;
+  if (isAbsolute(planPath)) return null;
+  const abs = join(repoRoot, planPath);
+  return existsSync(abs) ? abs : null;
 }
 
 export function createPlanStartTool(deps) {
@@ -111,17 +132,33 @@ export function createPlanStartTool(deps) {
       const client = deps.opencodeClient;
       let dispatchResult = null;
       if (client) {
-        dispatchResult = await dispatchWorker({
+        // If the issue body carries an approved markdown plan
+        // path, the planner child is dispatched on the cheap
+        // builder model with a compile prompt. The strong
+        // planner model is reserved for issue-only paths where
+        // no approved scope exists yet.
+        const approvedPlanPath = extractApprovedPlanPath(issueText);
+        const approvedPlanAbs = resolveApprovedPlanPath(repoRoot, approvedPlanPath);
+        let plannerPrompt;
+        let plannerModel = models.planner;
+        if (approvedPlanPath && approvedPlanAbs) {
+          plannerPrompt = `Compile PlanV2 from the approved markdown at ${approvedPlanPath}. Do not redesign the product. Map each task to PlanV2 and call ship_plan_submit.`;
+          plannerModel = models.builder;
+        } else {
+          plannerPrompt = `Plan issue #${issueNumber}`;
+        }
+        const dispatchFn = deps.dispatchWorker ?? dispatchWorker;
+        dispatchResult = await dispatchFn({
           repoRoot,
           workflowId,
           role: ROLES.PLANNER,
           keyInput: { revision: 1 },
-          payload: { promptText: `Plan issue #${issueNumber}` },
+          payload: { promptText: plannerPrompt },
           client,
           parentSessionID: ctx.sessionID,
           titleMarker: `ship-planner-${workflowId}`,
           agent: "ship-planner",
-          model: models.planner,
+          model: plannerModel,
         });
       }
       const indexRecord = {
