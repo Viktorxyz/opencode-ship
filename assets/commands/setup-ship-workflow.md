@@ -18,11 +18,12 @@ in the consumer repo and in every issue worktree.
    on disk from `init` and the install path requires a trusted
    npm-owner allowlist that the `opencode-ship` publisher does
    not satisfy.
-2. **Follow** the procedure in the skill body. The skill writes
-   the four required artifacts (`docs/agents/issue-tracker.md`,
-   `docs/agents/triage-labels.md`, `docs/agents/domain.md`,
-   `AGENTS.md`), populates the `workflow.models` block in
-   `.opencode/ship.config.json`, and runs the
+2. **Follow** the procedure in the skill body. `init` already
+   populated `workflow.models` from packaged defaults; the skill
+   only asks if the user wants a per-role override. The skill
+   still writes the four required artifacts
+   (`docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`,
+   `docs/agents/domain.md`, `AGENTS.md`) and runs the
    `opencode-ship setup-complete` CLI to flip
    `lock.manager.setupComplete` to `true`.
 

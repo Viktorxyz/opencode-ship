@@ -101,15 +101,20 @@ Write `docs/agents/domain.md`.
 
 ### 5. Section D — AI model roles
 
-Three questions, one at a time. Default to `openai/gpt-5.6-sol` and
-`minimax/MiniMax-M3`; offer alternative families only when the user
-explicitly states they have no credentials for the defaults.
+`init` already filled `workflow.models` from packaged defaults. Do not
+ask the user to type three ids. Ask only whether they want an override.
 
-| Role | Default | Suggestion |
+| Role | Packaged default | Suggestion |
 |---|---|---|
 | planner | `openai/gpt-5.6-sol` | strong model for plan writing |
-| builder | `minimax/MiniMax-M3` | cheap/fast model for code |
+| builder | `minimax-coding-plan/MiniMax-M3` | cheap/fast model for code |
 | finalReviewer | `openai/gpt-5.6-sol` | strong model for final Standards + Spec review |
+
+If the user keeps the defaults, leave `workflow.models` unchanged.
+CLI `--planner-model` / `--builder-model` / `--final-reviewer-model`
+mark that role as an override in the lock. To override later, edit
+`.opencode/ship.config.json` or run `opencode-ship update` with those
+flags (do not use `--force-config` just to change a model id).
 
 Alternatives to mention if the user has no OpenAI/MiniMax:
 
@@ -117,28 +122,11 @@ Alternatives to mention if the user has no OpenAI/MiniMax:
 - Google: `google/gemini-2.5-pro`, `google/gemini-2.5-flash`
 - Or any `<provider>/<model>` string the user has credentials for
 
-After the user answers, update `.opencode/ship.config.json`:
+If they choose an override, run:
 
-```json
-{
-  "schemaVersion": 2,
-  "profile": "engineering",
-  "project": { ... },
-  "delivery": { ... },
-  "workflow": {
-    "models": {
-      "planner": "<answer>",
-      "builder": "<answer>",
-      "finalReviewer": "<answer>"
-    },
-    "approval": { "mirrorToIssue": true, "maxFailedRounds": 3 }
-  }
-}
 ```
-
-Then run `opencode-ship update --planner-model <a> --builder-model <b>
---final-reviewer-model <c> --force-config` to write the change with full
-transactional coverage.
+opencode-ship update --planner-model <a> --builder-model <b> --final-reviewer-model <c>
+```
 
 ### 6. Section E — Provider auth probe
 

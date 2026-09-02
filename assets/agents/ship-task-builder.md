@@ -3,7 +3,7 @@ description: Cheap task builder. Implements one task at a time. Reports through 
 mode: subagent
 temperature: 0.2
 model: <model-from-config>
-steps: 8
+steps: 30
 permission:
   "*": deny
   edit: allow

@@ -179,7 +179,7 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
   // removed only by the explicit `setup-complete` command (the
   // setup-ship-workflow skill now ALSO calls that command).
   const setupPending = resolved.profile === "engineering"
-    && !hasCompletedModels(configValue);
+    && !hasCompletedModels(configPlan.configValue);
 
   const plan = [...(filePlan ?? []), ...staleFilePlan, ...migrationPlan, configPlan, rootPlan];
   const conflicts = plan.filter((p) => p && p.kind === "conflict");
@@ -197,6 +197,7 @@ export async function previewInstall({ rootPath, profile = null, replaceManaged,
     summary,
     migrationReport,
     setupPending,
+    modelsProvenance: configPlan.modelsProvenance,
   };
 }
 
@@ -234,7 +235,7 @@ function summarise(plan) {
   return counts;
 }
 
-async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profile = null, models = null, fullSetupComplete = false }) {
+async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profile = null, models = null, modelsProvenance = null, fullSetupComplete = false }) {
   const files = [];
   const remain = lock?.files?.filter((f) => !plan.some((op) => op?.relPath === f.path)) ?? [];
 
@@ -300,6 +301,7 @@ async function assembleLock({ repoRoot, plan, lock, configPlan, rootPlan, profil
         sha256: configSha ?? lock?.manager?.config?.sha256 ?? "",
         existed: Boolean(lock?.manager?.config?.existed),
       },
+      ...(modelsProvenance ? { models: modelsProvenance } : {}),
       rootDocuments: hasRootDocuments && (hasRootPlan || (lock?.manager?.rootDocuments?.length ?? 0) > 0) ? [{
         path: rootPlan?.relPath ?? lock?.manager?.rootDocuments?.[0]?.path ?? "opencode.json",
         format: rootPlan?.format ?? lock?.manager?.rootDocuments?.[0]?.format ?? "json",
@@ -341,6 +343,7 @@ export async function commitInstall(preview, { json, command, fullSetupComplete 
     configPlan,
     rootPlan,
     profile: preview.profile?.profile,
+    modelsProvenance: preview.modelsProvenance,
     fullSetupComplete,
   });
 

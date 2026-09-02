@@ -43,13 +43,11 @@ function sealIntegrity(lock) {
 }
 
 test("CURRENT_LOCK_SCHEMA: declared and stable", () => {
-  // Schema was bumped to 4 when setup-complete tracking moved
-  // from the installer's runtime into the lock and the cleanup
-  // retry state moved out into the Git common directory.
-  // v1/v2/v3 locks still validate; see lock-profile.test.mjs
-  // for the dedicated legacy assertions.
-  assert.equal(CURRENT_LOCK_SCHEMA, 4);
-  assert.equal(lockSchemaRevision(), 4);
+  // Schema was bumped to 5 when manager.models started recording
+  // per-role default/override provenance. v1/v2/v3/v4 locks still
+  // validate; see lock-profile.test.mjs for legacy assertions.
+  assert.equal(CURRENT_LOCK_SCHEMA, 5);
+  assert.equal(lockSchemaRevision(), 5);
 });
 
 test("validateLock: null lock is treated as a fresh install", () => {
@@ -124,6 +122,31 @@ test("validateLock: rejects managed file paths that escape the repository", () =
   assert.equal(r.ok, false);
   assert.equal(r.kind, "shape");
   assert.match(r.issues.join("\n"), /unsafe managed file path/i);
+});
+
+test("validateLock: accepts schema 5 with manager.models provenance", () => {
+  const lock = sealIntegrity(baseLock({
+    contractVersion: 5,
+    manager: {
+      schemaVersion: 5,
+      models: {
+        planner: { source: "default", applied: "openai/gpt-5.6-sol" },
+        builder: { source: "override", applied: "openai/gpt-4.1" },
+        finalReviewer: { source: "default", applied: "openai/gpt-5.6-sol" },
+      },
+    },
+  }));
+  const r = validateLock(lock);
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
+});
+
+test("validateLock: still accepts a sealed schema-4 lock without manager.models", () => {
+  const lock = sealIntegrity(baseLock({
+    contractVersion: 4,
+    manager: { schemaVersion: 4 },
+  }));
+  const r = validateLock(lock);
+  assert.equal(r.ok, true, JSON.stringify(r.issues));
 });
 
 test("writeValidatedLock helper: persists schemaVersion overrides", async () => {

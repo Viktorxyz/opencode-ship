@@ -7,8 +7,8 @@
  *      lock);
  *   3. commits the transaction;
  *   4. auto-runs doctor;
- *   5. writes a setup-pending marker if the workflow.models are
- *      not yet populated;
+ *   5. writes a setup-pending marker only when models are still
+ *      incomplete after synthesis;
  *   6. prints next-step instructions so the user knows exactly what
  *      to type next.
  *
@@ -26,7 +26,6 @@ import { dirname, resolve as resolvePath } from "node:path";
 import { previewInstall, commitInstall, serializePlan } from "../executor.js";
 import { runDoctor } from "./doctor.js";
 import { validateCatalog } from "../catalog.js";
-import { hasCompletedModels } from "../config.js";
 import { writeSetupPending } from "../setup-pending.js";
 
 const writeFileAsync = promisify(writeFile);
@@ -99,7 +98,7 @@ export async function runInit(options) {
   if (setupPending && preview.repoRoot) {
     await writeSetupPending(preview.repoRoot, {
       profile: preview.profile?.profile ?? "engineering",
-      reason: "workflow.models is empty; run /setup-ship-workflow to fill in model roles",
+      reason: "docs/AGENTS.md setup incomplete; run /setup-ship-workflow",
       createdAt: new Date().toISOString(),
     });
   }

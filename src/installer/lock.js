@@ -27,7 +27,7 @@ import { bytesHashString } from "./hash.js";
 import { stableStringify } from "./json-pointer.js";
 import { DEFAULT_PROFILE, isValidProfile } from "../profile.js";
 
-export const CURRENT_LOCK_SCHEMA = 4;
+export const CURRENT_LOCK_SCHEMA = 5;
 
 /**
  * Lock schema revisions:
@@ -50,6 +50,11 @@ export const CURRENT_LOCK_SCHEMA = 4;
  *       the install lock no longer carries `cleanupPending`
  *       (that state moved to `<git-common-dir>/opencode-ship/cleanup-pending.json`).
  *       v1/v2/v3 locks still validate so existing consumers can upgrade.
+ *   5 - model provenance schema: `manager.models` records per-role
+ *       `{ source: "default" | "override", applied }` for planner,
+ *       builder, and finalReviewer. Schema-4 locks without
+ *       `manager.models` remain readable; the first write upgrades
+ *       to schema 5. v1/v2/v3/v4 locks still validate.
  */
 export function lockSchemaRevision() {
   return CURRENT_LOCK_SCHEMA;
@@ -135,17 +140,18 @@ export function validateLock(rawLock) {
   const issues = [];
   let kind = "ok";
 
-  // v1/v2/v3 locks are accepted as legacy so consumers on those
+  // v1/v2/v3/v4 locks are accepted as legacy so consumers on those
   // versions can upgrade without manual migration. Resolution of
   // the missing or legacy profile happens in profile precedence
   // (sibling slice).
   if (
     rawLock.contractVersion !== CURRENT_LOCK_SCHEMA &&
+    rawLock.contractVersion !== 4 &&
     rawLock.contractVersion !== 3 &&
     rawLock.contractVersion !== 2 &&
     rawLock.contractVersion !== 1
   ) {
-    issues.push(`unsupported contractVersion: ${JSON.stringify(rawLock.contractVersion)} (expected ${CURRENT_LOCK_SCHEMA}, 3, 2, or 1)`);
+    issues.push(`unsupported contractVersion: ${JSON.stringify(rawLock.contractVersion)} (expected ${CURRENT_LOCK_SCHEMA}, 4, 3, 2, or 1)`);
     kind = "schema";
   }
 
@@ -158,11 +164,12 @@ export function validateLock(rawLock) {
     kind = kind === "ok" ? "shape" : kind;
   } else if (
     manager.schemaVersion !== CURRENT_LOCK_SCHEMA &&
+    manager.schemaVersion !== 4 &&
     manager.schemaVersion !== 3 &&
     manager.schemaVersion !== 2 &&
     manager.schemaVersion !== 1
   ) {
-    issues.push(`unsupported manager.schemaVersion: ${JSON.stringify(manager.schemaVersion)} (expected ${CURRENT_LOCK_SCHEMA}, 3, 2, or 1)`);
+    issues.push(`unsupported manager.schemaVersion: ${JSON.stringify(manager.schemaVersion)} (expected ${CURRENT_LOCK_SCHEMA}, 4, 3, 2, or 1)`);
     kind = "schema";
   } else if (manager.name !== "opencode-ship") {
     issues.push(`unknown manager.name: ${JSON.stringify(manager.name)}`);

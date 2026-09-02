@@ -55,6 +55,15 @@ if (catalogCheck.status !== 0) {
   fail(`catalog validation failed with exit ${catalogCheck.status ?? "?"}`);
 }
 
+for (const rel of [
+  "assets/defaults/workflow-models.json",
+  "assets/defaults/workflow-models.history.json",
+]) {
+  const p = resolve(root, rel);
+  if (!existsSync(p)) fail(`expected packaged artifact missing: ${rel}`);
+  if (statSync(p).size === 0) fail(`expected packaged artifact empty: ${rel}`);
+}
+
 for (const path of [
   "dist/plugin.js",
   "dist/cli.js",

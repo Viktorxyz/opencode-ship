@@ -3,7 +3,7 @@ description: Deterministic Ship controller. Owns durable workflow state, Git/Git
 mode: subagent
 temperature: 0.1
 model: <model-from-config>
-steps: 12
+steps: 30
 permission:
   "*": deny
   edit: deny

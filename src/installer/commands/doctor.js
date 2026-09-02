@@ -30,6 +30,7 @@ import { CATALOG, filterCatalogByProfile, validateCatalog } from "../catalog.js"
 import { readRootConfig, applyOwnedPointers } from "../root-config.js";
 import { renderHuman, renderJson, summarise } from "../report.js";
 import { resolveProfile } from "../../profile.js";
+import { loadWorkflowModelDefaults, resolveWorkflowModels } from "../workflow-models.js";
 
 function checkNode() {
   return { name: "node>=22.6.0", ok: /^v2[2-9]/.test(process.version), detail: process.version };
@@ -231,6 +232,42 @@ async function checkRootConfig(repoRoot) {
   };
 }
 
+export async function checkWorkflowModelDefaults(repoRoot) {
+  const cfg = await loadConfig(repoRoot);
+  const lockResult = await readValidatedLock(repoRoot);
+  if (!cfg?.ok) {
+    return { name: "workflow model defaults", ok: true, detail: "no config; n/a" };
+  }
+  const { current, history } = loadWorkflowModelDefaults();
+  const resolved = resolveWorkflowModels({
+    configModels: cfg.value.workflow?.models ?? {},
+    lockModels: lockResult.kind === "ok" ? lockResult.lock.manager?.models ?? null : null,
+    cliModels: null,
+    current,
+    history,
+  });
+  const stale = [];
+  const parts = [];
+  for (const role of ["planner", "builder", "finalReviewer"]) {
+    parts.push(`${role}=${resolved.provenance[role].source}`);
+    if (resolved.provenance[role].source === "default" && resolved.models[role] !== current[role]) {
+      stale.push(role);
+    }
+    const live = cfg.value.workflow?.models?.[role];
+    if (resolved.provenance[role].source === "default" && live && live !== current[role]) {
+      if (!stale.includes(role)) stale.push(role);
+    }
+  }
+  if (stale.length) {
+    return {
+      name: "workflow model defaults",
+      ok: false,
+      detail: `stale default; run update (${stale.join(", ")}); ${parts.join(",")}`,
+    };
+  }
+  return { name: "workflow model defaults", ok: true, detail: parts.join(",") };
+}
+
 async function checkSetupState(repoRoot, configValue) {
   const { setupComplete } = await import("../setup-state.js");
   const state = await setupComplete(repoRoot, configValue);
@@ -300,6 +337,7 @@ export async function runDoctor({ rootPath, profile, json, writeOutput = true })
     await checkActiveProfileFootprint(repoRoot, validatedLock, resolved.profile),
     await checkRootConfig(repoRoot),
     await checkSetupState(repoRoot, configValue),
+    await checkWorkflowModelDefaults(repoRoot),
   ];
   const issues = checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.detail}`);
   const plan = checks.map((c) => ({
