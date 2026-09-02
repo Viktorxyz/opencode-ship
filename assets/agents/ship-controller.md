@@ -75,6 +75,7 @@ permission:
   delivery_issue_labels: allow
   delivery_issue_link: allow
   delivery_issue_close: ask
+  delivery_abandon: ask
   delivery_sync: allow
   delivery_publish: allow
   ship_plan_start: allow

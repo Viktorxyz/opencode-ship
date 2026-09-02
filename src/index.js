@@ -53,5 +53,6 @@ export { createPrTool } from "./tools/delivery-pr.js";
 export { createReadyTool } from "./tools/delivery-ready.js";
 export { createMergeTool } from "./tools/delivery-merge.js";
 export { createCleanupTool } from "./tools/delivery-cleanup.js";
+export { createAbandonTool } from "./tools/delivery-abandon.js";
 
 export { PACKAGE_VERSION } from "./version.js";

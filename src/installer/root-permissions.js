@@ -44,6 +44,7 @@ const CONTROLLER_TASK_ALLOW = [
   "delivery-verifier",
 ];
 const PUBLIC_TOOL_IDS = [
+  "delivery_abandon",
   "delivery_cleanup",
   "delivery_github_read",
   "delivery_inspect",
@@ -93,6 +94,7 @@ const BUILD_TOOL_ASK = [
   "ship_plan_approve",
   "delivery_merge",
   "delivery_issue_close",
+  "delivery_abandon",
   "ship_skill_install",
 ];
 const CONTROLLER_TOOL_ALLOW = [
@@ -124,6 +126,7 @@ const CONTROLLER_TOOL_ASK = [
   "ship_plan_approve",
   "delivery_merge",
   "delivery_issue_close",
+  "delivery_abandon",
 ];
 
 // Build the destructive-command deny list programmatically so the

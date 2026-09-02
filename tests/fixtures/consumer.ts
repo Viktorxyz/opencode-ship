@@ -74,6 +74,7 @@ const {
   createReadyTool,
   createMergeTool,
   createCleanupTool,
+  createAbandonTool,
   PACKAGE_VERSION,
 } = delivery;
 
@@ -253,6 +254,7 @@ const reviewTool = createReviewTool(commonDeps);
 const readyTool = createReadyTool(commonDeps);
 const mergeTool = createMergeTool(commonDeps);
 const cleanupTool = createCleanupTool(commonDeps);
+const abandonTool = createAbandonTool(commonDeps);
 
 const wtResult = await worktreeTool({
   taskId: "seed-task",
@@ -264,6 +266,8 @@ const rResult = await reviewTool({ taskId: "seed-task", status: "pass" });
 const ryResult = await readyTool({ taskId: "seed-task" });
 const mResult = await mergeTool({ taskId: "seed-task", subject: "feat: seed" });
 const cResult = await cleanupTool({ taskId: "seed-task" });
+const aResult = await abandonTool({ taskId: "seed-task", subject: "close failed attempt" });
+void aResult;
 void wtResult;
 void vResult;
 void rResult;

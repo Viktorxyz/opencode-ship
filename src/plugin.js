@@ -8,7 +8,7 @@
  * project's own `.opencode/ship.config.json` (falling back to
  * autodetection when the file is missing).
  *
- * The plugin exposes the canonical 33 typed tools and
+ * The plugin exposes the canonical 34 typed tools and
  * relays every execute call to the existing core factories. Plugin
  * startup performs no writes other than a best-effort retry of the
  * `cleanupPending` queue tracked in `.opencode/ship.lock.json`.
@@ -29,6 +29,7 @@ import {
   createReadyTool,
   createMergeTool,
   createCleanupTool,
+  createAbandonTool,
   createGithubReadTool,
   createIssueCommentTool,
   createIssueLabelsTool,
@@ -73,6 +74,7 @@ const toolDefs = [
   ["delivery_ready", "Mark the PR ready after every required gate has passed.", "ready"],
   ["delivery_merge", "Squash merge the PR after an explicit user request.", "merge"],
   ["delivery_cleanup", "Remove the agent-owned worktree and branch after merge.", "cleanup"],
+  ["delivery_abandon", "Abandon a closed unmerged delivery attempt after explicit approval.", "abandon"],
   ["delivery_github_read", "Typed read of issue, PR, or check data.", "githubRead"],
   ["delivery_issue_comment", "Idempotent typed comment on an issue.", "issueComment"],
   ["delivery_issue_labels", "Idempotent label add/remove on an issue.", "issueLabels"],
@@ -336,6 +338,21 @@ const factories = {
   cleanup: {
     args: { taskId: tool.schema.string() },
     build: (rt) => createCleanupTool({
+      driver: rt.driver,
+      repoRoot: rt.repoRoot,
+      repoSlug: rt.repoSlug,
+      owner: rt.owner,
+      adapter: rt.adapter,
+      remote: "origin",
+    }),
+  },
+  abandon: {
+    args: {
+      taskId: tool.schema.string(),
+      subject: tool.schema.string(),
+      operationId: tool.schema.string().optional(),
+    },
+    build: (rt) => createAbandonTool({
       driver: rt.driver,
       repoRoot: rt.repoRoot,
       repoSlug: rt.repoSlug,

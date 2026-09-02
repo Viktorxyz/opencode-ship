@@ -11,7 +11,7 @@
  *      and the legacy delivery_* permission surface.
  *   2. desiredPointersForProfile("engineering") returns the matrix
  *      leaves, NOT the legacy POINTER_ENTRIES list.
- *   3. The shipped 33 public tools are all expressed as explicit
+ *   3. The shipped 34 public tools are all expressed as explicit
  *      permission leaves on the ship-controller agent (no "*"
  *      wildcard sentinel leaks into a literal pointer).
  */
@@ -42,6 +42,8 @@ test("matrix: rootPermissionMatrix is the canonical source of truth", () => {
   assert.equal(matrix.shipController.tools.ship_deliver, "deny");
   assert.equal(matrix.build.tools.ship_plan_start, "deny");
   assert.equal(matrix.shipController.tools.ship_plan_start, "allow");
+  assert.equal(matrix.build.tools.delivery_abandon, "ask");
+  assert.equal(matrix.shipController.tools.delivery_abandon, "ask");
 });
 
 test("matrix: shipped controller asset denies recursive ship_deliver", () => {

@@ -100,6 +100,7 @@ export interface PullRequestSummary {
   draft: boolean;
   mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
   mergeStateStatus: string;
+  state: "OPEN" | "CLOSED" | "MERGED" | "UNKNOWN";
   merged: boolean;
   mergedAt: string | null;
 }
@@ -328,6 +329,12 @@ export interface MergeToolInput {
 
 export interface CleanupToolInput {
   taskId: string;
+}
+
+export interface AbandonToolInput {
+  taskId: string;
+  subject: string;
+  operationId?: string;
 }
 
 export type Envelope<TKind extends string, TData> = { kind: TKind } & TData;
@@ -580,4 +587,15 @@ export declare function createCleanupTool(deps: BaseToolDeps): (input: CleanupTo
   | RemoveFailedEnvelope
   | Envelope<"branch-delete-failed", { stderr: string }>
   | Envelope<"unsafe-cleanup", { signals: readonly string[] }>
+>;
+
+export declare function createAbandonTool(deps: BaseToolDeps): (input: AbandonToolInput) => Promise<
+  | { contractVersion: 2; ok: true; kind: "abandon"; operationId: string; idempotent: boolean; data: {
+    taskId: string;
+    intentHash: string;
+    removedWorktree: boolean;
+    deletedBranch: boolean;
+    deletedManifest: boolean;
+  } }
+  | { contractVersion: 2; ok: false; kind: "abandon"; operationId: string; retryable: boolean; message: string; details: { kind: string } }
 >;
