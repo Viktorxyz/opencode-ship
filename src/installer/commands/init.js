@@ -27,6 +27,7 @@ import { previewInstall, commitInstall, serializePlan } from "../executor.js";
 import { runDoctor } from "./doctor.js";
 import { validateCatalog } from "../catalog.js";
 import { writeSetupPending } from "../setup-pending.js";
+import { syncSkills } from "../../skills/sync.js";
 
 const writeFileAsync = promisify(writeFile);
 const mkdirAsyncAsync = promisify(mkdirAsync);
@@ -73,6 +74,29 @@ export async function runInit(options) {
     if (exitCode === 4) return emitFailure(4, committed?.diagnostics?.[0] ?? "transaction failure", options.json, "init");
     return emitFailure(exitCode, committed?.diagnostics?.[0] ?? "unknown", options.json, "init");
   }
+
+  let skillsReport = { installed: [], skippedUntrusted: [], skippedPolicy: [], registryUnavailable: false, errors: [] };
+  try {
+    const syncFn = options.syncSkills ?? syncSkills;
+    skillsReport = await syncFn({
+      repoRoot: preview.repoRoot,
+      mode: "init",
+      installFn: async ({ package: pkg, skillName, version }) => {
+        const { createSkillInstallTool } = await import("../../tools/ship-skill-install.js");
+        const tool = createSkillInstallTool({ repoRoot: preview.repoRoot, config: { value: { skills: [] } } });
+        return tool({ package: pkg, skillName, version });
+      },
+    });
+  } catch (err) {
+    skillsReport = {
+      installed: [],
+      skippedUntrusted: [],
+      skippedPolicy: [],
+      registryUnavailable: true,
+      errors: [String(err?.message ?? err)],
+    };
+  }
+  committed.extra = { ...(committed.extra ?? {}), skills: skillsReport };
 
   const doctor = await runDoctor({
     rootPath: options.rootPath ?? null,
@@ -125,19 +149,30 @@ export async function runInit(options) {
       exitCode,
       doctorIssues: doctor.issues,
       setupPending,
+      skillsReport,
     });
   }
 
   process.exitCode = exitCode;
-  return { ok: exitCode === 0, exitCode, setupPending };
+  return { ok: exitCode === 0, exitCode, setupPending, extra: committed.extra };
 }
 
-function printHumanResult({ prefix, exitCode, doctorIssues, setupPending }) {
+function printHumanResult({ prefix, exitCode, doctorIssues, setupPending, skillsReport }) {
   const lines = [];
   if (exitCode === 0) {
     lines.push(`${prefix}: installed; doctor OK`);
   } else {
     lines.push(`${prefix}: installed with warnings`);
+  }
+  const installed = Array.isArray(skillsReport?.installed) ? skillsReport.installed : [];
+  if (installed.length > 0) {
+    lines.push(`Skill discovery: ${installed.length} installed (${installed.map((i) => i.skillName).join(", ")}).`);
+  } else {
+    lines.push("Skill discovery: 0 installed, continuing with catalog skills only.");
+  }
+  const untrusted = Array.isArray(skillsReport?.skippedUntrusted) ? skillsReport.skippedUntrusted : [];
+  if (untrusted.length > 0) {
+    lines.push(`Untrusted skill candidates: ${untrusted.map((s) => `${s.package}/${s.skillName}`).join(", ")}`);
   }
   if (Array.isArray(doctorIssues) && doctorIssues.length > 0) {
     lines.push("");
