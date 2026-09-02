@@ -24,6 +24,7 @@ import { existsSync, statSync } from "node:fs";
 import { resolvePackageRoot } from "./package-root.js";
 import { PACKAGE_VERSION, TEMPLATE_SET } from "../version.js";
 import { PROFILES, isValidProfile, DEFAULT_PROFILE } from "../profile.js";
+import { loadWorkflowModelDefaults } from "./workflow-models.js";
 
 export { PACKAGE_VERSION };
 export const TEMPLATE_SET_ID = TEMPLATE_SET;
@@ -296,6 +297,7 @@ export function validateCatalog({ catalog = CATALOG } = {}) {
     /** @type {any} */ (err).catalogValidation = true;
     throw err;
   }
+  loadWorkflowModelDefaults();
   return catalog;
 }
 

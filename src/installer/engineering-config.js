@@ -19,14 +19,13 @@
  */
 
 import { PROFILES, isValidProfile } from "../profile.js";
+import { loadWorkflowModelDefaults } from "./workflow-models.js";
 
 const MODEL_ID_RE = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
 
-const DEFAULTS = Object.freeze({
-  planner: "openai/gpt-5.6-sol",
-  builder: "minimax/MiniMax-M3",
-  finalReviewer: "openai/gpt-5.6-sol",
-});
+function packagedDefaults() {
+  return loadWorkflowModelDefaults().current;
+}
 
 /**
  * Fail-closed config validator. Returns `{ ok, kind, issues }`
@@ -102,7 +101,7 @@ export function resolveModelRoles(cfg, { strict = false, allowDeferred = false }
     }
     return { planner: cfg.models.planner, builder: cfg.models.builder, finalReviewer: cfg.models.finalReviewer };
   }
-  const out = { ...DEFAULTS };
+  const out = { ...packagedDefaults() };
   if (cfg && cfg.models) {
     for (const [role, id] of Object.entries(cfg.models)) {
       if (id && typeof id === "string" && id.length > 0) {

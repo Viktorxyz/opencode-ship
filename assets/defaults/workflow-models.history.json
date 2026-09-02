@@ -1,0 +1,7 @@
+[
+  {
+    "planner": "openai/gpt-5.6-sol",
+    "builder": "minimax/MiniMax-M3",
+    "finalReviewer": "openai/gpt-5.6-sol"
+  }
+]

@@ -46,6 +46,7 @@
   "files": [
     "dist",
     "assets/agents",
+    "assets/defaults",
     "assets/commands",
     "assets/skills",
     "schema",

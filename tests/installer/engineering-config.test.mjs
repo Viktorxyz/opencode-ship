@@ -52,7 +52,7 @@ test("validateEngineeringConfig: rejects mirrorToIssue=false (currently mandator
 test("resolveModelRoles: prefers explicit config, falls back to defaults", () => {
   const r = resolveModelRoles({ models: { planner: "minimax/MiniMax-M3" } });
   assert.equal(r.planner, "minimax/MiniMax-M3");
-  assert.ok(r.builder);
+  assert.equal(r.builder, "minimax-coding-plan/MiniMax-M3");
   assert.ok(r.finalReviewer);
 });
 
