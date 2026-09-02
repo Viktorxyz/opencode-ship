@@ -102,8 +102,9 @@ function parsePorcelain(text) {
  *
  * @param {string} mainRepo
  * @param {string} worktreePath
+ * @param {{ allowCurrentLinked?: boolean }} [options]
  */
-export async function validateLinkedWorktree(mainRepo, worktreePath) {
+export async function validateLinkedWorktree(mainRepo, worktreePath, options = {}) {
   const main = resolve(mainRepo);
   if (!existsSync(main)) {
     return { ok: false, kind: "missing", message: `main repository ${main} does not exist` };
@@ -115,8 +116,14 @@ export async function validateLinkedWorktree(mainRepo, worktreePath) {
   if (!existsSync(wt)) {
     return { ok: false, kind: "missing", message: `worktree ${wt} does not exist` };
   }
-  if (wt === main) {
-    return { ok: false, kind: "main", message: "installs into the main worktree are forbidden" };
+  const isCurrent = wt === main;
+  if (isCurrent) {
+    const gitEntry = options.allowCurrentLinked
+      ? await fs.lstat(join(main, ".git")).catch(() => null)
+      : null;
+    if (!gitEntry?.isFile()) {
+      return { ok: false, kind: "main", message: "installs into the main worktree are forbidden" };
+    }
   }
   // Ancestor-symlink walk: refuse any path whose lexically-named
   // ancestor is a symlink. We walk from wt up to the root.

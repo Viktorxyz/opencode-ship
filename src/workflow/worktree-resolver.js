@@ -55,7 +55,13 @@ export async function resolveWorkflowWorktree(repoRoot, workflowId) {
   }
 
   const manifest = matches[0];
-  if (manifest.schemaVersion !== 2 || manifest.workflowId !== workflowId) {
+  if (manifest.schemaVersion !== 2) {
+    return failureRecord("workflow-mismatch", {
+      expectedSchema: 2,
+      receivedSchema: manifest.schemaVersion,
+    });
+  }
+  if (manifest.workflowId !== workflowId) {
     return failureRecord("workflow-mismatch", {
       expected: workflowId,
       received: manifest.workflowId,
@@ -65,7 +71,9 @@ export async function resolveWorkflowWorktree(repoRoot, workflowId) {
     return failureRecord("missing-worktree-path", { taskId: manifest.taskId });
   }
 
-  const linked = await validateLinkedWorktree(repoRoot, manifest.worktreePath);
+  const linked = await validateLinkedWorktree(repoRoot, manifest.worktreePath, {
+    allowCurrentLinked: true,
+  });
   if (!linked.ok) {
     return failureRecord("invalid-worktree", {
       reason: linked.kind,

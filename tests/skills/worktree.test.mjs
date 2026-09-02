@@ -52,6 +52,49 @@ test("validateLinkedWorktree: accepts a registered linked worktree", async () =>
   }
 });
 
+test("validateLinkedWorktree: refuses the current linked checkout by default", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "opencode-ship-wt-"));
+  try {
+    git(["init", "-q", "-b", "main", repo]);
+    writeFileSync(join(repo, "README.md"), "# x\n");
+    git(["-C", repo, "add", "README.md"]);
+    git(["-C", repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]);
+    const linked = join(repo, ".worktrees", "issue-current");
+    mkdirSync(linked, { recursive: true });
+    git(["-C", repo, "worktree", "add", "-b", "issue-current", linked]);
+
+    const r = await validateLinkedWorktree(linked, linked);
+
+    assert.equal(r.ok, false);
+    assert.equal(r.kind, "main");
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("validateLinkedWorktree: permits only a registered linked current checkout when opted in", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "opencode-ship-wt-"));
+  try {
+    git(["init", "-q", "-b", "main", repo]);
+    writeFileSync(join(repo, "README.md"), "# x\n");
+    git(["-C", repo, "add", "README.md"]);
+    git(["-C", repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"]);
+    const linked = join(repo, ".worktrees", "issue-current");
+    mkdirSync(linked, { recursive: true });
+    git(["-C", repo, "worktree", "add", "-b", "issue-current", linked]);
+
+    const accepted = await validateLinkedWorktree(linked, linked, { allowCurrentLinked: true });
+    const primary = await validateLinkedWorktree(repo, repo, { allowCurrentLinked: true });
+
+    assert.equal(accepted.ok, true);
+    assert.equal(accepted.path, linked);
+    assert.equal(primary.ok, false);
+    assert.equal(primary.kind, "main");
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("validateLinkedWorktree: refuses a non-registered path outside the main repo", async () => {
   const repo = mkdtempSync(join(tmpdir(), "opencode-ship-wt-"));
   try {

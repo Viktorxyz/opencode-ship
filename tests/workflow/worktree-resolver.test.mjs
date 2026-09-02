@@ -93,7 +93,7 @@ function createLinkedWorktree(repoRoot, name) {
   return path;
 }
 
-test("resolver returns the exact manifest and canonical registered worktree", async () => {
+test("resolver returns the exact manifest and canonical registered worktree from the primary checkout", async () => {
   const fixture = makeFixtureRepo();
   try {
     await seedRun(fixture.dir);
@@ -102,6 +102,28 @@ test("resolver returns the exact manifest and canonical registered worktree", as
     await writeManifest(fixture.dir, manifest);
 
     const result = await resolveWorkflowWorktree(fixture.dir, "wf-80");
+
+    assert.deepEqual(result, {
+      ok: true,
+      workflowId: "wf-80",
+      issueNumber: 80,
+      manifest,
+      worktreePath: realpathSync(worktreePath),
+    });
+  } finally {
+    cleanupFixture(fixture);
+  }
+});
+
+test("resolver returns the registered feature worktree when invoked from that worktree", async () => {
+  const fixture = makeFixtureRepo();
+  try {
+    await seedRun(fixture.dir);
+    const worktreePath = createLinkedWorktree(fixture.dir, "workflow-80");
+    const manifest = manifestFor({ worktreePath });
+    await writeManifest(fixture.dir, manifest);
+
+    const result = await resolveWorkflowWorktree(worktreePath, "wf-80");
 
     assert.deepEqual(result, {
       ok: true,
@@ -242,10 +264,12 @@ test("resolver rejects schema and workflow identity mismatches", async () => {
     await writeManifest(fixture.dir, manifestFor({ schemaVersion: 1 }));
 
     const schemaMismatch = await resolveWorkflowWorktree(fixture.dir, "wf-80");
-    assert.equal(schemaMismatch.ok, false);
-    assert.equal(schemaMismatch.kind, "workflow-mismatch");
-    assert.equal(schemaMismatch.expected, "wf-80");
-    assert.equal(schemaMismatch.received, "wf-80");
+    assert.deepEqual(schemaMismatch, {
+      ok: false,
+      kind: "workflow-mismatch",
+      expectedSchema: 2,
+      receivedSchema: 1,
+    });
 
     await writeManifest(fixture.dir, manifestFor({ workflowId: "wf-other" }));
     const workflowMismatch = await resolveWorkflowWorktree(fixture.dir, "wf-80");
@@ -255,6 +279,24 @@ test("resolver rejects schema and workflow identity mismatches", async () => {
       expected: "wf-80",
       received: "wf-other",
     });
+  } finally {
+    cleanupFixture(fixture);
+  }
+});
+
+test("resolver rejects the real primary checkout as a workflow worktree", async () => {
+  const fixture = makeFixtureRepo();
+  try {
+    await seedRun(fixture.dir);
+    const manifest = manifestFor({ worktreePath: fixture.dir });
+    await writeManifest(fixture.dir, manifest);
+
+    const result = await resolveWorkflowWorktree(fixture.dir, "wf-80");
+
+    assert.equal(result.ok, false);
+    assert.equal(result.kind, "invalid-worktree");
+    assert.equal(result.reason, "main");
+    assert.deepEqual(await readManifest(fixture.dir, manifest.taskId), manifest);
   } finally {
     cleanupFixture(fixture);
   }
@@ -290,7 +332,6 @@ test("resolver maps invalid linked-worktree paths without mutating manifests", a
     const cases = [
       [join(fixture.dir, ".worktrees", "missing"), "missing"],
       [unregisteredPath, "unlinked"],
-      [fixture.dir, "main"],
       [aliasPath, "ancestor-symlink"],
     ];
 
