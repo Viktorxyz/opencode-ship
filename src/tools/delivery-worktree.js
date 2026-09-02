@@ -78,9 +78,6 @@ export function createWorktreeTool(deps) {
     if (m.state !== "issue-linked" && m.state !== "worktree-created") {
       return { kind: "manifest-state", state: m.state };
     }
-    if (m.schemaVersion >= 2 && !m.workflowId) {
-      return { kind: "missing-workflow-link", taskId: m.taskId };
-    }
     if (!input.branch) return { kind: "missing-input", field: "branch" };
     if (!input.worktreeRelativePath) {
       return { kind: "missing-input", field: "worktreeRelativePath" };
@@ -94,6 +91,9 @@ export function createWorktreeTool(deps) {
         resolvedPath: worktreePath,
         expectedRoot: resolve(deps.repoRoot, worktreeRoot),
       };
+    }
+    if (m.schemaVersion >= 2 && !m.workflowId) {
+      return { kind: "missing-workflow-link", taskId: m.taskId };
     }
 
     const remote = deps.remote ?? "origin";

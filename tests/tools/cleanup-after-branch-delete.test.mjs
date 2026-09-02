@@ -2,7 +2,7 @@ import { test, suite } from "node:test";
 import assert from "node:assert/strict";
 import { loadAdapter } from "../../src/adapter.js";
 import { createIssueTool, createWorktreeTool, createCleanupTool } from "../../src/index.js";
-import { makeFixtureRepo, cleanupFixture } from "../helpers/fixture.mjs";
+import { makeFixtureRepo, cleanupFixture, linkWorkflow } from "../helpers/fixture.mjs";
 import { writeManifest } from "../../src/state/manifest-store.js";
 import { spawnSync } from "node:child_process";
 
@@ -63,6 +63,7 @@ async function bootstrapMergedWorktree(fixture) {
     branch: "backend/t1",
     labels: [],
   });
+  await linkWorkflow(fixture.dir, "t1");
   const worktree = createWorktreeTool({
     repoRoot: fixture.dir,
     remote: "origin",

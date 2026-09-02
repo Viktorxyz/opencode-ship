@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { loadAdapter } from "../../src/adapter.js";
 import { createCleanupTool, createIssueTool, createWorktreeTool } from "../../src/index.js";
 import { writeManifest } from "../../src/state/manifest-store.js";
-import { makeFixtureRepo, cleanupFixture, git } from "../helpers/fixture.mjs";
+import { makeFixtureRepo, cleanupFixture, git, linkWorkflow } from "../helpers/fixture.mjs";
 
 /**
  * Regression tests for delivery_cleanup bootstrap-failure recovery.
@@ -67,6 +67,7 @@ async function bootstrapWorktreeNoBootstrap(fixture) {
     branch: "backend/t1",
     labels: [],
   });
+  await linkWorkflow(fixture.dir, "t1");
   const worktree = createWorktreeTool({
     repoRoot: fixture.dir,
     remote: "origin",

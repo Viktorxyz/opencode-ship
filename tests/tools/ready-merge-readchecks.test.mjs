@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { loadAdapter } from "../../src/adapter.js";
 import { createReadyTool, createMergeTool, createVerifyTool, createIssueTool, createWorktreeTool, createPrTool, createReviewTool } from "../../src/index.js";
 import { writeManifest } from "../../src/state/manifest-store.js";
-import { makeFixtureRepo, cleanupFixture, git } from "../helpers/fixture.mjs";
+import { makeFixtureRepo, cleanupFixture, git, linkWorkflow } from "../helpers/fixture.mjs";
 
 /**
  * Regression tests for delivery_ready / delivery_merge readChecks argv.
@@ -61,6 +61,7 @@ async function bootstrapMergedWorktree(fixture) {
     branch: "backend/t1",
     labels: [],
   });
+  await linkWorkflow(fixture.dir, "t1");
   const worktree = createWorktreeTool({
     repoRoot: fixture.dir,
     remote: "origin",

@@ -119,11 +119,13 @@ strong planner and task reviewer child sessions.
 5. On the final task, dispatch the parallel Standards + Spec
    final reviewers against the same HEAD, run the verifier
    in an independent session, and bind every gate to one HEAD.
-6. On explicit user request, run the merge with a fresh gate
-   recheck.
-7. On resume, reconcile the durable state with the live Git
-   state and never duplicate work already recorded in a
-   commit trailer.
+  6. On explicit user request, run the merge with a fresh gate
+     recheck.
+  7. On resume, reconcile the durable state with the live Git
+     state and never duplicate work already recorded in a
+     commit trailer.
+  8. After the user explicitly closes an unmerged PR and requests
+     abandon, call `delivery_abandon`. Never close the PR yourself.
 
 ## What you never do
 

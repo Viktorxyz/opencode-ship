@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { loadAdapter } from "../../src/adapter.js";
 import { createIssueTool } from "../../src/tools/delivery-issue.js";
 import { createWorktreeTool } from "../../src/tools/delivery-worktree.js";
-import { makeFixtureRepo, cleanupFixture } from "../helpers/fixture.mjs";
+import { makeFixtureRepo, cleanupFixture, linkWorkflow } from "../helpers/fixture.mjs";
 import { readManifest } from "../../src/state/manifest-store.js";
 
 /**
@@ -53,6 +53,7 @@ suite("delivery_issue idempotency", { concurrency: false }, () => {
         labels: [],
       });
       assert.equal(first.kind, undefined);
+      await linkWorkflow(fixture.dir, "t1");
 
       const worktree = createWorktreeTool({
         repoRoot: fixture.dir,

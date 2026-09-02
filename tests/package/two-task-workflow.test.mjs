@@ -224,7 +224,7 @@ test("packed: two-task workflow through public tool surface only", async (t) => 
     driver: fakeDriver,
     directory: repo,
   });
-  assert.ok(result?.tool, "packed plugin must expose the 32-tool surface");
+  assert.ok(result?.tool, "packed plugin must expose the 34-tool surface");
   const toolIds = Object.keys(result.tool).sort();
   for (const required of [
     "ship_plan_start", "ship_plan_submit", "ship_plan_approve", "ship_run_start",

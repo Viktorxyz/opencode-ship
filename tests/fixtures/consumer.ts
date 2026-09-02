@@ -98,6 +98,7 @@ const fakePr = {
   draft: true,
   mergeable: "MERGEABLE" as const,
   mergeStateStatus: "CLEAN",
+  state: "OPEN" as const,
   merged: false,
   mergedAt: null,
 };

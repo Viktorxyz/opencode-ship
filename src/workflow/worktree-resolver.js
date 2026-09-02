@@ -14,6 +14,7 @@ function failureRecord(kind, details = {}) {
  *
  * @param {string} repoRoot
  * @param {string} workflowId
+ * @returns {Promise<{ ok: boolean, kind?: string, worktreePath?: string, [key: string]: unknown }>}
  */
 export async function resolveWorkflowWorktree(repoRoot, workflowId) {
   const runState = await readRunState(repoRoot, workflowId);

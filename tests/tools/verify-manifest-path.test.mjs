@@ -2,7 +2,7 @@ import { test, suite } from "node:test";
 import assert from "node:assert/strict";
 import { loadAdapter } from "../../src/adapter.js";
 import { createIssueTool, createWorktreeTool, createVerifyTool } from "../../src/index.js";
-import { makeFixtureRepo, cleanupFixture } from "../helpers/fixture.mjs";
+import { makeFixtureRepo, cleanupFixture, linkWorkflow } from "../helpers/fixture.mjs";
 
 /**
  * Regression test for delivery_verify manifestPath correctness.
@@ -38,9 +38,10 @@ suite("delivery_verify manifestPath", { concurrency: false }, () => {
         baseBranch: "main",
         baseSha: "abc",
         branch: "backend/t1",
-        labels: [],
-      });
-      const worktree = createWorktreeTool({
+    labels: [],
+  });
+  await linkWorkflow(fixture.dir, "t1");
+  const worktree = createWorktreeTool({
         repoRoot: fixture.dir,
         remote: "origin",
         adapter: adapter.adapter,
