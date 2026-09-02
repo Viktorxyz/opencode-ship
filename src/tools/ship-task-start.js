@@ -22,6 +22,7 @@ import { dispatchWorker, authorizeControllerCall, ROLES } from "../runtime/openc
 import { readPlanRevision } from "../workflow/plan-store.js";
 import { canonicalJson } from "../installer/json-pointer.js";
 import { createHash } from "node:crypto";
+import { resolveWorkflowWorktree } from "../workflow/worktree-resolver.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -76,10 +77,18 @@ export function createTaskStartTool(deps) {
     const briefHash = createHash("sha256").update(canonicalJson(task), "utf8").digest("hex");
     const round = runState.round > 0 ? runState.round : 1;
     try {
+      const resolved = await resolveWorkflowWorktree(deps.repoRoot, workflowId);
+      if (!resolved.ok) {
+        return failure("task-start", `workflow worktree resolution failed: ${resolved.kind}`, {
+          operationId: opId,
+          retryable: false,
+          details: resolved,
+        });
+      }
       let dispatchResult = null;
       if (deps.opencodeClient) {
         dispatchResult = await dispatchWorker({
-          repoRoot: deps.repoRoot,
+          repoRoot: resolved.worktreePath,
           workflowId,
           role: ROLES.BUILDER,
           keyInput: { taskId, round },

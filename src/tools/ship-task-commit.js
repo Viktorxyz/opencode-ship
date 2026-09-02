@@ -19,6 +19,7 @@ import { publishImmutableJson } from "../state/durable-store.js";
 import { appendRunEvent, readRunState, RUN_EVENT_KINDS, buildCommitTrailers } from "../workflow/run-controller.js";
 import { readLock, isSetupComplete } from "../installer/lock.js";
 import { authorizeControllerCall } from "../runtime/opencode-dispatcher.js";
+import { resolveWorkflowWorktree } from "../workflow/worktree-resolver.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -113,12 +114,20 @@ export function createTaskCommitTool(deps) {
       return failure("task-commit", `round does not match the active run (${runState.round})`, { operationId: opId, retryable: false });
     }
     try {
-      const actualHead = (await spawn("git", ["-C", deps.repoRoot, "rev-parse", "HEAD"], deps.repoRoot)).trim();
+      const resolved = await resolveWorkflowWorktree(deps.repoRoot, workflowId);
+      if (!resolved.ok) {
+        return failure("task-commit", `workflow worktree resolution failed: ${resolved.kind}`, {
+          operationId: opId,
+          retryable: false,
+          details: resolved,
+        });
+      }
+      const actualHead = (await spawn("git", ["-C", resolved.worktreePath, "rev-parse", "HEAD"], resolved.worktreePath)).trim();
       if (actualHead !== expectedHead) {
         return failure("task-commit", `HEAD drift (expected ${expectedHead.slice(0, 8)}, got ${actualHead.slice(0, 8)})`, { operationId: opId, retryable: false });
       }
       const trailers = buildCommitTrailers({ workflowId, planHash, taskId, round, reviewHash });
-      const message = await spawn("git", ["-C", deps.repoRoot, "log", "-1", "--format=%B", expectedHead], deps.repoRoot);
+      const message = await spawn("git", ["-C", resolved.worktreePath, "log", "-1", "--format=%B", expectedHead], resolved.worktreePath);
       const trailerLines = trailers.map((t) => `  ${t}`).join("\n");
       const missingTrailer = trailers.find((trailer) => !message.includes(trailer));
       if (missingTrailer) {
