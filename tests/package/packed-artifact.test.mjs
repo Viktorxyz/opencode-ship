@@ -84,7 +84,7 @@ test("packed-artifact: bundled plugin loads with the canonical tool set in an is
   ], { encoding: "utf8" });
   assert.equal(childProc.status, 0, childProc.stderr + "\n" + childProc.stdout);
   const ids = JSON.parse(childProc.stdout.trim());
-  assert.equal(packedPackage.version, "1.1.8");
+  assert.equal(packedPackage.version, "1.1.9-rc.1");
   assert.ok(ids.includes("ship_deliver"));
   assert.ok(ids.includes("ship_issue"));
   assert.ok(ids.includes("delivery_issue"));
