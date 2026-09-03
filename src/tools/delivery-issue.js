@@ -11,6 +11,7 @@
 
 import { createManifest, transition } from "../state/lifecycle.js";
 import { readManifest, writeManifest } from "../state/manifest-store.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
 
 export function createIssueTool(deps) {
   return async function issue(input) {
@@ -21,6 +22,7 @@ export function createIssueTool(deps) {
 
     const existing = await readManifest(deps.repoRoot, input.taskId);
     if (existing) {
+      const stage = "track";
       return {
         contractVersion: 1,
         created: false,
@@ -28,6 +30,8 @@ export function createIssueTool(deps) {
         issueUrl: `https://github.com/${deps.repoSlug}/issues/${existing.issueNumber}`,
         manifestPath: "preserved",
         preserved: true,
+        progress: progressLine(stage, { number: existing.issueNumber }),
+        next: nextLine(stage),
       };
     }
 
@@ -68,12 +72,15 @@ export function createIssueTool(deps) {
       updatedAt: new Date().toISOString(),
     };
     const path = await writeManifest(deps.repoRoot, next);
+    const stage = "track";
     return {
       contractVersion: 1,
       created: ensured.created,
       issueNumber: ensured.summary.number,
       issueUrl: ensured.summary.url,
       manifestPath: path,
+      progress: progressLine(stage, { number: ensured.summary.number }),
+      next: nextLine(stage),
     };
   };
 }

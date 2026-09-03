@@ -30,6 +30,102 @@ export const DEFAULT_TRUSTED_OWNERS = Object.freeze([
 export const DEFAULT_MIN_INSTALLS = 1000;
 export const MAX_TRUSTED_PER_RUN = 5;
 
+// Strip ANSI CSI sequences (color, bold, reset) before parsing.
+const ANSI_RE = /\x1B\[[0-9;]*m/g;
+
+/**
+ * @typedef {{ package: string, skill: string, installs: number }} SkillCandidate
+ */
+
+/**
+ * Parse a `skills find <query>` candidate line.
+ *
+ * Two real-world shapes are accepted:
+ *
+ *   owner/repo@skill <count><K|M> installs
+ *   owner/repo@skill <count> installs
+ *
+ * The CLI may print a `└ <url>` continuation line under the
+ * candidate; that line is ignored.
+ *
+ * Examples:
+ *   "vercel-labs/agent-skills@vercel-react-best-practices 684.1K installs"
+ *     -> { package: "vercel-labs/agent-skills", skill: "vercel-react-best-practices", installs: 684100 }
+ *   "owner/repo@skill 2100 installs"
+ *     -> { ..., installs: 2100 }
+ *   "owner/repo@skill 1.2M installs"
+ *     -> { ..., installs: 1200000 }
+ *
+ * The parser is permissive of trailing whitespace and of
+ * intermediate blank lines / decorative characters. Lines that
+ * do not match the expected shape are skipped silently so a
+ * single decoration line does not poison the whole batch.
+ *
+ * @param {string} text
+ * @returns {SkillCandidate[]}
+ */
+export function parseFindOutput(text) {
+  if (typeof text !== "string") return [];
+  const stripped = text.replace(ANSI_RE, "");
+  const lines = stripped.split(/\r?\n/);
+  const candidates = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    // Match `<owner>/<repo>@<skill> <count>[K|M] installs` where
+    // count is a positive integer or decimal.
+    const match = line.match(/^([a-zA-Z0-9_.\-]+)\/([a-zA-Z0-9_.\-]+)@([a-zA-Z0-9_.\-]+)\s+([0-9]+(?:\.[0-9]+)?)([KM]?)\s+installs\b/i);
+    if (!match) continue;
+    const num = Number.parseFloat(match[4]);
+    if (!Number.isFinite(num)) continue;
+    let installs = Math.round(num);
+    const suffix = match[5].toUpperCase();
+    if (suffix === "K") installs = Math.round(num * 1000);
+    else if (suffix === "M") installs = Math.round(num * 1_000_000);
+    candidates.push({
+      package: `${match[1]}/${match[2]}`,
+      skill: match[3],
+      installs,
+    });
+  }
+  return candidates;
+}
+
+/**
+ * @typedef {{ ok: true, candidates: SkillCandidate[], raw: string }} DiscoverSuccess
+ * @typedef {{ ok: false, error: { kind: "registry-contract-mismatch", raw: string } }} DiscoverContractMismatch
+ * @typedef {{ ok: false, error: { kind: "missing-args" } }} DiscoverMissingArgs
+ * @typedef {{ ok: false, error: { kind: "registry-unavailable", stderr: string } }} DiscoverUnavailable
+ */
+
+/**
+ * Wrap the parser with a contract check: if the registry returns
+ * non-empty output that contains no parseable candidates, the
+ * CLI has drifted from the contract the installer relies on.
+ *
+ * Empty output is a valid "no candidates" response and is NOT a
+ * contract mismatch.
+ *
+ * @param {string} text
+ * @returns {DiscoverSuccess | DiscoverContractMismatch}
+ */
+export function discoverSkillsWithStdout(text) {
+  const raw = typeof text === "string" ? text : "";
+  const candidates = parseFindOutput(raw);
+  if (candidates.length > 0) {
+    return { ok: true, candidates, raw };
+  }
+  // Empty stdout: registry had no candidates for this query.
+  if (raw.trim().length === 0) {
+    return { ok: true, candidates, raw };
+  }
+  // Non-empty stdout but no parseable candidates: contract drift.
+  return {
+    ok: false,
+    error: { kind: "registry-contract-mismatch", raw },
+  };
+}
+
 function runCapture(cmd, args, options) {
   const cwd = options?.cwd;
   const timeoutMs = options?.timeoutMs ?? 60000;
@@ -54,7 +150,10 @@ function runCapture(cmd, args, options) {
 /**
  * Run `npx skills find <query>` against the consumer repo and
  * parse the candidate list. The CLI emits one candidate per line
- * as `<skill> <package> <installs>`.
+ * as `<owner>/<repo>@<skill> <count>[K|M] installs`.
+ *
+ * @param {{ repoRoot: string, query: string, npmBin?: string }} input
+ * @returns {Promise<DiscoverSuccess | DiscoverContractMismatch | DiscoverMissingArgs | DiscoverUnavailable>}
  */
 export async function discoverSkills({ repoRoot, query, npmBin = "npx" }) {
   if (!repoRoot || !query) {
@@ -64,22 +163,7 @@ export async function discoverSkills({ repoRoot, query, npmBin = "npx" }) {
   if (r.code !== 0 && !r.stdout.trim()) {
     return { ok: false, error: { kind: "registry-unavailable", stderr: r.stderr } };
   }
-  return { ok: true, candidates: parseFindOutput(r.stdout), raw: r.stdout };
-}
-
-function parseFindOutput(text) {
-  const lines = text.split(/\r?\n/);
-  const candidates = [];
-  for (const line of lines) {
-    const match = line.match(/^\s*([a-zA-Z0-9_.\-]+)\s+([a-zA-Z0-9_.\-/]+)\s+([0-9]+)\s*$/);
-    if (!match) continue;
-    candidates.push({
-      skill: match[1],
-      package: match[2],
-      installs: Number.parseInt(match[3], 10),
-    });
-  }
-  return candidates;
+  return discoverSkillsWithStdout(r.stdout);
 }
 
 /**

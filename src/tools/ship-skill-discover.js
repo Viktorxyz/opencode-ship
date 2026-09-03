@@ -33,13 +33,16 @@ export function createSkillDiscoverTool(deps) {
     } catch (err) {
       return failure("skill-discover", `registry unavailable: ${err?.message ?? err}`, { operationId: opId, retryable: true });
     }
-    if (!result.ok) {
-      return failure("skill-discover", result.error?.kind ?? "registry-unavailable", { operationId: opId, retryable: true });
+    if (result.ok !== true) {
+      const errObj = /** @type {{ error?: { kind?: string } }} */ (result);
+      const kind = errObj.error?.kind ?? "registry-unavailable";
+      return failure("skill-discover", kind, { operationId: opId, retryable: true });
     }
+    const candidates = Array.isArray(result.candidates) ? result.candidates : [];
     const auto = [];
     const needsApproval = [];
     let autoCount = 0;
-    for (const candidate of result.candidates ?? []) {
+    for (const candidate of candidates) {
       if (policy.blocklist.includes(candidate.package)) continue;
       const decision = isAutoInstallable(candidate, policy);
       if (decision.ok && autoCount < policy.maxTrustedPerRun) {
@@ -54,7 +57,7 @@ export function createSkillDiscoverTool(deps) {
       policy,
       auto,
       needsApproval,
-      total: (result.candidates ?? []).length,
+      total: candidates.length,
     }, { operationId: opId });
   };
 }

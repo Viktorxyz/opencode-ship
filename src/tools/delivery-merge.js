@@ -12,6 +12,7 @@ import { transition } from "../state/lifecycle.js";
 import { checkGates, gateFailureEnvelope } from "../gates.js";
 import { readFinalReviewEvidence } from "../workflow/final-review-store.js";
 import { appendRunEvent, RUN_EVENT_KINDS } from "../workflow/run-controller.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
 
 export function createMergeTool(deps) {
   return async function merge(input) {
@@ -74,7 +75,16 @@ export function createMergeTool(deps) {
           data: { mergeSha: merged.mergeSha ?? merged.mergeCommitSha ?? merged.headSha },
         });
       }
-      return { kind: "merge", contractVersion: 1, manifestPath: path, pr: m.prNumber, taskId: m.taskId };
+      const stage = "merge";
+      return {
+        kind: "merge",
+        contractVersion: 1,
+        manifestPath: path,
+        pr: m.prNumber,
+        taskId: m.taskId,
+        progress: progressLine(stage, { sha: merged.headSha.slice(0, 7) }),
+        next: nextLine(stage),
+      };
     }
 
     // A maintainer may merge through GitHub after every gate passed. Reconcile

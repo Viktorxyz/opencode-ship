@@ -1,0 +1,14 @@
+vercel-labs/agent-skills@vercel-react-best-practices 684.1K installs
+└ https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices
+
+vercel-labs/agent-skills@vercel-composition-patterns 12.4K installs
+└ https://skills.sh/vercel-labs/agent-skills/vercel-composition-patterns
+
+anthropics/skills@react-best-practices 2.1K installs
+└ https://skills.sh/anthropics/skills/react-best-practices
+
+random-user/cool-react-tips@cool-react-tips 250 installs
+└ https://skills.sh/random-user/cool-react-tips/cool-react-tips
+
+vercel-labs/agent-skills@vercel-react-view-transitions 1.2M installs
+└ https://skills.sh/vercel-labs/agent-skills/vercel-react-view-transitions

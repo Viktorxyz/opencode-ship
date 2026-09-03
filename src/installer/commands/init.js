@@ -174,6 +174,14 @@ function printHumanResult({ prefix, exitCode, doctorIssues, setupPending, skills
   if (untrusted.length > 0) {
     lines.push(`Untrusted skill candidates: ${untrusted.map((s) => `${s.package}/${s.skillName}`).join(", ")}`);
   }
+  if (skillsReport?.registryUnavailable) {
+    lines.push("Skill registry: unavailable; trusted skill discovery skipped this run.");
+  }
+  const errors = Array.isArray(skillsReport?.errors) ? skillsReport.errors : [];
+  if (errors.length > 0) {
+    lines.push("Skill discovery errors:");
+    for (const err of errors) lines.push(`  - ${err}`);
+  }
   if (Array.isArray(doctorIssues) && doctorIssues.length > 0) {
     lines.push("");
     lines.push("Doctor reported:");

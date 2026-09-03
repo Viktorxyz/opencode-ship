@@ -23,6 +23,7 @@ import { readPlanRevision } from "../workflow/plan-store.js";
 import { canonicalJson } from "../installer/json-pointer.js";
 import { createHash } from "node:crypto";
 import { resolveWorkflowWorktree } from "../workflow/worktree-resolver.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -148,6 +149,8 @@ export function createTaskStartTool(deps) {
         state: state.state,
         sequence: event.sequence,
         round: state.round,
+        progress: progressLine("build", { k: 1, n: 1, title: taskId }),
+        next: nextLine("build"),
       }, { operationId: opId });
     } catch (err) {
       return failure("task-start", String(err?.message ?? err), { operationId: opId, retryable: true });

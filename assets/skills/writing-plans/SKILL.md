@@ -155,13 +155,34 @@ matches what they want. Then stop.
 
 Never ask how to run the work: no Subagent vs Inline, no Tab vs
 Build, no GitHub issues vs Task N, no "what next".
-When the user approves, the Build agent calls `ship_deliver`.
+
+### After the user confirms the plan
+
+The plan is product-shaped, not workflow-shaped. The next step is
+a single fork — does the user want to start building now in this
+chat, or continue later in a new chat?
+
+1. Ask **one** `question`: "Start building now in this chat, or
+   continue later?" Recommend "Start now" — this chat waits until
+   the controller finishes and prints the PR Ready.
+2. On **Start now**: call `ship_issue` (use the plan heading as
+   the title and the plan path as the body) and then call
+   `ship_deliver` with that issue number. Print the envelope
+   `progress` and `next` lines so the user sees the stage. Stop
+   talking about how the work runs; the controller prints Build /
+   Review / Verify / Ready per task.
+3. On **Continue later**: print exactly two lines and stop.
+
+   ```
+   Plan: <path>
+   To build this later, start a new chat and say: Implement the approved plan at <path>
+   ```
 
 ## Ship integration
 
 This skill is part of the engineering profile shipped by
 `opencode-ship@1.0`. Execution is driven by the deterministic
-Ship controller; the cheap builder (`minimax/MiniMax-M3`) cannot
-commit, push, mutate GitHub, mark Ready, or merge. The
+Ship controller; the cheap builder (`minimax-coding-plan/MiniMax-M3`)
+cannot commit, push, mutate GitHub, mark Ready, or merge. The
 verification-before-completion rule is enforced by
 `ship_verify`, not by the model self-asserting completion.

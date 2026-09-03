@@ -29,6 +29,7 @@ import * as git from "../drivers/git.js";
 import { transition } from "../state/lifecycle.js";
 import { readManifest, writeManifest, deleteManifest } from "../state/manifest-store.js";
 import { appendRunEvent, readRunState, RUN_EVENT_KINDS } from "../workflow/run-controller.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
 
 function safeRemoveWorktree(repoRoot, path) {
   const r = spawnSync("git", ["worktree", "remove", path], {
@@ -270,6 +271,8 @@ export function createCleanupTool(deps) {
       manifestPath: null,
       removedPath: wtPath,
       bootstrapRecovery: isBootstrapRecovery,
+      progress: progressLine("cleanup"),
+      next: nextLine("cleanup"),
     };
   };
 }

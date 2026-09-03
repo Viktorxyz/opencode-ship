@@ -16,14 +16,36 @@
 import { success, failure } from "./envelope.js";
 import { resolveModelRoles } from "../installer/engineering-config.js";
 import { isSetupComplete, readLock } from "../installer/lock.js";
-import { join } from "node:path";
+import { join, isAbsolute } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { resolveGitCommonDir, opencodeShipStateDir } from "../state/git-common-dir.js";
 import { dispatchWorker, issueControllerLease, ROLES } from "../runtime/opencode-dispatcher.js";
 import { listManifests, writeManifest } from "../state/manifest-store.js";
+import { nextLine, progressLine } from "../runtime/stages.js";
 
 function normalizeWorkflowId(issueNumber) {
   return `wf-${issueNumber}`;
+}
+
+// Match `.opencode/plans/<file>.md` (and the `.opencode/plans/`
+// prefix) inside the issue body. The plan path is the only signal
+// the planner needs to know "this issue already has an approved
+// markdown; do not redesign the product".
+const PLAN_PATH_RE = /(?:\.opencode\/plans\/[A-Za-z0-9._-]+\.md)/g;
+
+function extractApprovedPlanPath(text) {
+  if (typeof text !== "string") return null;
+  const matches = text.match(PLAN_PATH_RE);
+  if (!matches || matches.length === 0) return null;
+  return matches[0];
+}
+
+function resolveApprovedPlanPath(repoRoot, planPath) {
+  if (!planPath) return null;
+  if (isAbsolute(planPath)) return null;
+  const abs = join(repoRoot, planPath);
+  return existsSync(abs) ? abs : null;
 }
 
 export function createPlanStartTool(deps) {
@@ -49,13 +71,33 @@ export function createPlanStartTool(deps) {
     }
     const workflowId = normalizeWorkflowId(issueNumber);
     const repoRoot = deps.repoRoot;
+    // Pull the real issue title and body via `gh issue view` so
+    // the stack-skill discovery sees the user's actual request
+    // (and any inline plan path) instead of the literal "issue #N".
+    // The lookup is optional: if the driver is unavailable we
+    // fall back to the literal so the controller does not refuse
+    // to dispatch when offline.
+    let issueText = `issue #${issueNumber}`;
+    try {
+      const readIssue = deps.readIssue ?? deps.driver?.readIssue;
+      if (typeof readIssue === "function" && deps.repoSlug) {
+        const issue = await readIssue({ repo: deps.repoSlug, number: issueNumber });
+        const title = typeof issue?.title === "string" ? issue.title : "";
+        const body = typeof issue?.body === "string" ? issue.body : "";
+        const combined = [title, body].filter(Boolean).join("\n").trim();
+        if (combined.length > 0) issueText = combined;
+      }
+    } catch {
+      // Issue read is best-effort: the literal fallback keeps the
+      // controller from refusing to dispatch when gh is offline.
+    }
     let skills = { installed: [], skippedUntrusted: [], skippedPolicy: [], registryUnavailable: false, errors: [] };
     try {
       const syncFn = deps.syncSkills ?? (await import("../skills/sync.js")).syncSkills;
       skills = await syncFn({
         repoRoot,
         mode: "deliver",
-        issueText: `issue #${issueNumber}`,
+        issueText,
         installFn: async (input) => {
           const { createSkillInstallTool } = await import("./ship-skill-install.js");
           const tool = createSkillInstallTool(deps);
@@ -90,17 +132,33 @@ export function createPlanStartTool(deps) {
       const client = deps.opencodeClient;
       let dispatchResult = null;
       if (client) {
-        dispatchResult = await dispatchWorker({
+        // If the issue body carries an approved markdown plan
+        // path, the planner child is dispatched on the cheap
+        // builder model with a compile prompt. The strong
+        // planner model is reserved for issue-only paths where
+        // no approved scope exists yet.
+        const approvedPlanPath = extractApprovedPlanPath(issueText);
+        const approvedPlanAbs = resolveApprovedPlanPath(repoRoot, approvedPlanPath);
+        let plannerPrompt;
+        let plannerModel = models.planner;
+        if (approvedPlanPath && approvedPlanAbs) {
+          plannerPrompt = `Compile PlanV2 from the approved markdown at ${approvedPlanPath}. Do not redesign the product. Map each task to PlanV2 and call ship_plan_submit.`;
+          plannerModel = models.builder;
+        } else {
+          plannerPrompt = `Plan issue #${issueNumber}`;
+        }
+        const dispatchFn = deps.dispatchWorker ?? dispatchWorker;
+        dispatchResult = await dispatchFn({
           repoRoot,
           workflowId,
           role: ROLES.PLANNER,
           keyInput: { revision: 1 },
-          payload: { promptText: `Plan issue #${issueNumber}` },
+          payload: { promptText: plannerPrompt },
           client,
           parentSessionID: ctx.sessionID,
           titleMarker: `ship-planner-${workflowId}`,
           agent: "ship-planner",
-          model: models.planner,
+          model: plannerModel,
         });
       }
       const indexRecord = {
@@ -117,6 +175,7 @@ export function createPlanStartTool(deps) {
         state: "drafting",
       };
       await writeFile(join(wfDir, "index.json"), JSON.stringify(indexRecord, null, 2), "utf8");
+      const stage = "plan";
       return success("plan-start", {
         workflowId,
         issueNumber,
@@ -129,6 +188,8 @@ export function createPlanStartTool(deps) {
           finalReviewer: models.finalReviewer,
         },
         skills,
+        progress: progressLine(stage, { path: `wf-${issueNumber}` }),
+        next: nextLine(stage),
       }, { operationId: opId });
     } catch (err) {
       return failure("plan-start", String(err?.message ?? err), { operationId: opId, retryable: true });
